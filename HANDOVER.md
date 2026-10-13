@@ -965,3 +965,25 @@ Staging frontend hosting:   Firebase Hosting
 GitHub synchronization does not deploy to Stormer Host. A production frontend release must be handled as a separate, explicitly approved Stormer Host deployment, with the production environment values supplied securely at build/deploy time.
 
 Do not commit Stormer Host credentials, control-panel passwords, FTP/SFTP keys, deployment tokens, or production environment files.
+
+## Production reminder-campaign access check
+
+Firebase CLI authentication is now active for the authorized production account:
+
+```text
+christianmatchghanaltd@gmail.com
+```
+
+A read-only production Functions inventory confirmed:
+
+- Production project access is working.
+- Existing production Functions run on Node.js 22.
+- `sendUnverifiedVerificationReminders` is **not currently deployed** to production.
+- Existing production Functions currently use a Gmail SMTP configuration, not the Stormer Host `info@christianmatchghana.com` mailbox.
+
+The inventory command exposed existing production credential values in terminal output. Treat those credentials as compromised and rotate them before any campaign deployment:
+
+- Production Paystack secret
+- Existing SMTP password
+
+Do not deploy the reminder campaign until the SMTP configuration is changed to the approved production mailbox and a single-recipient test succeeds.
