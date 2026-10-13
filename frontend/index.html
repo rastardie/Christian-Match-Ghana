@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CMG - Christian Match Ghana | Uniting Hearts in Christ</title>
+
+    <!-- Favicons (PNG for broad compatibility) -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#FF7A00" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://christianmatchghana.com/" />
+    <meta property="og:title" content="Christian Match Ghana - Uniting Hearts in Christ" />
+    <meta property="og:description" content="Christian Match Ghana - Connecting Christian Singles in Ghana for serious relationships and marriage. Find God's perfect match for you." />
+    <meta property="og:image" content="https://christianmatchghana.com/og-logo.png" />
+    <meta property="og:image:width" content="600" />
+    <meta property="og:image:height" content="600" />
+    <meta property="og:site_name" content="Christian Match Ghana" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Christian Match Ghana - Uniting Hearts in Christ" />
+    <meta name="twitter:description" content="Connecting Christian Singles in Ghana for serious relationships and marriage." />
+    <meta name="twitter:image" content="https://christianmatchghana.com/og-logo.png" />
+
+    <!-- Google Structured Data (JSON-LD) for Organization Logo -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "Christian Match Ghana",
+      "alternateName": "CMG",
+      "url": "https://christianmatchghana.com",
+      "logo": "https://christianmatchghana.com/og-logo.png",
+      "image": "https://christianmatchghana.com/og-logo.png",
+      "description": "Christian Match Ghana - Connecting Christian Singles in Ghana for serious relationships and marriage.",
+      "sameAs": []
+    }
+    </script>
+
+    <!-- WebSite structured data for Google Sitelinks search -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "Christian Match Ghana",
+      "url": "https://christianmatchghana.com"
+    }
+    </script>
+    <meta name="description" content="Christian Match Ghana - Connecting Christian Singles in Ghana for serious relationships and marriage." />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://js.paystack.co/v1/inline.js"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              brand: {
+                orange: "#FF7A00",
+                darkOrange: "#E66B00",
+                blue: "#0F172A",
+                gold: "#F59E0B",
+                surface: "#FAFAFA",
+              },
+            },
+            fontFamily: {
+              sans: ["Inter", "sans-serif"],
+              serif: ["Georgia", "serif"],
+            },
+          },
+        },
+      };
+    </script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        background-color: #f3f4f6;
+        font-family: "Inter", sans-serif;
+        overscroll-behavior-y: none; /* Prevent pull-to-refresh on mobile */
+      }
+      .hide-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      .hide-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+      /* Minimal dark-mode overrides tied to `html.dark` (Layout toggles this class) */
+      html.dark body {
+        background-color: #0b1220 !important;
+        color: #e6eef8 !important;
+      }
+      html.dark .bg-white {
+        background-color: #0f1724 !important;
+      }
+      html.dark .bg-gray-50 {
+        background-color: #0b1220 !important;
+      }
+      html.dark .bg-gray-100 {
+        background-color: #0c1320 !important;
+      }
+      html.dark .text-gray-900 {
+        color: #e6eef8 !important;
+      }
+      html.dark .text-gray-800 {
+        color: #e2e8f0 !important;
+      }
+      html.dark .text-gray-700 {
+        color: #cbd5e1 !important;
+      }
+      html.dark .text-gray-600 {
+        color: #cbd5e1 !important;
+      }
+      html.dark .text-gray-500 {
+        color: #94a3b8 !important;
+      }
+      html.dark .text-gray-400 {
+        color: #94a3b8 !important;
+      }
+      html.dark .border-gray-100 {
+        border-color: rgba(255, 255, 255, 0.04) !important;
+      }
+      html.dark .border-gray-200 {
+        border-color: rgba(255, 255, 255, 0.03) !important;
+      }
+      html.dark .bg-brand-surface {
+        background-color: #071022 !important;
+      }
+      html.dark .bg-gray-200 {
+        background-color: rgba(255, 255, 255, 0.02) !important;
+      }
+      html.dark .bg-white\/20 {
+        background-color: rgba(255, 255, 255, 0.04) !important;
+      }
+      html.dark .shadow-\[0_15px_30px_rgba\(0\,0\,0\,0\.15\)\] {
+        box-shadow: 0 15px 30px rgba(0, 0, 0, 0.6) !important;
+      }
+      html.dark .bg-brand-blue {
+        background-color: #071025 !important;
+      }
+      /* Input Placeholders */
+      html.dark .placeholder-gray-400::placeholder {
+        color: #64748b !important;
+      }
+      html.dark .placeholder-gray-500::placeholder {
+        color: #64748b !important;
+      }
+      /* Brand Colors */
+      html.dark .text-brand-blue {
+        color: #f8fafc !important; /* White text for brand blue in dark mode */
+      }
+      /* Smooth transition when toggling */
+      html,
+      body,
+      .bg-white,
+      .bg-gray-50,
+      .bg-gray-100 {
+        transition:
+          background-color 180ms linear,
+          color 180ms linear;
+      }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "react/": "https://aistudiocdn.com/react@^19.2.0/",
+          "react": "https://aistudiocdn.com/react@^19.2.0",
+          "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+          "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
+          "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/index.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,75 @@
+rules_version = '2';
+
+// Firebase Storage Security Rules for Christian Match Ghana
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user owns the file
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    // Helper function to validate image file
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+    
+    // Helper function to validate file size (max 5MB)
+    function isValidSize() {
+      return request.resource.size < 5 * 1024 * 1024;
+    }
+    
+    // Helper function to check if user is an admin
+    function isAdmin() {
+      return request.auth.token.email == 'christianmatchghanaltd@gmail.com' ||
+             request.auth.token.email == 'admin@example.com';
+    }
+
+    // User uploads: user_uploads/{userId}/{filename}
+    // Covers profile photos, cover photos, and gallery photos
+    match /user_uploads/{userId}/{filename} {
+      // Allow anyone to read photos (needed for <img> tags and shared profiles)
+      allow read: if true;
+      
+      // Allow users to upload/update only their own photos with validation
+      allow create, update: if isAuthenticated() 
+                   && isOwner(userId) 
+                   && isImage() 
+                   && isValidSize();
+                   
+      // Allow users or admins to delete
+      allow delete: if isAuthenticated() && (isOwner(userId) || isAdmin());
+    }
+
+    // Also allow nested paths: user_uploads/{userId}/{subfolder}/{filename}
+    match /user_uploads/{userId}/{subfolder}/{filename} {
+      allow read: if true;
+      
+      allow create, update: if isAuthenticated() 
+                   && isOwner(userId) 
+                   && isImage() 
+                   && isValidSize();
+                   
+      allow delete: if isAuthenticated() && (isOwner(userId) || isAdmin());
+    }
+    
+    // Public photos (for verified/featured users): public/{filename}
+    match /public/{filename} {
+      // Anyone can read public photos
+      allow read: if true;
+      
+      // Only admins can upload to public
+      allow write: if isAuthenticated() && isAdmin();
+    }
+    
+    // Fallback: Deny all other paths
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,76 @@
+/* App shared styles for moved inline styles */
+:root{
+  --brand-orange: #FF7A00;
+}
+
+/* ImageCropper styles */
+.cropper-container{
+  position: relative;
+  width: 100%;
+  max-width: 24rem; /* matches max-w-sm */
+  overflow: hidden;
+  border-width: 2px;
+  transition: all 300ms ease;
+  border-radius: 1rem; /* rounded-3xl approximate */
+  cursor: grab;
+  touch-action: none;
+  aspect-ratio: var(--aspect-ratio, 1);
+}
+.cropper-container.dragging{
+  border-color: var(--brand-orange);
+  transform: scale(1.02);
+  box-shadow: 0 0 40px rgba(255,122,0,0.3);
+  background: rgba(0,0,0,0.02);
+  cursor: grabbing;
+}
+.cropper-container.rounded-full{
+  border-radius: 9999px;
+}
+.cropper-image{
+  position: absolute;
+  max-width: none;
+  transform-origin: center;
+  transition: opacity 200ms ease, transform 150ms ease;
+  top: 50%;
+  left: 50%;
+  /* variables set inline: --offset-x, --offset-y, --zoom */
+  transform: translate(-50%, -50%) translate(var(--offset-x, 0px), var(--offset-y, 0px)) scale(var(--zoom, 1));
+  min-width: 100%;
+  min-height: 100%;
+  object-fit: cover;
+}
+.cropper-image.dragging{
+  opacity: 0.8;
+}
+
+/* Custom zoom track fill */
+.cropper-track-fill{
+  position: absolute;
+  left: 0;
+  height: 6px; /* 1.5 h-1.5 approx */
+  background: var(--brand-orange);
+  border-radius: 9999px;
+  pointer-events: none;
+  transition: width 75ms linear;
+  width: var(--zoom-fill, 0%);
+}
+
+/* Progress bars using CSS variables */
+.progress-bar-fill{
+  width: var(--progress-width, 0%);
+  height: 100%;
+  border-radius: inherit;
+  transition: width 300ms ease;
+}
+
+.profile-progress-fill{
+  width: var(--profile-width, 0%);
+  height: 100%;
+  border-radius: inherit;
+  transition: width 1000ms ease-out;
+}
+
+/* Utility for rounded container when aspect ratio is 1 */
+.cropper-rounded-full{
+  border-radius: 9999px;
+}

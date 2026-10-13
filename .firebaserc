@@ -1,0 +1,6 @@
+{
+  "projects": {
+    "staging": "christian-match-ghana",
+    "production": "christianmatch-app"
+  }
+}

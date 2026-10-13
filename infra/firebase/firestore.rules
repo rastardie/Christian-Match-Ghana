@@ -1,0 +1,146 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is authenticated
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user owns a document
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Helper function to check if user is an admin
+    // Update the email list or add 'isAdmin: true' to your user document in Firestore to verify
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'christianmatchghanaltd@gmail.com' || 
+        request.auth.token.email == 'admin@example.com' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true)
+      );
+    }
+    
+    // ============================================
+    // USERS/PROFILES COLLECTION
+    // ============================================
+    match /users/{userId} {
+      // Anyone can read profile data (needed for browsing)
+      allow read: if isSignedIn();
+      
+      // Users can only create/update their own profile
+      allow create, update: if isOwner(userId);
+      
+      
+      // Users can delete their own profile or admins
+      allow delete: if isOwner(userId) || isAdmin();
+      
+      // Subcollection: User's uploaded files metadata
+      match /files/{fileId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+    }
+    
+    // ============================================
+    // CHATS COLLECTION
+    // ============================================
+    match /chats/{chatId} {
+      // Users can only read chats they are part of
+      allow read: if isSignedIn() && 
+                     (request.auth.uid in resource.data.participants || isAdmin());
+      
+      // Users can create chats where they are a participant
+      allow create: if isSignedIn() && 
+                       request.auth.uid in request.resource.data.participants;
+      
+      // Users can update chats they are part of
+      allow update: if isSignedIn() && 
+                       request.auth.uid in resource.data.participants;
+      
+      // Users can delete chats they are part of
+      allow delete: if isSignedIn() && 
+                       request.auth.uid in resource.data.participants;
+    }
+    
+    // ============================================
+    // MESSAGES COLLECTION
+    // ============================================
+    match /messages/{messageId} {
+      allow read, write: if isSignedIn(); // Simplified for now to ensure delivery
+    }
+    
+    // ============================================
+    // COMMUNITY/PRAYER REQUESTS COLLECTION
+    // ============================================
+    match /prayer_requests/{prayerId} {
+      // Authenticated users can read prayers
+      allow read: if isSignedIn();
+      
+      // Create: Users can create if they set themselves as owner
+      allow create: if isSignedIn() &&
+                       request.resource.data.userId == request.auth.uid;
+      
+      // Update: Owner can edit content. Everyone can update counters (pray/comment)
+      allow update: if isSignedIn() && (
+        isOwner(resource.data.userId) || isAdmin() ||
+        request.resource.data.diff(resource.data).affectedKeys().hasAny(['prayingCount', 'prayedBy', 'commentCount'])
+      );
+      
+      // Users can delete their own prayers or admins
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
+      
+      // ============================================
+      // COMMENTS SUBCOLLECTION
+      // ============================================
+      match /comments/{commentId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+        allow update, delete: if isOwner(resource.data.userId) || isAdmin();
+      }
+    }
+    
+    // ============================================
+    // CALLS COLLECTION
+    // ============================================
+    match /calls/{callId} {
+      // Users can read calls where they are caller or receiver
+      allow read: if isSignedIn() && (
+        request.auth.uid == resource.data.callerId ||
+        request.auth.uid == resource.data.receiverId
+      );
+      
+      // Users can create calls where they are the caller
+      allow create: if isSignedIn() && 
+                       request.auth.uid == request.resource.data.callerId;
+      
+      // Users can update calls they are part of (to answer, end, etc)
+      allow update: if isSignedIn() && (
+        request.auth.uid == resource.data.callerId ||
+        request.auth.uid == resource.data.receiverId
+      );
+      
+      // Users can delete calls they are part of
+      allow delete: if isSignedIn() && (
+        request.auth.uid == resource.data.callerId ||
+        request.auth.uid == resource.data.receiverId
+      );
+    }
+    
+    // ============================================
+    // BLOCKS COLLECTION
+    // ============================================
+    match /blocks/{blockId} {
+      allow read, write: if isSignedIn();
+    }
+    // ============================================
+    // PAYMENTS COLLECTION
+    // ============================================
+    match /payments/{paymentId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAdmin();
+    }
+  }
+}

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <circle cx="100" cy="100" r="95" fill="white" stroke="black" stroke-width="10"/>
+  <path d="M40,60 C25,45 10,65 40,85 C70,65 55,45 40,60 Z" fill="#DC2626" transform="translate(10,10)"/>
+  <text x="100" y="90" text-anchor="middle" font-family="serif" font-weight="bold" font-size="35" fill="#991B1B">Christian</text>
+  <text x="100" y="125" text-anchor="middle" font-family="serif" font-weight="bold" font-size="40" fill="#EAB308">Match</text>
+  <text x="100" y="160" text-anchor="middle" font-family="serif" font-weight="bold" font-size="40" fill="#15803d">Ghana</text>
+</svg>
