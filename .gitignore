@@ -16,3 +16,4 @@ backend/functions/node_modules/
 .firebase-emulator-data/
 firebase-debug.log
 firestore-debug.log
+unverified-users-production.xlsx
