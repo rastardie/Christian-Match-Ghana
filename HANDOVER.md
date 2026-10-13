@@ -951,3 +951,17 @@ backend/functions/node_modules/.bin/firebase deploy \
 - Never copy `frontend/.env.local` into a production build.
 - Never commit SMTP passwords, Paystack secret keys, service-account files, or native Firebase messaging credentials.
 - Verify the Firebase Console Auth templates, authorized domains, SMTP settings, and Paystack mode separately; GitHub sync cannot alter those settings.
+
+## Production hosting boundary
+
+The production frontend is hosted through **Stormer Host**. The Stormer Host client-area product reference was supplied separately and is intentionally not stored in source control.
+
+```text
+Production frontend hosting: Stormer Host
+Firebase role:              Auth, Firestore, Storage, Functions
+Staging frontend hosting:   Firebase Hosting
+```
+
+GitHub synchronization does not deploy to Stormer Host. A production frontend release must be handled as a separate, explicitly approved Stormer Host deployment, with the production environment values supplied securely at build/deploy time.
+
+Do not commit Stormer Host credentials, control-panel passwords, FTP/SFTP keys, deployment tokens, or production environment files.
