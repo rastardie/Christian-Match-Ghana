@@ -874,3 +874,80 @@ CMG now follows the onb mobile pattern:
 - Authenticated Layout screens retain the escape behavior without displaying text pills.
 
 The icon-based UI was built successfully and synchronized/relaunched on Android successfully.
+
+## Production email templates and deployment safety record
+
+Production Firebase project:
+
+```text
+christianmatch-app
+```
+
+Production custom application URL:
+
+```text
+https://christianmatchghana.com
+```
+
+The production Firebase Console email-template settings supplied for this project are recorded as follows:
+
+```text
+Template:       Email address verification
+Language:       English
+Sender name:   Christian Match Ghana
+From:           info@christianmatchghana.com
+Reply to:       info@christianmatchghana.com
+Subject:        Verify your email for %APP_NAME%
+```
+
+The production verification message is:
+
+```text
+Hello %DISPLAY_NAME%,
+
+Follow this link to verify your email address.
+
+If you didn’t ask to verify this address, you can ignore this email.
+
+Thanks,
+
+Your %APP_NAME% team
+```
+
+Firebase generates the action URL and code for each recipient. The example URL supplied from the Console uses the production Auth domain:
+
+```text
+https://christianmatch-app.firebaseapp.com/__/auth/action?mode=action&oobCode=code
+```
+
+The source code now makes the production web return URL explicit in `frontend/.env.production.example`:
+
+```text
+VITE_PUBLIC_APP_URL=https://christianmatchghana.com
+```
+
+### No-unintended-production-change rules
+
+- Pushing this Git branch to GitHub does not change Firebase production.
+- No Firebase deployment is performed by Git synchronization.
+- Do not run `firebase deploy` merely after pulling this branch.
+- Before any production deploy, select and verify the target explicitly:
+
+```bash
+backend/functions/node_modules/.bin/firebase use production
+backend/functions/node_modules/.bin/firebase projects:list
+```
+
+- Review the generated production build and environment values before deploying.
+- Deploy production only with explicit approval and a reviewed command such as:
+
+```bash
+backend/functions/node_modules/.bin/firebase deploy \
+  --project production \
+  --only hosting,functions,firestore:rules,storage:rules \
+  --non-interactive
+```
+
+- Never copy `frontend/.env.local` into a production build.
+- Never commit SMTP passwords, Paystack secret keys, service-account files, or native Firebase messaging credentials.
+- Verify the Firebase Console Auth templates, authorized domains, SMTP settings, and Paystack mode separately; GitHub sync cannot alter those settings.
