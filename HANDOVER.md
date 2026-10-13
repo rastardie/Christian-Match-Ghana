@@ -987,3 +987,24 @@ The inventory command exposed existing production credential values in terminal 
 - Existing SMTP password
 
 Do not deploy the reminder campaign until the SMTP configuration is changed to the approved production mailbox and a single-recipient test succeeds.
+
+## Production reminder Function deployment status
+
+After repairing the cross-platform Functions lockfile, the guarded reminder Function was deployed by itself to production:
+
+```text
+sendUnverifiedVerificationReminders: ACTIVE
+Project: christianmatch-app
+Region:  us-central1
+Runtime: Node.js 22
+```
+
+The deployment command targeted only:
+
+```text
+functions:sendUnverifiedVerificationReminders
+```
+
+It did not deploy Hosting, Firestore rules, Storage rules, or the frontend. SMTP credentials were intentionally removed from the deploy path because the previously shared mailbox password must be rotated.
+
+No email has been sent. The next operation is an authenticated administrator dry-run, followed by a single-recipient test only after the new SMTP password is configured.
