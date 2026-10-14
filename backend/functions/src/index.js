@@ -553,6 +553,9 @@ const VERIFICATION_REMINDER_LOGO_CID = 'cmglogo';
 // Fixed promotional end date: 30 days from campaign launch (2026-10-14).
 // Everyone granted the promo shares this end date; late verifiers/registrants get the remainder.
 const VERIFICATION_PROMO_END_ISO = process.env.CAMPAIGN_PROMO_END_ISO || '2026-11-13T23:59:59.999Z';
+// Promo launch: users whose profile was created on/after this are "new members".
+const VERIFICATION_PROMO_LAUNCH_ISO = process.env.CAMPAIGN_PROMO_LAUNCH_ISO || '2026-10-14T00:00:00.000Z';
+const VERIFICATION_PROMO_CAMPAIGN_ID = process.env.CAMPAIGN_PROMO_CAMPAIGN_ID || 'verification-reminders-2026-10-14';
 
 function escapeEmailHtml(value = '') {
   return String(value)
@@ -605,6 +608,73 @@ function createVerificationReminderTransporter() {
 exports.sendUnverifiedVerificationReminders = functions
   .runWith({ secrets: ['SMTP_PASS'], invoker: 'public', timeoutSeconds: 540, memory: '512MB' })
   .https.onCall(async (data = {}, context) => {
+  // Self-serve action (authenticated user, NOT admin): a user claims the free promo.
+  // The server independently verifies email-verification and cohort/new-member eligibility,
+  // so the client cannot grant premium or set its own expiry.
+  if (data.action === 'claimFreePromo') {
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'Authentication is required.');
+    }
+    const uid = context.auth.uid;
+    const now = new Date();
+    const promoEnd = new Date(VERIFICATION_PROMO_END_ISO);
+    const launch = new Date(VERIFICATION_PROMO_LAUNCH_ISO);
+
+    if (now > promoEnd) {
+      return { action: 'claimFreePromo', granted: false, reason: 'promo_ended' };
+    }
+
+    const userRecord = await auth.getUser(uid);
+    if (!userRecord.emailVerified) {
+      return { action: 'claimFreePromo', granted: false, reason: 'not_verified' };
+    }
+
+    const userRef = db.collection('users').doc(uid);
+    const userSnap = await userRef.get();
+    if (!userSnap.exists) {
+      return { action: 'claimFreePromo', granted: false, reason: 'no_profile' };
+    }
+    const udata = userSnap.data();
+    if (udata.freeMonthGrantedAt) {
+      return { action: 'claimFreePromo', granted: false, reason: 'already_granted' };
+    }
+
+    // Eligibility: in the emailed cohort OR a genuinely new registrant. No other group.
+    const cohortRef = db
+      .collection('verificationReminderCampaigns')
+      .doc(VERIFICATION_PROMO_CAMPAIGN_ID)
+      .collection('recipients')
+      .doc(uid);
+    const inCohort = (await cohortRef.get()).exists;
+
+    let isNewMember = false;
+    const createdAt = udata.createdAt;
+    if (createdAt && typeof createdAt.toDate === 'function') {
+      isNewMember = createdAt.toDate() >= launch;
+    }
+
+    if (!inCohort && !isNewMember) {
+      return { action: 'claimFreePromo', granted: false, reason: 'not_eligible' };
+    }
+
+    await userRef.update({
+      isPremium: true,
+      subscriptionStartDate: now.toISOString(),
+      subscriptionEndDate: promoEnd.toISOString(),
+      subscriptionStatus: 'active',
+      subscriptionType: 'free1month',
+      freeMonthGrantedAt: now.toISOString(),
+      freeMonthSource: inCohort ? VERIFICATION_PROMO_CAMPAIGN_ID : 'new-member-promo',
+      updatedAt: FieldValue.serverTimestamp()
+    });
+    return {
+      action: 'claimFreePromo',
+      granted: true,
+      eligibility: inCohort ? 'cohort' : 'new_member',
+      promoEndsOn: promoEnd.toISOString()
+    };
+  }
+
   requireCampaignAdmin(context);
 
   // Guarded helper: grant the fixed-date free promo to verified cohort members.
