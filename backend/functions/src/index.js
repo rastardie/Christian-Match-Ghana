@@ -604,6 +604,91 @@ exports.sendUnverifiedVerificationReminders = functions
   .https.onCall(async (data = {}, context) => {
   requireCampaignAdmin(context);
 
+  // Guarded helper: grant/expire the 1-month free promo for the campaign cohort.
+  // Eligible = users we emailed in this campaign who have since verified their email.
+  // Idempotent: re-running only grants newly-verified users and expires lapsed promos.
+  if (data.action === 'processFreeMonthPromo') {
+    const promoCampaignId = typeof data.campaignId === 'string' ? data.campaignId.trim() : '';
+    if (!promoCampaignId) {
+      throw new functions.https.HttpsError('invalid-argument', 'processFreeMonthPromo requires a campaignId.');
+    }
+    const now = new Date();
+    const end = new Date(now);
+    end.setMonth(end.getMonth() + 1);
+
+    let granted = 0;
+    let alreadyGranted = 0;
+    let skippedUnverified = 0;
+    let expired = 0;
+    const errors = [];
+
+    // Grant phase: iterate the campaign cohort.
+    const recipientsSnap = await db
+      .collection('verificationReminderCampaigns')
+      .doc(promoCampaignId)
+      .collection('recipients')
+      .get();
+
+    for (const recipientDoc of recipientsSnap.docs) {
+      const uid = recipientDoc.id;
+      try {
+        const userRecord = await auth.getUser(uid);
+        if (!userRecord.emailVerified) {
+          skippedUnverified += 1;
+          continue;
+        }
+        const userRef = db.collection('users').doc(uid);
+        const userSnap = await userRef.get();
+        if (!userSnap.exists) {
+          errors.push({ uid, reason: 'no_profile' });
+          continue;
+        }
+        if (userSnap.data().freeMonthGrantedAt) {
+          alreadyGranted += 1;
+          continue;
+        }
+        await userRef.update({
+          isPremium: true,
+          subscriptionStartDate: now.toISOString(),
+          subscriptionEndDate: end.toISOString(),
+          subscriptionStatus: 'active',
+          subscriptionType: 'free1month',
+          freeMonthGrantedAt: now.toISOString(),
+          freeMonthSource: promoCampaignId,
+          updatedAt: FieldValue.serverTimestamp()
+        });
+        granted += 1;
+      } catch (error) {
+        errors.push({ uid, reason: error.code || 'grant_failed' });
+      }
+    }
+
+    // Expire phase: revoke promos whose month has elapsed.
+    const promoUsers = await db.collection('users').where('freeMonthSource', '==', promoCampaignId).get();
+    for (const promoDoc of promoUsers.docs) {
+      const d = promoDoc.data();
+      if (d.subscriptionStatus === 'active' && d.subscriptionEndDate && new Date(d.subscriptionEndDate) < now) {
+        await promoDoc.ref.update({
+          isPremium: false,
+          subscriptionStatus: 'expired',
+          updatedAt: FieldValue.serverTimestamp()
+        });
+        expired += 1;
+      }
+    }
+
+    return {
+      action: 'processFreeMonthPromo',
+      campaignId: promoCampaignId,
+      granted,
+      alreadyGranted,
+      skippedUnverified,
+      expired,
+      cohortSize: recipientsSnap.size,
+      errors
+    };
+  }
+
   // Guarded helper: report how many recipients have been emailed for a campaign.
   if (data.action === 'campaignStatus') {
     const statusCampaignId = typeof data.campaignId === 'string' ? data.campaignId.trim() : '';
