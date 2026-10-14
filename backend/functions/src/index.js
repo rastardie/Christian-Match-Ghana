@@ -6,6 +6,7 @@ const { getMessaging } = require("firebase-admin/messaging");
 const { getStorage } = require("firebase-admin/storage");
 const crypto = require("crypto");
 const nodemailer = require("nodemailer");
+const path = require("path");
 
 admin.initializeApp();
 
@@ -544,8 +545,11 @@ exports.checkSignupEligibility = functions.https.onCall(async (data, context) =>
 const VERIFICATION_REMINDER_CONFIRMATION = 'SEND_UNVERIFIED_VERIFICATION_REMINDERS';
 const VERIFICATION_REMINDER_FROM = process.env.CAMPAIGN_FROM_EMAIL || 'info@christianmatchghana.com';
 const VERIFICATION_REMINDER_REPLY_TO = process.env.CAMPAIGN_REPLY_TO || VERIFICATION_REMINDER_FROM;
-const VERIFICATION_REMINDER_SUBJECT = process.env.CAMPAIGN_SUBJECT || 'Please verify your Christian Match Ghana email';
+const VERIFICATION_REMINDER_SUBJECT = process.env.CAMPAIGN_SUBJECT || 'Verify your email & enjoy 1 month FREE membership';
 const VERIFICATION_REMINDER_APP_URL = process.env.APP_BASE_URL || 'https://christianmatchghana.com';
+const VERIFICATION_REMINDER_LOGO_URL = process.env.CAMPAIGN_LOGO_URL || 'https://christianmatchghana.com/og-logo.png';
+const VERIFICATION_REMINDER_LOGO_PATH = path.join(__dirname, '..', 'assets', 'email-logo.png');
+const VERIFICATION_REMINDER_LOGO_CID = 'cmglogo';
 
 function escapeEmailHtml(value = '') {
   return String(value)
@@ -658,15 +662,55 @@ exports.sendUnverifiedVerificationReminders = functions
         user.email,
         { url: VERIFICATION_REMINDER_APP_URL, handleCodeInApp: false }
       );
-      const displayName = escapeEmailHtml(user.displayName || 'there');
+      const rawName = (user.displayName || '').trim();
+      const firstNameRaw = rawName ? rawName.split(/\s+/)[0] : 'Friend';
+      const firstName = escapeEmailHtml(firstNameRaw);
+      const logoUrl = `cid:${VERIFICATION_REMINDER_LOGO_CID}`;
 
       await transporter.sendMail({
         from: `Christian Match Ghana <${VERIFICATION_REMINDER_FROM}>`,
         replyTo: VERIFICATION_REMINDER_REPLY_TO,
         to: user.email,
         subject: VERIFICATION_REMINDER_SUBJECT,
-        text: `Hello ${user.displayName || 'there'},\n\nPlease verify your Christian Match Ghana email address:\n${verificationLink}\n\nIf you did not create this account, you can ignore this email.\n\nChristian Match Ghana`,
-        html: `<!doctype html><html><body><p>Hello ${displayName},</p><p>Please verify your Christian Match Ghana email address.</p><p><a href="${verificationLink}">Verify my email address</a></p><p>If you did not create this account, you can ignore this email.</p><p>Thank you,<br>Christian Match Ghana</p></body></html>`
+        attachments: [
+          {
+            filename: 'christian-match-ghana-logo.png',
+            path: VERIFICATION_REMINDER_LOGO_PATH,
+            cid: VERIFICATION_REMINDER_LOGO_CID
+          }
+        ],
+        text: `Hello ${firstNameRaw},\n\n`
+          + `We noticed your Christian Match Ghana email address hasn't been verified yet.\n\n`
+          + `Verify your email today to unlock full access to your account — and as our gift to you, `
+          + `enjoy 1 MONTH of FREE premium membership.\n\n`
+          + `Verify your email now:\n${verificationLink}\n\n`
+          + `Don't miss out — take advantage of this limited offer and start connecting today.\n\n`
+          + `If you did not create this account, you can safely ignore this email.\n\n`
+          + `With love,\nThe Christian Match Ghana Team`,
+        html: `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>`
+          + `<body style="margin:0;padding:0;background-color:#f1f5f9;font-family:Arial,Helvetica,sans-serif;color:#0f172a;">`
+          + `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f1f5f9;padding:24px 0;"><tr><td align="center">`
+          + `<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(15,23,42,0.08);">`
+          + `<tr><td align="center" style="background-color:#0f172a;padding:28px 24px;">`
+          + `<img src="${logoUrl}" alt="Christian Match Ghana" width="96" height="96" style="display:block;border:0;border-radius:12px;" />`
+          + `<div style="color:#ffffff;font-size:20px;font-weight:bold;margin-top:12px;">Christian Match Ghana</div></td></tr>`
+          + `<tr><td style="padding:32px 32px 8px 32px;">`
+          + `<p style="font-size:18px;margin:0 0 16px 0;">Hello ${firstName},</p>`
+          + `<p style="font-size:15px;line-height:1.6;margin:0 0 16px 0;">We noticed your Christian Match Ghana email address hasn't been verified yet.</p>`
+          + `<p style="font-size:15px;line-height:1.6;margin:0 0 16px 0;">Verify your email today to unlock full access to your account — and as our gift to you, <strong>enjoy 1 month of FREE premium membership.</strong></p>`
+          + `<div style="background-color:#ecfdf5;border:1px solid #10b981;border-radius:10px;padding:16px;text-align:center;margin:20px 0;">`
+          + `<div style="font-size:16px;font-weight:bold;color:#047857;">🎁 1 Month FREE Premium Membership</div>`
+          + `<div style="font-size:13px;color:#065f46;margin-top:4px;">Verify your email to claim this limited offer</div></div></td></tr>`
+          + `<tr><td align="center" style="padding:8px 32px 28px 32px;">`
+          + `<a href="${verificationLink}" style="display:inline-block;background-color:#f97316;color:#ffffff;text-decoration:none;font-size:16px;font-weight:bold;padding:14px 28px;border-radius:8px;">Verify my email &amp; claim free month</a>`
+          + `<p style="font-size:12px;color:#64748b;line-height:1.6;margin:20px 0 0 0;">If the button does not work, copy and paste this link into your browser:<br>`
+          + `<a href="${verificationLink}" style="color:#2563eb;word-break:break-all;">${verificationLink}</a></p></td></tr>`
+          + `<tr><td style="padding:0 32px 28px 32px;">`
+          + `<p style="font-size:13px;color:#64748b;line-height:1.6;margin:0 0 8px 0;">If you did not create this account, you can safely ignore this email.</p>`
+          + `<p style="font-size:14px;margin:12px 0 0 0;">With love,<br><strong>The Christian Match Ghana Team</strong></p></td></tr>`
+          + `<tr><td align="center" style="background-color:#f8fafc;padding:16px 24px;border-top:1px solid #e2e8f0;">`
+          + `<a href="${VERIFICATION_REMINDER_APP_URL}" style="color:#64748b;font-size:12px;text-decoration:none;">christianmatchghana.com</a></td></tr>`
+          + `</table></td></tr></table></body></html>`
       });
 
       await recipientRef.set({
