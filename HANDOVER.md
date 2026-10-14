@@ -1474,3 +1474,43 @@ service worker and no `.env`, service-account, `node_modules`, or `.git` files.
 
 Do not upload an older copy of the ZIP. Rebuild with `npm run build -- --mode production`
 and recreate the archive whenever frontend source changes.
+
+## Frontend deployment completed via cPanel File Manager — 2026-10-14
+
+The reviewed production frontend archive was uploaded and extracted into the correct live root:
+
+```text
+/home/christi3/public_html
+```
+
+The cPanel timestamps confirmed the new build replaced the matching frontend files:
+
+```text
+assets/:                  updated today
+index.html:               updated today
+firebase-messaging-sw.js: updated today
+.htaccess:                updated today
+```
+
+The following backups remain outside the web root:
+
+```text
+/home/christi3/backup-before-cmg-update-2026-10-14.zip
+/home/christi3/public_html.zip
+```
+
+Do not delete these until production verification and rollback confidence are complete.
+
+Live verification after extraction:
+
+```text
+Site reachable:            yes
+Frontend JS loaded:        yes
+Free Premium Access:       present
+claimFreePromo:            present
+Configured service worker:  present
+```
+
+The string `6 Months Premium` remains in the bundle for the legitimate paid six-month plan; the free promo path now displays `Free Premium Access`.
+
+The automated FTP/GitHub Actions deployment remains configured but unresolved because the Stormer Host FTP account returned `530 Login authentication failed`. The cPanel File Manager deployment is the successful production release path for this version.
