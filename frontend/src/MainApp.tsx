@@ -794,6 +794,20 @@ const AuthView = ({
              return;
           }
 
+          // Claim the free-access promo if eligible. The server independently verifies
+          // email verification and cohort/new-member eligibility; the client only triggers it.
+          try {
+            const { claimFreePromo } = await import('./services/userService');
+            const promo = await claimFreePromo();
+            if (promo.granted) {
+              const refreshed = await getUserDocument(firebaseUser.uid);
+              if (refreshed) userData = refreshed;
+              onNotify("You've unlocked free premium access!", "success");
+            }
+          } catch (promoError) {
+            console.error('Promo claim error (non-blocking):', promoError);
+          }
+
           onLogin(userData as User, false);
           onNotify("Welcome back!", "success");
         } catch (error: any) {
@@ -3249,7 +3263,11 @@ const ProfileView = ({
                   ● Active Subscription
                 </span>
                 <h3 className="text-lg font-black tracking-tight mt-3">
-                  {user.subscriptionType === '12months' ? '12 Months Premium' : '6 Months Premium'}
+                  {user.subscriptionType === '12months'
+                    ? '12 Months Premium'
+                    : user.subscriptionType === '6months'
+                      ? '6 Months Premium'
+                      : 'Free Premium Access'}
                 </h3>
                 <p className="text-xs text-blue-200">
                   Expires on {

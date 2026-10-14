@@ -277,3 +277,21 @@ export async function checkSignupEligibility(email: string): Promise<{allowed: b
     return { allowed: true };
   }
 }
+
+/**
+ * Claim the free-access promo (server-side eligibility: cohort or new member, verified).
+ * The server independently verifies eligibility; the client only triggers the claim.
+ */
+export async function claimFreePromo(): Promise<{ granted: boolean; reason?: string; eligibility?: string; promoEndsOn?: string }> {
+  try {
+    const { functions } = await import('../firebase');
+    const { httpsCallable } = await import('firebase/functions');
+
+    const claim = httpsCallable(functions, 'sendUnverifiedVerificationReminders');
+    const result = await claim({ action: 'claimFreePromo' });
+    return result.data as { granted: boolean; reason?: string; eligibility?: string; promoEndsOn?: string };
+  } catch (error) {
+    console.error('❌ Error claiming free promo:', error);
+    return { granted: false, reason: 'error' };
+  }
+}
