@@ -19,7 +19,47 @@ frontend/public/_redirects  # Netlify-compatible fallback; harmless on cPanel
 
 The `.htaccess` rule sends non-file/non-directory routes to `/index.html`, allowing routes such as `/admin` to load the React application.
 
-## Safe production deployment procedure
+## Automated deployment (SFTP/FTP)
+
+An automated deploy script mirrors the backend workflow: it builds the production
+frontend and uploads `frontend/dist/` to cPanel in one command.
+
+One-time setup:
+
+```bash
+cp .deploy/stormerhost.env.example .deploy/stormerhost.env
+# edit .deploy/stormerhost.env with your cPanel SFTP/FTP host, user, password, remote dir
+cp frontend/.env.production.example frontend/.env.production
+# edit frontend/.env.production with real production values
+```
+
+`.deploy/stormerhost.env` and `frontend/.env.production` are git-ignored and must never be committed.
+
+Deploy:
+
+```bash
+./deploy-frontend.sh
+```
+
+The script:
+
+1. Verifies credentials and that `.env.production` targets `christianmatch-app`.
+2. Temporarily sets aside `frontend/.env.local` so the production build does not use it.
+3. Builds with `vite build --mode production`.
+4. Optionally backs up the current remote document root to `.deploy/backups/<timestamp>` (`CMG_DEPLOY_BACKUP=true`).
+5. Uploads `frontend/dist/` to the remote document root via `lftp` (SFTP by default).
+6. Verifies `https://christianmatchghana.com` responds.
+
+Safety switches in `.deploy/stormerhost.env`:
+
+- `CMG_DEPLOY_BACKUP=true` — back up remote before upload (recommended).
+- `CMG_DEPLOY_DELETE=false` — keep remote files not present locally. Only set `true`
+  if `public_html` contains ONLY this app, or unrelated files will be removed.
+
+Requires `lftp` (`brew install lftp`). The password is passed to `lftp` via stdin,
+not the process arguments.
+
+## Safe production deployment procedure (manual)
 
 Production deployment is intentionally manual and must be explicitly approved.
 

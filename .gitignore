@@ -3,6 +3,11 @@
 .env.*
 !.env.example
 !.env.*.example
+
+# Automated deploy credentials and local backups (never commit)
+.deploy/stormerhost.env
+.deploy/backups/
+frontend/.env.local.deploybak
 node_modules/
 frontend/dist/
 frontend/android/.gradle/
