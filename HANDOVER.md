@@ -1227,3 +1227,212 @@ comes from Secret Manager.
 /tmp/cmg-campaign-dryrun.mjs     dry-run review of the full recipient list
 /tmp/cmg-campaign-send.mjs       batch-safe full campaign send with status
 ```
+
+## Current continuation snapshot — 2026-10-14 13:10 UTC
+
+This section supersedes earlier campaign-status paragraphs above where they say that no campaign email was sent. The campaign has now completed.
+
+### Production campaign final state
+
+```text
+Project:             christianmatch-app
+Campaign ID:         verification-reminders-2026-10-14
+Recipients emailed:  91
+Synchronous failures:0
+Delivery test:       Inbox delivery confirmed
+Verification link:   Tested successfully in the single-recipient test
+```
+
+The campaign email includes:
+
+- First-name personalization when a display name exists.
+- A fallback greeting when no name exists.
+- Inline CID-branded logo from the supplied New Logo asset.
+- Verification CTA button.
+- Fixed promotional copy for free premium access.
+
+The two campaign-related data issues found during processing were:
+
+```text
+One Auth UID no longer existed.
+One recipient had no Firestore users/{uid} profile.
+```
+
+The email typo `reiama27@gamil.com` could not be changed to the Gmail address because the target Gmail identity already exists. Do not merge or delete either Auth identity without an explicit identity-reconciliation decision.
+
+### Free-access promotion state
+
+The intended rule is now:
+
+```text
+Eligible groups only:
+  1. Members in the verification-reminder cohort who verify their email.
+  2. New members created on/after the promotion launch who verify their email.
+
+Not eligible:
+  Existing verified users outside the campaign cohort.
+  Existing unverified users outside the campaign cohort.
+  Users who do not verify.
+
+Fixed promotion end:
+  2026-11-13T23:59:59.999Z
+```
+
+The deployed `sendUnverifiedVerificationReminders` Function contains a server-side `claimFreePromo` action. The client cannot set premium fields or choose an expiry date. The server checks Firebase Auth `emailVerified`, cohort membership, new-member creation time, the fixed end date, and prior grant markers.
+
+The server-side admin `processFreeMonthPromo` action was run once. Current result:
+
+```text
+Cohort size:       91
+Newly granted:     3
+Promo end:         2026-11-13T23:59:59.999Z
+```
+
+The frontend calls the server claim after a verified login. The frontend still needs to be uploaded to Stormer Host before this behavior is available to live users.
+
+The status card label was changed from the incorrect `6 Months Premium` to `Free Premium Access` for `free1month`. The production site will not show this fix until the frontend upload is completed.
+
+### Frontend production deployment state
+
+GitHub Actions workflow:
+
+```text
+.github/workflows/deploy-frontend.yml
+```
+
+The workflow is manual-only and requires the confirmation value `DEPLOY`. It builds the production frontend, then uploads `frontend/dist/` to Stormer Host.
+
+Configured GitHub Actions secret names:
+
+```text
+FIREBASE_API_KEY
+PAYSTACK_PUBLIC_KEY
+STORMERHOST_HOST
+STORMERHOST_PORT
+STORMERHOST_PROTOCOL
+STORMERHOST_USER
+STORMERHOST_PASS
+STORMERHOST_REMOTE_DIR
+```
+
+Current intended FTP settings from cPanel:
+
+```text
+Host:          ftp.christianmatchghana.com
+Port:          21
+Protocol:      explicit FTPS/FTP over TLS
+User:          deploy@christianmatchghana.com
+Remote root:   /  (the FTP account is rooted at /home/christi3/public_html)
+```
+
+GitHub Actions history:
+
+- Build completed successfully.
+- FTP connection reached the server.
+- Upload failed with `530 Login authentication failed`.
+- No confirmed automated frontend upload has completed.
+- The workflow now forces FTPS, has fail-fast network settings, and has a ten-minute job timeout.
+
+The cPanel browser session showed:
+
+```text
+Main web root: /home/christi3/public_html
+FTP account root: /home/christi3/public_html
+Nested public_html paths must not be used as the website target.
+```
+
+A production build was created locally and packaged here:
+
+```text
+/tmp/cmg-frontend-dist.zip
+```
+
+Manual upload procedure:
+
+1. Back up `/home/christi3/public_html` outside the web root.
+2. Upload `/tmp/cmg-frontend-dist.zip` through cPanel File Manager.
+3. Extract directly into `/home/christi3/public_html`.
+4. Overwrite `index.html` and `assets/` when prompted.
+5. Preserve `.htaccess` and hidden files.
+6. Verify `/`, `/admin`, and authenticated login in a private browser window.
+
+Do not extract into `/home/christi3/public_html/public_html`.
+
+### Credential and security follow-ups
+
+Credentials were exposed during the troubleshooting conversation. Treat these as compromised and rotate them after the deployment is stable:
+
+- Stormer Host/cPanel password(s).
+- SMTP mailbox password and Secret Manager `SMTP_PASS` version.
+- Previously exposed Paystack secret and old Gmail SMTP password.
+
+A Firebase web API key was accidentally placed in an earlier setup-script commit. The literal was removed in commit `42550fb`, but the earlier public commit remains in Git history. The key is a browser client identifier, not a service-account secret, but it should still be restricted to the production domains and required APIs. Rotate it only after updating the production frontend and GitHub Actions secret, otherwise the live app may break.
+
+The local setup script now prompts or sources values without printing them:
+
+```text
+setup-github-deploy.sh
+```
+
+Do not put cPanel, SMTP, Paystack secret, or Firebase service-account credentials in this repository.
+
+## Holistic future enhancement roadmap
+
+### Priority 0 — stabilize production operations
+
+1. Complete the manual frontend upload and verify the live bundle contains the promo claim and `Free Premium Access` label.
+2. Rotate every credential exposed during this session and verify the replacement values without printing them.
+3. Resolve the dedicated FTP account and cPHulk state, or use a cPanel-supported deployment API/SSH key. Do not keep retrying failed FTP passwords.
+4. Add a release manifest containing commit SHA, build timestamp, environment, and frontend asset hash. Display it in an admin-only diagnostics view.
+5. Keep a dated cPanel backup before every production frontend release and document the rollback command/procedure.
+
+### Priority 1 — make the promotion reliable and enforceable
+
+1. Add `free1month` to the shared TypeScript subscription type union and use a central `getEffectiveMembership()` helper everywhere.
+2. Move promo claiming to a server-triggered verification flow or a scheduled server-side reconciliation. The current client trigger is only a request to the server and runs after verified login; it does not execute at the exact instant a user clicks the email link.
+3. Add Firestore Rules protection so clients cannot write `isPremium`, subscription dates, `subscriptionStatus`, `subscriptionType`, or promo marker fields.
+4. Add an immutable promo-grant audit collection containing UID, cohort/new-member eligibility, grant time, fixed end date, and Function version.
+5. Make all access checks use the fixed-date subscription end consistently, not a mixture of `isPremium` and date checks.
+6. Add a safe admin report for eligible, verified, granted, unverified, missing-profile, disabled, and failed records.
+
+### Priority 1 — deployment and release safety
+
+1. Keep production deployment manual with GitHub Environment approval rather than deploy-on-every-push.
+2. Store Stormer Host credentials in a dedicated least-privilege account rooted exactly at `public_html`; prefer SSH deploy keys if the host supports them.
+3. Add an upload staging directory and atomic release switch where cPanel permits it, avoiding partially uploaded bundles.
+4. Add post-deploy smoke tests for `/`, `/admin`, Firebase project ID, login, one callable request, and the promo display.
+5. Add a one-click rollback workflow using the last successful artifact, not only an ad-hoc cPanel backup.
+6. Pin GitHub Action SHAs, add dependency lockfile validation, and run frontend build/security checks before the approval gate.
+
+### Priority 1 — email and campaign operations
+
+1. Add bounce and complaint processing with a suppression list; never repeatedly send to hard-bounced addresses.
+2. Add unsubscribe/preference handling appropriate for promotional mail and retain an audit trail.
+3. Add template version, campaign operator, timestamp, and provider message ID to each recipient record.
+4. Add per-domain rate limiting and delivery monitoring for Gmail, Yahoo, iCloud, and other providers.
+5. Add a preview mode that renders the exact personalized HTML for a selected recipient without sending.
+6. Add campaign pause/resume controls and a maximum daily send budget.
+7. Normalize and validate email addresses at signup, but never silently change an existing Auth identity when correcting a typo.
+
+### Priority 2 — product and platform quality
+
+1. Replace placeholder admin analytics and charts with real metrics from Firestore/Aggregation or BigQuery.
+2. Implement the Paystack webhook TODO and make payment fulfillment server-side and idempotent.
+3. Add subscription lifecycle fields for paid plans, free promos, refunds, chargebacks, and manual grants.
+4. Add scheduled cleanup/expiry reconciliation for stale subscription records, even though the UI date check currently expires access.
+5. Add automated staging E2E tests for signup, email verification, profile creation, upload, chat, payment test mode, and promo claim.
+6. Add structured Cloud Logging and alerts for Function failures, SMTP failures, verification-link failures, and unusual grant volume.
+7. Add Firestore composite indexes and query performance review before the user base grows.
+8. Add accessibility, mobile viewport, offline/error-state, and browser compatibility testing to the frontend release gate.
+
+### Recommended next session entry point
+
+```text
+1. Confirm whether /tmp/cmg-frontend-dist.zip was extracted into /home/christi3/public_html.
+2. Verify the live site shows the new frontend build and Free Premium Access label.
+3. Test one verified cohort account and one ineligible account against claimFreePromo.
+4. Verify subscriptionEndDate is exactly 2026-11-13T23:59:59.999Z for grants.
+5. Rotate exposed credentials and update Secret Manager/GitHub secrets.
+6. Decide whether to fix FTP/cPHulk or adopt a cPanel API/SSH-key deployment route.
+7. Implement Firestore Rules protection for subscription and promo fields.
+```
