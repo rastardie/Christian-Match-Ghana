@@ -89,6 +89,7 @@ jobs:
             set net:persist-retries 0;
             set sftp:auto-confirm yes;
             set ftp:ssl-allow true;
+            set ftp:ssl-force true;
             set ftp:ssl-protect-data true;
             set ssl:verify-certificate no;
             set cmd:fail-exit true;
