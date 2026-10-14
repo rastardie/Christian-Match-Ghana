@@ -600,9 +600,23 @@ function createVerificationReminderTransporter() {
 }
 
 exports.sendUnverifiedVerificationReminders = functions
-  .runWith({ secrets: ['SMTP_PASS'], invoker: 'public' })
+  .runWith({ secrets: ['SMTP_PASS'], invoker: 'public', timeoutSeconds: 540, memory: '512MB' })
   .https.onCall(async (data = {}, context) => {
   requireCampaignAdmin(context);
+
+  // Guarded helper: report how many recipients have been emailed for a campaign.
+  if (data.action === 'campaignStatus') {
+    const statusCampaignId = typeof data.campaignId === 'string' ? data.campaignId.trim() : '';
+    if (!statusCampaignId) {
+      throw new functions.https.HttpsError('invalid-argument', 'campaignStatus requires a campaignId.');
+    }
+    const recipientsSnap = await db
+      .collection('verificationReminderCampaigns')
+      .doc(statusCampaignId)
+      .collection('recipients')
+      .get();
+    return { action: 'campaignStatus', campaignId: statusCampaignId, recordedRecipients: recipientsSnap.size };
+  }
 
   // Guarded helper: correct a user's email (e.g. fix a typo domain) before the campaign.
   if (data.action === 'correctEmail') {
@@ -687,7 +701,24 @@ exports.sendUnverifiedVerificationReminders = functions
   let alreadySent = 0;
   let failed = 0;
   const errors = [];
-  const recipients = candidates.slice(0, limit);
+
+  // Only process users that have not already been emailed in this campaign,
+  // so batched calls advance through the list instead of re-checking the same head.
+  const recipients = [];
+  for (const user of candidates) {
+    const ref = db
+      .collection('verificationReminderCampaigns')
+      .doc(campaignId)
+      .collection('recipients')
+      .doc(user.uid);
+    const snap = await ref.get();
+    if (snap.exists) {
+      alreadySent += 1;
+      continue;
+    }
+    recipients.push(user);
+    if (recipients.length >= limit) break;
+  }
 
   for (const user of recipients) {
     const recipientRef = db
