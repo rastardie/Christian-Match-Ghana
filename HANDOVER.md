@@ -1436,3 +1436,41 @@ Do not put cPanel, SMTP, Paystack secret, or Firebase service-account credential
 6. Decide whether to fix FTP/cPHulk or adopt a cPanel API/SSH-key deployment route.
 7. Implement Firestore Rules protection for subscription and promo fields.
 ```
+
+## Original-source comparison and frontend safety check — 2026-10-14
+
+The original archive was compared without modifying Stormer Host:
+
+```text
+Original: /Users/andrewstardie/Documents/TUTS/TESTS/cm/cmg-front.zip
+Workspace: frontend/
+```
+
+Results:
+
+- The rebuilt project preserves the original application structure and package metadata.
+- Core files such as `App.tsx`, `types.ts`, and `constants.ts` are unchanged from the original.
+- Expected changes are present in `MainApp.tsx`, `firebase.ts`, `services/userService.ts`,
+  `services/notificationService.ts`, and `public/firebase-messaging-sw.js`.
+- The changes cover emulator support, environment-driven Firebase configuration, Android
+  navigation/startup safety, gated native push registration, server-side promo claiming,
+  and production safety redaction.
+- The original production site has not been overwritten by an automated upload: FTP/FTPS
+  attempts failed before transfer, and the live site still showed the old `6 Months Premium`
+  bundle.
+
+A comparison found that the source service worker intentionally contains placeholders,
+whereas the original archive contained production client configuration. To prevent the
+frontend release from breaking web push, the build now generates:
+
+```text
+frontend/dist/firebase-messaging-sw.js
+```
+
+from the selected build environment. The source template remains placeholder-only and
+secret-safe; the production build output contains the public Firebase client config.
+The regenerated `/tmp/cmg-frontend-dist.zip` was validated to contain the configured
+service worker and no `.env`, service-account, `node_modules`, or `.git` files.
+
+Do not upload an older copy of the ZIP. Rebuild with `npm run build -- --mode production`
+and recreate the archive whenever frontend source changes.
