@@ -58,8 +58,16 @@ printf '%s' 'public_html' | gh secret set STORMERHOST_REMOTE_DIR --repo "$REPO"
 printf '%s' 'sftp' | gh secret set STORMERHOST_PROTOCOL --repo "$REPO"
 echo 'Set fixed deploy values: port=22, remote_dir=public_html, protocol=sftp'
 
-set_secret STORMERHOST_USER "Stormer Host cPanel username"
-set_secret STORMERHOST_PASS "Stormer Host cPanel password"
+if secret_exists STORMERHOST_USER; then
+  echo 'Keeping existing GitHub secret: STORMERHOST_USER'
+else
+  set_secret STORMERHOST_USER "Stormer Host cPanel username"
+fi
+if secret_exists STORMERHOST_PASS; then
+  echo 'Keeping existing GitHub secret: STORMERHOST_PASS'
+else
+  set_secret STORMERHOST_PASS "Stormer Host cPanel password"
+fi
 
 if [ -f /tmp/cmg-production-web-config.json ]; then
   python3 - <<'PY' | gh secret set FIREBASE_API_KEY --repo "$REPO"
