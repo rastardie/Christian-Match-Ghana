@@ -595,7 +595,9 @@ function createVerificationReminderTransporter() {
   });
 }
 
-exports.sendUnverifiedVerificationReminders = functions.https.onCall(async (data = {}, context) => {
+exports.sendUnverifiedVerificationReminders = functions
+  .runWith({ secrets: ['SMTP_PASS'] })
+  .https.onCall(async (data = {}, context) => {
   requireCampaignAdmin(context);
 
   const dryRun = data.dryRun !== false;
