@@ -550,6 +550,9 @@ const VERIFICATION_REMINDER_APP_URL = process.env.APP_BASE_URL || 'https://chris
 const VERIFICATION_REMINDER_LOGO_URL = process.env.CAMPAIGN_LOGO_URL || 'https://christianmatchghana.com/og-logo.png';
 const VERIFICATION_REMINDER_LOGO_PATH = path.join(__dirname, '..', 'assets', 'email-logo.png');
 const VERIFICATION_REMINDER_LOGO_CID = 'cmglogo';
+// Fixed promotional end date: 30 days from campaign launch (2026-10-14).
+// Everyone granted the promo shares this end date; late verifiers/registrants get the remainder.
+const VERIFICATION_PROMO_END_ISO = process.env.CAMPAIGN_PROMO_END_ISO || '2026-11-13T23:59:59.999Z';
 
 function escapeEmailHtml(value = '') {
   return String(value)
@@ -604,19 +607,20 @@ exports.sendUnverifiedVerificationReminders = functions
   .https.onCall(async (data = {}, context) => {
   requireCampaignAdmin(context);
 
-  // Guarded helper: one-time grant of a 30-day free promo to the campaign cohort.
-  // Access auto-expires via subscriptionEndDate (isSubscriptionActive), so no rerun is needed.
+  // Guarded helper: grant the fixed-date free promo to verified cohort members.
+  // End date is FIXED (same for everyone); late verifiers get the remaining time.
+  // Access auto-expires via subscriptionEndDate (isSubscriptionActive) — no rerun needed for expiry.
   if (data.action === 'processFreeMonthPromo') {
     const promoCampaignId = typeof data.campaignId === 'string' ? data.campaignId.trim() : '';
     if (!promoCampaignId) {
       throw new functions.https.HttpsError('invalid-argument', 'processFreeMonthPromo requires a campaignId.');
     }
     const now = new Date();
-    const end = new Date(now);
-    end.setDate(end.getDate() + 30);
+    const promoEnd = new Date(VERIFICATION_PROMO_END_ISO);
 
     let granted = 0;
     let alreadyGranted = 0;
+    let skippedUnverified = 0;
     let skippedDisabled = 0;
     const errors = [];
 
@@ -634,6 +638,10 @@ exports.sendUnverifiedVerificationReminders = functions
           skippedDisabled += 1;
           continue;
         }
+        if (!userRecord.emailVerified) {
+          skippedUnverified += 1;
+          continue;
+        }
         const userRef = db.collection('users').doc(uid);
         const userSnap = await userRef.get();
         if (!userSnap.exists) {
@@ -647,7 +655,7 @@ exports.sendUnverifiedVerificationReminders = functions
         await userRef.update({
           isPremium: true,
           subscriptionStartDate: now.toISOString(),
-          subscriptionEndDate: end.toISOString(),
+          subscriptionEndDate: promoEnd.toISOString(),
           subscriptionStatus: 'active',
           subscriptionType: 'free1month',
           freeMonthGrantedAt: now.toISOString(),
@@ -665,9 +673,10 @@ exports.sendUnverifiedVerificationReminders = functions
       campaignId: promoCampaignId,
       granted,
       alreadyGranted,
+      skippedUnverified,
       skippedDisabled,
       cohortSize: recipientsSnap.size,
-      promoEndsOn: end.toISOString(),
+      promoEndsOn: promoEnd.toISOString(),
       errors
     };
   }
