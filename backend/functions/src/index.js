@@ -604,6 +604,24 @@ exports.sendUnverifiedVerificationReminders = functions
   .https.onCall(async (data = {}, context) => {
   requireCampaignAdmin(context);
 
+  // Guarded helper: correct a user's email (e.g. fix a typo domain) before the campaign.
+  if (data.action === 'correctEmail') {
+    const fromEmail = typeof data.fromEmail === 'string' ? data.fromEmail.trim().toLowerCase() : '';
+    const toEmail = typeof data.toEmail === 'string' ? data.toEmail.trim().toLowerCase() : '';
+    if (!fromEmail || !toEmail) {
+      throw new functions.https.HttpsError('invalid-argument', 'correctEmail requires fromEmail and toEmail.');
+    }
+    const targetUser = await auth.getUserByEmail(fromEmail);
+    await auth.updateUser(targetUser.uid, { email: toEmail, emailVerified: false });
+    return {
+      action: 'correctEmail',
+      uid: targetUser.uid,
+      fromEmail,
+      toEmail,
+      emailVerified: false
+    };
+  }
+
   // Guarded helper: reset a single test recipient so the campaign can be re-tested.
   if (data.action === 'resetTestUser') {
     const target = typeof data.testEmail === 'string' ? data.testEmail.trim().toLowerCase() : '';
