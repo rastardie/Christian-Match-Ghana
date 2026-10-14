@@ -1181,3 +1181,49 @@ The workbook is encrypted for file opening and worksheet editing with the passwo
 ```
 
 No bulk email has been sent.
+
+## Verification reminder campaign — COMPLETED 2026-10-14
+
+The production verification-reminder campaign was sent successfully.
+
+```text
+Campaign ID:        verification-reminders-2026-10-14
+Total emailed:      91 recipients
+Failed (synchronous): 0
+Logo:               inline CID (new branded logo, 300px)
+Personalization:    first-name greeting
+Offer:              1 month free premium membership
+```
+
+Delivery was confirmed earlier via a single-recipient inbox test (sender, reply-to,
+rendering, and verification link all correct).
+
+### Function capabilities added during the campaign
+
+The guarded callable `sendUnverifiedVerificationReminders` now supports admin-only actions:
+
+- `campaignStatus` — count recipients already emailed for a campaign ID.
+- `resetTestUser` — set a test account back to unverified and clear its recipient record.
+- `correctEmail` — fix a user's email (e.g. typo domain) before sending.
+
+Runtime config: `timeoutSeconds: 540`, `memory: 512MB`, `invoker: public`
+(still protected by Firebase Auth admin allowlist + confirmation string).
+Non-secret SMTP config is deployed via `backend/functions/.env`; `SMTP_PASS`
+comes from Secret Manager.
+
+### Known follow-ups
+
+- `reiama27@gamil.com` has a typo domain; the gmail correction failed because the
+  gmail address already exists. This recipient will bounce and needs a manual fix.
+- The exposed mailbox password still must be rotated, then the Secret Manager
+  `SMTP_PASS` version updated. (Deferred by request.)
+- Ensure the 1-month-free-membership fulfillment process is ready for users who verify.
+- Previously exposed Paystack secret and Gmail SMTP password still need rotation.
+
+### Repeatable scripts (local, not committed)
+
+```text
+/tmp/cmg-test-verification.mjs   reset + send one test to rastardie@gmail.com
+/tmp/cmg-campaign-dryrun.mjs     dry-run review of the full recipient list
+/tmp/cmg-campaign-send.mjs       batch-safe full campaign send with status
+```
