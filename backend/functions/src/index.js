@@ -604,9 +604,8 @@ exports.sendUnverifiedVerificationReminders = functions
   .https.onCall(async (data = {}, context) => {
   requireCampaignAdmin(context);
 
-  // Guarded helper: grant/expire the 1-month free promo for the campaign cohort.
-  // Eligible = users we emailed in this campaign who have since verified their email.
-  // Idempotent: re-running only grants newly-verified users and expires lapsed promos.
+  // Guarded helper: one-time grant of a 30-day free promo to the campaign cohort.
+  // Access auto-expires via subscriptionEndDate (isSubscriptionActive), so no rerun is needed.
   if (data.action === 'processFreeMonthPromo') {
     const promoCampaignId = typeof data.campaignId === 'string' ? data.campaignId.trim() : '';
     if (!promoCampaignId) {
@@ -614,15 +613,13 @@ exports.sendUnverifiedVerificationReminders = functions
     }
     const now = new Date();
     const end = new Date(now);
-    end.setMonth(end.getMonth() + 1);
+    end.setDate(end.getDate() + 30);
 
     let granted = 0;
     let alreadyGranted = 0;
-    let skippedUnverified = 0;
-    let expired = 0;
+    let skippedDisabled = 0;
     const errors = [];
 
-    // Grant phase: iterate the campaign cohort.
     const recipientsSnap = await db
       .collection('verificationReminderCampaigns')
       .doc(promoCampaignId)
@@ -633,8 +630,8 @@ exports.sendUnverifiedVerificationReminders = functions
       const uid = recipientDoc.id;
       try {
         const userRecord = await auth.getUser(uid);
-        if (!userRecord.emailVerified) {
-          skippedUnverified += 1;
+        if (userRecord.disabled) {
+          skippedDisabled += 1;
           continue;
         }
         const userRef = db.collection('users').doc(uid);
@@ -663,28 +660,14 @@ exports.sendUnverifiedVerificationReminders = functions
       }
     }
 
-    // Expire phase: revoke promos whose month has elapsed.
-    const promoUsers = await db.collection('users').where('freeMonthSource', '==', promoCampaignId).get();
-    for (const promoDoc of promoUsers.docs) {
-      const d = promoDoc.data();
-      if (d.subscriptionStatus === 'active' && d.subscriptionEndDate && new Date(d.subscriptionEndDate) < now) {
-        await promoDoc.ref.update({
-          isPremium: false,
-          subscriptionStatus: 'expired',
-          updatedAt: FieldValue.serverTimestamp()
-        });
-        expired += 1;
-      }
-    }
-
     return {
       action: 'processFreeMonthPromo',
       campaignId: promoCampaignId,
       granted,
       alreadyGranted,
-      skippedUnverified,
-      expired,
+      skippedDisabled,
       cohortSize: recipientsSnap.size,
+      promoEndsOn: end.toISOString(),
       errors
     };
   }
