@@ -596,7 +596,7 @@ function createVerificationReminderTransporter() {
 }
 
 exports.sendUnverifiedVerificationReminders = functions
-  .runWith({ secrets: ['SMTP_PASS'] })
+  .runWith({ secrets: ['SMTP_PASS'], invoker: 'public' })
   .https.onCall(async (data = {}, context) => {
   requireCampaignAdmin(context);
 
