@@ -604,6 +604,33 @@ exports.sendUnverifiedVerificationReminders = functions
   .https.onCall(async (data = {}, context) => {
   requireCampaignAdmin(context);
 
+  // Guarded helper: reset a single test recipient so the campaign can be re-tested.
+  if (data.action === 'resetTestUser') {
+    const target = typeof data.testEmail === 'string' ? data.testEmail.trim().toLowerCase() : '';
+    if (!target) {
+      throw new functions.https.HttpsError('invalid-argument', 'resetTestUser requires a testEmail.');
+    }
+    const resetUser = await auth.getUserByEmail(target);
+    await auth.updateUser(resetUser.uid, { emailVerified: false });
+    let recipientDocsRemoved = 0;
+    const campaignDocs = await db.collection('verificationReminderCampaigns').listDocuments();
+    for (const campaignDoc of campaignDocs) {
+      const ref = campaignDoc.collection('recipients').doc(resetUser.uid);
+      const snap = await ref.get();
+      if (snap.exists) {
+        await ref.delete();
+        recipientDocsRemoved += 1;
+      }
+    }
+    return {
+      action: 'resetTestUser',
+      email: target,
+      uid: resetUser.uid,
+      emailVerified: false,
+      recipientDocsRemoved
+    };
+  }
+
   const dryRun = data.dryRun !== false;
   const confirmation = data.confirm;
   const campaignId = typeof data.campaignId === 'string' ? data.campaignId.trim() : '';
