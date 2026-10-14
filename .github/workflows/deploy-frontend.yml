@@ -16,6 +16,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Guard — require explicit confirmation
         run: |
@@ -81,7 +82,20 @@ jobs:
           PROTO="${DEPLOY_PROTOCOL:-sftp}"
           PORT="${DEPLOY_PORT:-22}"
           REMOTE="${DEPLOY_REMOTE_DIR:-public_html}"
-          lftp -e "set sftp:auto-confirm yes; set net:timeout 20; set ftp:ssl-allow true; open -u \"$DEPLOY_USER\",\"$DEPLOY_PASS\" $PROTO://$DEPLOY_HOST:$PORT; mirror -R --verbose --exclude-glob .DS_Store frontend/dist/ \"$REMOTE/\"; bye"
+          lftp -e "
+            set net:timeout 15;
+            set net:max-retries 2;
+            set net:reconnect-interval-base 5;
+            set net:persist-retries 0;
+            set sftp:auto-confirm yes;
+            set ftp:ssl-allow true;
+            set ftp:ssl-protect-data true;
+            set ssl:verify-certificate no;
+            set cmd:fail-exit true;
+            open -u \"$DEPLOY_USER\",\"$DEPLOY_PASS\" $PROTO://$DEPLOY_HOST:$PORT;
+            mirror -R --verbose --exclude-glob .DS_Store frontend/dist/ \"$REMOTE/\";
+            bye
+          "
 
       - name: Verify site responds
         run: |
