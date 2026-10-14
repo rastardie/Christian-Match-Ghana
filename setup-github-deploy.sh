@@ -61,8 +61,17 @@ echo 'Set fixed deploy values: port=22, remote_dir=public_html, protocol=sftp'
 set_secret STORMERHOST_USER "Stormer Host cPanel username"
 set_secret STORMERHOST_PASS "Stormer Host cPanel password"
 
-set_secret FIREBASE_API_KEY "Firebase production web API key"
-set_secret PAYSTACK_PUBLIC_KEY "Paystack public key (pk_live_...)"
+if [ -f /tmp/cmg-production-web-config.json ]; then
+  python3 - <<'PY' | gh secret set FIREBASE_API_KEY --repo "$REPO"
+import json
+with open('/tmp/cmg-production-web-config.json') as f:
+    print(json.load(f)['apiKey'], end='')
+PY
+  echo 'Stored Firebase API key from local Firebase config (value not displayed).'
+else
+  set_secret FIREBASE_API_KEY "Firebase production web API key"
+fi
+set_secret PAYSTACK_PUBLIC_KEY "Paystack public key (pk_live_... )"
 
 echo
 echo 'Configured GitHub Actions secrets:'
