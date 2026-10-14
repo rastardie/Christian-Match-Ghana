@@ -35,10 +35,7 @@ set_secret STORMERHOST_PASS "Stormer Host cPanel/FTP password"
 set_secret STORMERHOST_REMOTE_DIR "Remote document root (usually public_html)"
 set_secret STORMERHOST_PROTOCOL "Transfer protocol (sftp or ftp)"
 
-# Firebase web API keys are public client configuration, but are still injected
-# through Actions Secrets to keep the workflow configuration centralized.
-printf '%s' 'AIzaSyBc6ia75Cf1YZNOEUQLxABn5QdIA3HXejg' | gh secret set FIREBASE_API_KEY --repo "$REPO"
-echo 'Stored GitHub Actions secret: FIREBASE_API_KEY'
+set_secret FIREBASE_API_KEY "Firebase production web API key"
 
 set_secret PAYSTACK_PUBLIC_KEY "Paystack public key (pk_live_...)"
 
