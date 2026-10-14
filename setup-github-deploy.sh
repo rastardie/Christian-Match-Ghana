@@ -71,7 +71,51 @@ PY
 else
   set_secret FIREBASE_API_KEY "Firebase production web API key"
 fi
-set_secret PAYSTACK_PUBLIC_KEY "Paystack public key (pk_live_... )"
+find_paystack_key() {
+  python3 - <<'PY'
+import re
+import urllib.parse
+import urllib.request
+from html.parser import HTMLParser
+
+class Parser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.src = []
+    def handle_starttag(self, tag, attrs):
+        if tag == 'script':
+            src = dict(attrs).get('src')
+            if src:
+                self.src.append(src)
+
+base = 'https://christianmatchghana.com/'
+try:
+    html = urllib.request.urlopen(base, timeout=20).read().decode('utf-8', 'ignore')
+    parser = Parser()
+    parser.feed(html)
+    for src in parser.src:
+        url = src if src.startswith('http') else urllib.parse.urljoin(base, src)
+        try:
+            text = urllib.request.urlopen(url, timeout=20).read().decode('utf-8', 'ignore')
+        except Exception:
+            continue
+        match = re.search(r'pk_(?:live|test)_[A-Za-z0-9_-]+', text)
+        if match:
+            print(match.group(0), end='')
+            break
+except Exception:
+    pass
+PY
+}
+
+PAYSTACK_KEY="$(find_paystack_key)"
+if [ -n "$PAYSTACK_KEY" ]; then
+  printf '%s' "$PAYSTACK_KEY" | gh secret set PAYSTACK_PUBLIC_KEY --repo "$REPO"
+  unset PAYSTACK_KEY
+  echo 'Stored Paystack public key detected from the live production frontend (value not displayed).'
+else
+  set_secret PAYSTACK_PUBLIC_KEY "Paystack public key (pk_live_...)"
+fi
 
 echo
 echo 'Configured GitHub Actions secrets:'
