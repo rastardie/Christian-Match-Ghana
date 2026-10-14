@@ -28,15 +28,40 @@ set_secret() {
   echo "Stored GitHub Actions secret: $name"
 }
 
-set_secret STORMERHOST_HOST "Stormer Host cPanel SFTP host"
-set_secret STORMERHOST_PORT "SFTP port (22; use 21 only for FTP)"
-set_secret STORMERHOST_USER "Stormer Host cPanel/FTP username"
-set_secret STORMERHOST_PASS "Stormer Host cPanel/FTP password"
-set_secret STORMERHOST_REMOTE_DIR "Remote document root (usually public_html)"
-set_secret STORMERHOST_PROTOCOL "Transfer protocol (sftp or ftp)"
+set_secret() {
+  local name="$1"
+  local prompt="$2"
+  local value
+  while true; do
+    read -r -s -p "$prompt: " value
+    echo
+    if [ -n "$value" ]; then break; fi
+    echo "Value cannot be empty. Try again."
+  done
+  printf '%s' "$value" | gh secret set "$name" --repo "$REPO"
+  unset value
+  echo "Stored GitHub Actions secret: $name"
+}
+
+secret_exists() {
+  gh secret list --repo "$REPO" --json name --jq ".[].name" | grep -qx "$1"
+}
+
+if secret_exists STORMERHOST_HOST; then
+  echo 'Keeping existing GitHub secret: STORMERHOST_HOST'
+else
+  set_secret STORMERHOST_HOST "Stormer Host cPanel SFTP host"
+fi
+
+printf '%s' '22' | gh secret set STORMERHOST_PORT --repo "$REPO"
+printf '%s' 'public_html' | gh secret set STORMERHOST_REMOTE_DIR --repo "$REPO"
+printf '%s' 'sftp' | gh secret set STORMERHOST_PROTOCOL --repo "$REPO"
+echo 'Set fixed deploy values: port=22, remote_dir=public_html, protocol=sftp'
+
+set_secret STORMERHOST_USER "Stormer Host cPanel username"
+set_secret STORMERHOST_PASS "Stormer Host cPanel password"
 
 set_secret FIREBASE_API_KEY "Firebase production web API key"
-
 set_secret PAYSTACK_PUBLIC_KEY "Paystack public key (pk_live_...)"
 
 echo
