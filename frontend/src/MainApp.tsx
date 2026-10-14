@@ -1047,7 +1047,7 @@ const AuthView = ({
     };
 
     return (
-      <div className="flex flex-col h-full bg-white p-8 justify-center items-center text-center animate-in fade-in duration-500">
+      <div className="cmg-auth-panel flex flex-col h-full bg-transparent p-8 justify-center items-center text-center animate-in fade-in duration-500">
         <div className="w-24 h-24 bg-brand-orange/10 rounded-full flex items-center justify-center text-brand-orange mb-6 animate-bounce">
           <Mail size={40} />
         </div>
@@ -1106,7 +1106,7 @@ const AuthView = ({
   // Password Reset Success Screen
   if (passwordResetSent) {
     return (
-      <div className="flex flex-col h-full bg-white p-8 justify-center items-center text-center animate-in fade-in duration-500">
+      <div className="cmg-auth-panel flex flex-col h-full bg-transparent p-8 justify-center items-center text-center animate-in fade-in duration-500">
         <div className="w-24 h-24 bg-brand-orange/10 rounded-full flex items-center justify-center text-brand-orange mb-6 animate-bounce">
           <Mail size={40} />
         </div>
@@ -1165,7 +1165,7 @@ const AuthView = ({
 
   if (showForgotPassword) {
     return (
-      <div className="flex flex-col h-full bg-white p-8 justify-start items-center text-center overflow-y-auto animate-in fade-in duration-500">
+      <div className="cmg-auth-panel flex flex-col h-full bg-transparent p-8 justify-start items-center text-center overflow-y-auto animate-in fade-in duration-500">
         <button
           title="Back"
           aria-label="Back"
@@ -1219,7 +1219,7 @@ const AuthView = ({
   }
 
   return (
-    <div className="flex flex-col h-full bg-white p-8 justify-start items-center text-center overflow-y-auto">
+    <div className="cmg-auth-panel flex flex-col h-full bg-transparent p-8 justify-start items-center text-center overflow-y-auto">
       {/* Terms & Conditions Modal */}
       {showTermsModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-2 sm:p-4">
@@ -1346,13 +1346,15 @@ const AuthView = ({
         </div>
       )}
 
-      <div className="flex flex-col items-center mb-10 animate-in fade-in slide-in-from-bottom-6 duration-700">
-        <Logo size={140} className="mb-6 drop-shadow-2xl" />
-        <h1 className="text-3xl font-black text-brand-blue uppercase tracking-tighter leading-none mb-2">
-          Christian <span className="text-brand-orange">Match</span> Ghana
-        </h1>
-        <p className="text-gray-400 text-[9px] font-black uppercase tracking-[0.2em]">
-          Uniting Hearts in Christ
+      <div className="cmg-auth-brand animate-in fade-in slide-in-from-bottom-6 duration-700">
+        <Logo size={160} className="drop-shadow-xl" />
+        <h2>
+          {isLogin ? "Welcome back" : "Create your account"}
+        </h2>
+        <p>
+          {isLogin
+            ? "Your journey to a Christ-centred connection continues."
+            : "Join a community of believers seeking meaningful, Christ-centred relationships."}
         </p>
       </div>
 
@@ -1474,6 +1476,7 @@ const AuthView = ({
             {isLogin && (
               <button
                 type="button"
+                tabIndex={-1}
                 title="Forgot password"
                 onClick={() => setShowForgotPassword(true)}
                 className="text-[9px] font-black text-brand-orange uppercase tracking-widest"
@@ -1652,7 +1655,7 @@ const OnboardingView = ({
   ];
 
   return (
-    <div className="h-full flex flex-col bg-white overflow-hidden">
+    <div className="cmg-onboarding-panel h-full flex flex-col bg-transparent overflow-hidden relative">
       {croppingImage && (
         <ImageCropper
           imageSrc={croppingImage}
@@ -1678,6 +1681,11 @@ const OnboardingView = ({
           }}
         />
       )}
+
+      {/* Compact brand mark above the four-step wizard. */}
+      <div className="flex justify-center pt-4 pb-1 shrink-0">
+        <Logo size={170} className="drop-shadow-lg" />
+      </div>
 
       {/* Wizard Progress Header */}
       <div className="bg-brand-surface pt-12 pb-6 px-8 border-b flex justify-between items-center relative shrink-0">
@@ -1716,14 +1724,12 @@ const OnboardingView = ({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-8 pt-10 hide-scrollbar">
+      <div className="flex-1 overflow-y-auto p-8 pt-5 pb-24 hide-scrollbar">
         {step === 1 && (
           <div className="space-y-6 animate-in slide-in-from-right duration-500">
             <div>
               <h2 className="text-3xl font-black text-brand-blue mb-2 tracking-tighter">
-                Tell us about
-                <br />
-                yourself
+                Tell us about yourself
               </h2>
               <p className="text-gray-400 text-sm font-medium">
                 Let's start your journey to a Godly union.
@@ -1790,9 +1796,7 @@ const OnboardingView = ({
           <div className="space-y-6 animate-in slide-in-from-right duration-500">
             <div>
               <h2 className="text-3xl font-black text-brand-blue mb-2 tracking-tighter">
-                Your Faith
-                <br />
-                Foundation
+                Your Faith Foundation
               </h2>
               <p className="text-gray-400 text-sm font-medium">
                 CMG connects believers of like-mind.
@@ -1846,8 +1850,7 @@ const OnboardingView = ({
           <div className="space-y-6 animate-in slide-in-from-right duration-500">
             <div>
               <h2 className="text-3xl font-black text-brand-blue mb-2 tracking-tighter">
-                Life &<br />
-                Intentions
+                Life & Intentions
               </h2>
               <p className="text-gray-400 text-sm font-medium">
                 What is your vision for this season?
@@ -1896,7 +1899,7 @@ const OnboardingView = ({
         )}
 
         {step === 4 && (
-          <div className="space-y-8 animate-in slide-in-from-right duration-500">
+          <div className="space-y-4 animate-in slide-in-from-right duration-500">
             <div className="text-center">
               <h2 className="text-2xl font-black text-brand-blue mb-1 uppercase tracking-tighter">
                 Visualize your grace
@@ -1909,7 +1912,7 @@ const OnboardingView = ({
             <div className="relative">
               <div
                 onClick={() => handlePhotoSelect("cover")}
-                className="h-44 bg-gray-100 rounded-3xl overflow-hidden group border-2 border-dashed border-gray-200 hover:border-brand-orange transition-all cursor-pointer"
+                className="h-32 bg-gray-100 rounded-3xl overflow-hidden group border-2 border-dashed border-gray-200 hover:border-brand-orange transition-all cursor-pointer"
               >
                 {formData.photos[1] ? (
                   <img
@@ -1926,10 +1929,10 @@ const OnboardingView = ({
                   </div>
                 )}
               </div>
-              <div className="absolute -bottom-10 left-1/2 -translate-x-1/2">
+              <div className="absolute -bottom-8 left-1/2 -translate-x-1/2">
                 <div
                   onClick={() => handlePhotoSelect("profile")}
-                  className="w-28 h-28 rounded-full bg-white p-1.5 shadow-2xl group cursor-pointer hover:scale-105 transition-transform"
+                  className="w-24 h-24 rounded-full bg-white p-1.5 shadow-2xl group cursor-pointer hover:scale-105 transition-transform"
                 >
                   <div className="w-full h-full rounded-full bg-gray-100 overflow-hidden flex items-center justify-center text-gray-300">
                     {formData.photos[0] ? (
@@ -1949,7 +1952,7 @@ const OnboardingView = ({
               </div>
             </div>
 
-            <div className="pt-10 grid grid-cols-3 gap-2">
+            <div className="pt-8 grid grid-cols-3 gap-2">
               {formData.photos.slice(2).map((p, i) => (
                 <div
                   key={i}
@@ -1988,23 +1991,22 @@ const OnboardingView = ({
             </div>
           </div>
         )}
-      </div>
-
-      <div className="p-8 border-t bg-white flex gap-4 shrink-0">
-        {step > 1 && (
+        <div className="mt-6 mb-4 flex gap-4">
+          {step > 1 && (
+            <button
+              onClick={() => setStep(step - 1)}
+              className="flex-1 py-4 bg-white text-brand-orange border-2 border-brand-orange/40 rounded-2xl font-black text-[12px] uppercase tracking-[0.2em] shadow-xl shadow-brand-orange/10 active:scale-95 transition-all"
+            >
+              Back
+            </button>
+          )}
           <button
-            onClick={() => setStep(step - 1)}
-            className="px-6 py-4 bg-gray-100 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] text-gray-500 active:scale-95 transition-all"
+            onClick={next}
+            className="flex-1 bg-brand-orange text-white py-4 rounded-2xl font-black text-[12px] uppercase tracking-[0.2em] shadow-xl shadow-brand-orange/20 active:scale-95 transition-all"
           >
-            Back
+            {step === 4 ? "Finish Setup" : "Continue"}
           </button>
-        )}
-        <button
-          onClick={next}
-          className="flex-1 bg-brand-orange text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-brand-orange/20 active:scale-95 transition-all"
-        >
-          {step === 4 ? "Finish Setup" : "Continue"}
-        </button>
+        </div>
       </div>
       <input
         type="file"
@@ -2033,6 +2035,15 @@ export const EditProfileView = ({
     ...user,
     ...(user as any).raw_user_meta_data,
   });
+  // Keep previously-saved details (e.g. from onboarding) populated here without
+  // discarding any in-progress edits the user has already made on this screen.
+  React.useEffect(() => {
+    setFormData((prev: any) => ({
+      ...user,
+      ...(user as any).raw_user_meta_data,
+      ...prev,
+    }));
+  }, [user]);
   const [loading, setLoading] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -2307,25 +2318,40 @@ export const EditProfileView = ({
   };
 
   return (
-    <div className="h-full bg-white overflow-y-auto pb-24 hide-scrollbar">
-      <div className="sticky top-0 bg-white/80 backdrop-blur-md z-40 border-b p-4 flex justify-between items-center">
+    <div className="cmg-edit-profile h-full flex flex-col bg-transparent relative overflow-hidden">
+      {/* Frozen header: top ribbon, controls, logo and title stay visible while scrolling. */}
+      <div className="shrink-0 relative z-20">
+      {/* Floating controls over the top ribbon, matching the onboarding card. */}
+      <div className="relative z-40 flex items-center justify-between px-4 pt-5">
         <button
           onClick={onCancel}
-          className="p-2 text-gray-500 hover:bg-gray-100 rounded-full"
+          title="Back"
+          aria-label="Back"
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-brand-blue shadow-lg border border-gray-100"
         >
-          <X size={24} />
+          <ArrowLeft size={21} />
         </button>
-        <span className="font-bold text-lg">Edit Profile</span>
         <button
           onClick={saveProfile}
           disabled={loading}
-          className="text-brand-orange font-bold disabled:opacity-50"
+          className="px-5 py-2.5 rounded-full bg-brand-orange text-white font-black text-[11px] uppercase tracking-[0.2em] shadow-lg disabled:opacity-50"
         >
           {loading ? "Saving..." : "Save"}
         </button>
       </div>
 
-      <div className="p-6 space-y-8">
+      {/* App logo, consistent with the login and onboarding screens. */}
+      <div className="flex justify-center pt-2 pb-1">
+        <Logo size={120} className="drop-shadow-lg" />
+      </div>
+      <div className="text-center pb-2">
+        <h2 className="text-2xl font-black text-brand-blue uppercase tracking-tighter">
+          Edit Profile
+        </h2>
+      </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-6 pt-4 pb-52 hide-scrollbar space-y-8 relative z-10">
         {/* Photos Management */}
         <div>
           <div className="flex justify-between items-end mb-3">
@@ -2983,6 +3009,12 @@ export const EditProfileView = ({
           />
         </div>
       </div>
+
+      {/* Bottom ribbon + heart overlay: form content scrolls beneath this. */}
+      <div
+        aria-hidden
+        className="cmg-edit-bottom-ribbon pointer-events-none absolute inset-x-0 bottom-0 z-30"
+      ></div>
       
       {croppingImage && (
         <ImageCropper
@@ -3018,12 +3050,14 @@ const ProfileView = ({
   onLogout,
   onDeleteAccount,
   onOpenPayment,
+  onOpenCommunity,
 }: {
   user: User;
   onEdit: () => void;
   onLogout: () => void;
   onDeleteAccount: () => void;
   onOpenPayment?: () => void;
+  onOpenCommunity?: () => void;
 }) => {
   const strength = calculateProfileStrength(user);
   const [showSettings, setShowSettings] = React.useState(false);
@@ -3045,7 +3079,7 @@ const ProfileView = ({
 
   return (
     <div
-      className={`h-full bg-gray-50 overflow-y-auto pb-24 hide-scrollbar relative ${
+      className={`h-full flex flex-col bg-transparent relative overflow-hidden ${
         isDarkMode ? "dark:bg-gray-900" : ""
       }`}
     >
@@ -3066,6 +3100,20 @@ const ProfileView = ({
             >
               <Edit2 size={16} /> Edit Profile
             </button>
+            {onOpenCommunity && (
+              <>
+                <div className="h-px bg-gray-100 my-1"></div>
+                <button
+                  onClick={() => {
+                    setShowSettings(false);
+                    onOpenCommunity();
+                  }}
+                  className="w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-50 text-gray-700 font-bold text-sm"
+                >
+                  <BookOpen size={16} /> Daily Word & Prayer Wall
+                </button>
+              </>
+            )}
             <div className="h-px bg-gray-100 my-1"></div>
             <button
               onClick={toggleDarkMode}
@@ -3111,46 +3159,55 @@ const ProfileView = ({
         </>
       )}
 
-      {/* Visual Header */}
-      <div className="relative h-80 bg-brand-blue shrink-0">
-        <img
-          src={user.photos?.[1] || user.photos?.[0] || 'https://images.unsplash.com/photo-1506748686214-e9df14d4d9d0?w=800&h=600&fit=crop'}
-          className="w-full h-full object-cover opacity-80"
-          alt="Cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
-
-        {/* Top Right Action Buttons */}
-        <div className="absolute top-6 right-6 text-white flex gap-3 z-30">
-          <button
-            title="Log out"
-            aria-label="Log out"
-            onClick={onLogout}
-            className="p-2.5 bg-black/20 rounded-full border border-white/20 backdrop-blur-md shadow-lg active:scale-90 transition-transform hover:bg-black/30"
-          >
-            <LogOut size={18} />
-          </button>
-          <button
-            title="Settings"
-            aria-label="Settings"
-            onClick={() => setShowSettings(!showSettings)}
-            className="p-2.5 bg-black/20 rounded-full border border-white/20 backdrop-blur-md shadow-lg active:scale-90 transition-transform hover:bg-black/30"
-          >
-            <Settings size={18} />
-          </button>
-        </div>
-
-        {/* Profile Photo Centered Overlay */}
-        <div className="absolute bottom-[-50px] left-1/2 -translate-x-1/2 border-4 border-white rounded-full overflow-hidden w-36 h-36 shadow-[0_15px_40px_rgba(0,0,0,0.3)] bg-white z-20">
-          <img
-            src={user.photos?.[0] || 'https://images.unsplash.com/photo-1511367461989-f85a21fda167?w=400&h=400&fit=crop'}
-            className="w-full h-full object-cover"
-            alt="Profile"
-          />
+      {/* Fixed header: centered brand logo with merged settings + logout actions. */}
+      <div className="shrink-0 relative z-30 px-5 pt-5 pb-2">
+        <div className="relative flex items-center justify-center">
+          <Logo size={64} className="drop-shadow-lg rounded-full" />
+          <div className="absolute right-0 flex gap-2">
+            <button
+              title="Settings"
+              aria-label="Settings"
+              onClick={() => setShowSettings(!showSettings)}
+              className="p-2.5 bg-white/90 text-brand-blue rounded-full border border-gray-100 shadow-lg active:scale-90 transition-transform hover:bg-white"
+            >
+              <Settings size={18} />
+            </button>
+            <button
+              title="Log out"
+              aria-label="Log out"
+              onClick={onLogout}
+              className="p-2.5 bg-white/90 text-brand-blue rounded-full border border-gray-100 shadow-lg active:scale-90 transition-transform hover:bg-white"
+            >
+              <LogOut size={18} />
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="pt-16 p-8 space-y-8 pb-32">
+      {/* Scrollable body */}
+      <div className="flex-1 overflow-y-auto pb-40 hide-scrollbar relative z-10">
+      {/* Cover photo card with overlapping profile photo, within the cream body. */}
+      <div className="px-6 pt-4">
+        <div className="relative rounded-3xl overflow-hidden h-40 bg-brand-blue shadow-lg">
+          <img
+            src={user.photos?.[1] || user.photos?.[0] || 'https://images.unsplash.com/photo-1506748686214-e9df14d4d9d0?w=800&h=600&fit=crop'}
+            className="w-full h-full object-cover opacity-90"
+            alt="Cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
+        </div>
+        <div className="flex justify-center -mt-14">
+          <div className="border-4 border-white rounded-full overflow-hidden w-28 h-28 shadow-[0_15px_40px_rgba(0,0,0,0.25)] bg-white z-20">
+            <img
+              src={user.photos?.[0] || 'https://images.unsplash.com/photo-1511367461989-f85a21fda167?w=400&h=400&fit=crop'}
+              className="w-full h-full object-cover"
+              alt="Profile"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="pt-4 p-8 space-y-8 pb-32">
         {/* Identity Title */}
         <div className="text-center relative">
           <h1 className="text-3xl font-black text-gray-900 flex items-center justify-center gap-3 tracking-tighter">
@@ -3675,6 +3732,13 @@ const ProfileView = ({
           </div>
         </div>
       </div>
+      </div>
+
+      {/* Base ribbon + heart overlay (reduced height to leave room for the nav). */}
+      <div
+        aria-hidden
+        className="cmg-profile-bottom-ribbon pointer-events-none absolute inset-x-0 bottom-0 z-20"
+      ></div>
     </div>
   );
 };
@@ -4650,7 +4714,7 @@ const BrowseView = ({
     );
 
   return (
-    <div className="h-full flex flex-col bg-white relative">
+    <div className="h-full flex flex-col bg-transparent relative">
       {/* Filter Toggle Button */}
       <button
         onClick={() => setShowFilters(!showFilters)}
@@ -5046,42 +5110,74 @@ const ChatListView = ({
   chats: ChatThread[];
   onChatSelect: (id: string) => void;
   isLoading?: boolean;
-}) => (
-  <div className="h-full flex flex-col bg-white">
-    <div className="p-5 pt-12 border-b flex justify-between items-center sticky top-0 bg-white z-10 shadow-sm shrink-0">
-      <h1 className="font-black text-2xl text-brand-blue uppercase tracking-tighter">
-        Blessings
-      </h1>
-      <Search size={22} className="text-gray-400" />
-    </div>
-    <div className="flex-1 overflow-y-auto hide-scrollbar">
-      {isLoading ? (
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <div className="w-12 h-12 border-4 border-brand-orange border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-sm text-gray-500 font-semibold">Loading chats...</p>
-          </div>
+}) => {
+  const [tab, setTab] = useState<"all" | "matches" | "requests">("all");
+  const visibleChats =
+    tab === "requests"
+      ? chats.filter((c) => c.unreadCount > 0)
+      : chats;
+
+  return (
+    <div className="h-full flex flex-col bg-transparent">
+      <div className="cmg-sticky-head px-5 pt-12 pb-3 border-b border-gray-100 sticky top-0 z-10 shrink-0">
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="font-black text-3xl text-brand-blue tracking-tight" style={{ fontFamily: "Georgia, serif" }}>
+            Messages
+          </h1>
+          <button
+            title="Search messages"
+            aria-label="Search messages"
+            className="p-2.5 rounded-full bg-white/80 border border-gray-100 text-gray-500 shadow-sm"
+          >
+            <Search size={20} />
+          </button>
         </div>
-      ) : chats.length === 0 ? (
-        <div className="flex items-center justify-center h-64 p-8 text-center">
-          <div>
-            <MessageCircle size={48} className="mx-auto mb-4 text-gray-300" />
-            <p className="font-black uppercase tracking-widest text-xs text-gray-400 mb-2">
-              No conversations yet
-            </p>
-            <p className="text-xs text-gray-500">
-              Connect with someone to start chatting!
-            </p>
-          </div>
+        <div className="flex gap-2">
+          {([
+            { id: "all", label: "All" },
+            { id: "matches", label: "Matches" },
+            { id: "requests", label: "Requests" },
+          ] as const).map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              data-active={tab === t.id}
+              className="cmg-messages-tab px-5 py-2 rounded-full text-xs font-black tracking-wide transition-all"
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
-      ) : (
-        chats.map((c) => (
-          <ChatListItem key={c.id} chat={c} onChatSelect={onChatSelect} />
-        ))
-      )}
+      </div>
+      <div className="flex-1 overflow-y-auto hide-scrollbar">
+        {isLoading ? (
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <div className="w-12 h-12 border-4 border-brand-orange border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+              <p className="text-sm text-gray-500 font-semibold">Loading chats...</p>
+            </div>
+          </div>
+        ) : visibleChats.length === 0 ? (
+          <div className="flex items-center justify-center h-64 p-8 text-center">
+            <div>
+              <MessageCircle size={48} className="mx-auto mb-4 text-gray-300" />
+              <p className="font-black uppercase tracking-widest text-xs text-gray-400 mb-2">
+                {tab === "requests" ? "No new requests" : "No conversations yet"}
+              </p>
+              <p className="text-xs text-gray-500">
+                Connect with someone to start chatting!
+              </p>
+            </div>
+          </div>
+        ) : (
+          visibleChats.map((c) => (
+            <ChatListItem key={c.id} chat={c} onChatSelect={onChatSelect} />
+          ))
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const CommunityView = ({ user }: { user: User | null }) => {
   const [tab, setTab] = useState<"devotional" | "prayer">("devotional");
@@ -5235,7 +5331,7 @@ const CommunityView = ({ user }: { user: User | null }) => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-gray-50 relative">
+    <div className="h-full flex flex-col bg-transparent relative">
       <div className="bg-white p-2.5 pt-12 border-b flex gap-1.5 sticky top-0 z-10 shadow-sm shrink-0">
         <button
           onClick={() => setTab("devotional")}
@@ -5608,7 +5704,7 @@ const FriendsView = ({
     );
 
   return (
-    <div className="h-full bg-white flex flex-col">
+    <div className="h-full bg-transparent flex flex-col">
       <div className="p-6 pt-12 border-b shrink-0">
         <h1 className="text-2xl font-black text-brand-blue dark:text-brand-orange uppercase tracking-tighter">
           Your Connections
@@ -5697,6 +5793,7 @@ const App = () => {
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [isCallingVideo, setIsCallingVideo] = useState(false);
   const [showIncompleteProfileModal, setShowIncompleteProfileModal] = useState(false);
+  const [profileReminderDeferred, setProfileReminderDeferred] = useState(false);
   
   // Account Deletion State
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
@@ -5704,7 +5801,7 @@ const App = () => {
 
   useEffect(() => {
     if (user && currentView !== "AUTH" && currentView !== "ONBOARDING") {
-      if (!isProfileFullyComplete(user)) {
+      if (!isProfileFullyComplete(user) && !profileReminderDeferred) {
         setShowIncompleteProfileModal(true);
       } else {
         setShowIncompleteProfileModal(false);
@@ -5712,7 +5809,7 @@ const App = () => {
     } else {
       setShowIncompleteProfileModal(false);
     }
-  }, [user, currentView]);
+  }, [user, currentView, profileReminderDeferred]);
   
   // Real-time Chat State
   const [chats, setChats] = useState<ChatThread[]>([]);
@@ -6146,8 +6243,8 @@ const App = () => {
 
   if (currentView === "AUTH")
     return (
-      <div className="h-screen bg-gray-100 flex items-center justify-center">
-        <div className="w-full max-w-md h-full sm:h-[90vh] bg-white sm:rounded-3xl overflow-hidden shadow-2xl relative">
+      <div className="cmg-stage min-h-screen flex items-center justify-center">
+        <div className="cmg-auth-card cmg-theme-sunrise w-full max-w-md h-full sm:h-[90vh] relative">
           {notification && (
             <NotificationBanner
               message={notification.message}
@@ -6180,8 +6277,8 @@ const App = () => {
 
   if (currentView === "ONBOARDING")
     return (
-      <div className="h-screen bg-gray-100 flex items-center justify-center">
-        <div className="w-full max-w-md h-full sm:h-[90vh] bg-white sm:rounded-3xl overflow-hidden shadow-2xl relative">
+      <div className="cmg-stage min-h-screen flex items-center justify-center">
+        <div className="cmg-auth-card cmg-theme-leaf w-full max-w-md h-full sm:h-[90vh] relative">
           <div className="absolute top-4 left-4 right-4 z-[200] flex items-center justify-between pointer-events-none">
             <button
               type="button"
@@ -6207,12 +6304,59 @@ const App = () => {
             onComplete={async (data) => {
               if (user?.id) {
                 try {
+                  const uid = user.id;
+                  // Onboarding keeps photos as base64 data URLs. Persisting those
+                  // directly to Firestore exceeds the 1MB document limit (which was
+                  // causing "Failed to save onboarding details"), so upload them to
+                  // Storage first and keep only the lightweight download URLs.
+                  const {
+                    uploadProfilePhoto,
+                    uploadCoverPhoto,
+                    uploadGalleryPhoto,
+                    compressImage,
+                  } = await import('./services/fileStorageService');
+
+                  const dataURLtoFile = (dataUrl: string, filename: string): File => {
+                    const arr = dataUrl.split(',');
+                    const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+                    const bstr = atob(arr[1]);
+                    let n = bstr.length;
+                    const u8arr = new Uint8Array(n);
+                    while (n--) u8arr[n] = bstr.charCodeAt(n);
+                    return new File([u8arr], filename, { type: mime });
+                  };
+
+                  const sourcePhotos: string[] = Array.isArray(data.photos)
+                    ? data.photos
+                    : [];
+                  const uploadedPhotos: string[] = [];
+                  for (let i = 0; i < sourcePhotos.length; i++) {
+                    const photo = sourcePhotos[i];
+                    if (typeof photo === 'string' && photo.startsWith('data:')) {
+                      const file = dataURLtoFile(photo, `onboarding-${i}.jpg`);
+                      const compressed = await compressImage(file, 1200, 1200, 0.8);
+                      const meta =
+                        i === 0
+                          ? await uploadProfilePhoto(uid, compressed)
+                          : i === 1
+                          ? await uploadCoverPhoto(uid, compressed)
+                          : await uploadGalleryPhoto(uid, compressed);
+                      uploadedPhotos[i] = meta.downloadURL;
+                    } else if (typeof photo === 'string' && photo.length > 0) {
+                      uploadedPhotos[i] = photo; // already a hosted URL
+                    } else {
+                      uploadedPhotos[i] = '';
+                    }
+                  }
+
+                  const payload = { ...data, photos: uploadedPhotos };
                   const { updateUserDocument } = await import('./services/userService');
-                  await updateUserDocument(user.id, data);
-                  setUser((prev) => ({ ...prev!, ...data }));
+                  await updateUserDocument(uid, payload);
+                  setUser((prev) => ({ ...prev!, ...payload }));
                 } catch (e) {
                   console.error("Failed to save onboarding data:", e);
                   showNotify("Failed to save onboarding details", "error");
+                  return; // stay on onboarding so the user can retry without losing input
                 }
               } else {
                 setUser((prev) => ({ ...prev!, ...data }));
@@ -6234,7 +6378,7 @@ const App = () => {
       onBack={handleUiBack}
       onLogout={handleLogout}
       onChangeView={(v) => {
-        if (user && !isProfileFullyComplete(user) && v !== "EDIT_PROFILE") {
+        if (user && !isProfileFullyComplete(user) && !profileReminderDeferred && v !== "EDIT_PROFILE") {
           setShowIncompleteProfileModal(true);
           return;
         }
@@ -6248,9 +6392,9 @@ const App = () => {
             <div className="w-16 h-16 bg-brand-orange/10 text-brand-orange rounded-full flex items-center justify-center mx-auto mb-4">
               <AlertCircle size={32} />
             </div>
-            <h2 className="text-2xl font-black text-gray-900 mb-2">Complete Profile</h2>
+            <h2 className="text-lg font-black text-gray-900 mb-2 whitespace-nowrap">Complete Additional Profile</h2>
             <p className="text-sm text-gray-600 mb-6">
-              You must complete your account creation by filling out all your profile details before you can continue using the app.
+              Add your additional profile details to get the most out of Christian Match Ghana. You can finish now or continue later.
             </p>
             <button
               onClick={() => {
@@ -6259,7 +6403,16 @@ const App = () => {
               }}
               className="w-full bg-brand-orange text-white font-bold py-4 rounded-xl hover:bg-brand-orange/90 transition-colors shadow-lg shadow-brand-orange/30"
             >
-              Edit Profile
+              Complete Now
+            </button>
+            <button
+              onClick={() => {
+                setProfileReminderDeferred(true);
+                setShowIncompleteProfileModal(false);
+              }}
+              className="w-full mt-3 text-gray-500 font-bold py-3 rounded-xl hover:text-brand-orange transition-colors"
+            >
+              I'll continue later
             </button>
           </div>
         </div>
@@ -6443,6 +6596,7 @@ const App = () => {
             setShowDeleteAccountModal(true);
           }}
           onOpenPayment={() => setShowPaymentModal(true)}
+          onOpenCommunity={() => setCurrentView("COMMUNITY")}
         />
       )}
       {currentView === "EDIT_PROFILE" && user && (

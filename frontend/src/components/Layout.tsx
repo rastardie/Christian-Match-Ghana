@@ -7,7 +7,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { ViewState } from '../types';
-import { Flame, MessageCircle, User, HeartHandshake, Bot, Users, ArrowLeft, LogOut } from 'lucide-react';
+import { Compass, MessageCircle, User, Heart, LogOut } from 'lucide-react';
+import Logo from './Logo';
 
 
 interface LayoutProps {
@@ -21,88 +22,74 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, onBack, onLogout, hideNav }) => {
   // Navigation is hidden during auth, onboarding, and specific deep-view states (like active calls)
-  const shouldShowNav = !hideNav && !['AUTH', 'ONBOARDING'].includes(currentView);
+  const shouldShowNav = !hideNav && !['AUTH', 'ONBOARDING', 'EDIT_PROFILE'].includes(currentView);
 
 
   return (
-    <div className="flex justify-center min-h-screen bg-gray-100 font-sans">
-      <div className="w-full max-w-md bg-white h-[100dvh] flex flex-col relative shadow-2xl overflow-hidden sm:rounded-3xl sm:h-[92vh] sm:my-6 sm:border sm:border-gray-200">
+    <div className="cmg-app-backdrop flex justify-center min-h-screen font-sans">
+      <div data-view={currentView} className="cmg-app-frame cmg-view-surface w-full max-w-md h-[100dvh] flex flex-col relative shadow-2xl overflow-hidden sm:rounded-[2rem] sm:h-[92vh] sm:my-6 sm:border sm:border-white/70">
         
-        {/* Global escape controls, matching the mobile app pattern: a back
-            arrow on the left and an icon-only logout action on the right. */}
-        {shouldShowNav && (onBack || onLogout) && (
-          <div className="absolute top-3 left-3 right-3 z-[200] flex items-center justify-between pointer-events-none">
-            {onBack ? (
-              <button
-                type="button"
-                title={currentView === 'BROWSE' ? 'Already at home' : 'Back'}
-                aria-label={currentView === 'BROWSE' ? 'Already at home' : 'Back'}
-                onClick={onBack}
-                disabled={currentView === 'BROWSE'}
-                className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-brand-blue shadow-lg border border-gray-100 disabled:opacity-40"
-              >
-                <ArrowLeft size={21} />
-              </button>
-            ) : <span />}
-            {onLogout && (
-              <button
-                type="button"
-                title="Log out"
-                aria-label="Log out"
-                onClick={onLogout}
-                className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full bg-brand-blue text-white shadow-lg"
-              >
-                <LogOut size={19} />
-              </button>
-            )}
+        {/* Shared fixed header: centered brand logo (does not scroll). Profile
+            renders its own header with settings, so it is excluded here. */}
+        {shouldShowNav && currentView !== 'PROFILE' && (
+          <div className="shrink-0 relative z-30 px-5 pt-5 pb-2">
+            <div className="relative flex items-center justify-center">
+              <Logo size={60} className="drop-shadow-lg rounded-full" />
+              {onLogout && (
+                <button
+                  type="button"
+                  title="Log out"
+                  aria-label="Log out"
+                  onClick={onLogout}
+                  className="absolute right-0 flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-brand-blue shadow-lg border border-gray-100 active:scale-90 transition-transform hover:bg-white"
+                >
+                  <LogOut size={18} />
+                </button>
+              )}
+            </div>
           </div>
         )}
 
-        {/* Scrollable View Area */}
-        <main className="flex-1 overflow-y-auto bg-white hide-scrollbar relative">
-          {children}
-        </main>
+        {/* Scrollable view area with a base ribbon overlay that content scrolls beneath. */}
+        <div className="flex-1 relative overflow-hidden">
+          <main className="h-full overflow-y-auto bg-transparent hide-scrollbar relative">
+            {children}
+          </main>
+          {shouldShowNav && currentView !== 'PROFILE' && (
+            <div
+              aria-hidden
+              data-view={currentView}
+              className="cmg-nav-bottom-ribbon pointer-events-none absolute inset-x-0 bottom-0 z-20"
+            ></div>
+          )}
+        </div>
 
-        {/* Persistent Bottom Tab Bar */}
+        {/* Persistent Bottom Tab Bar — flat four-tab layout from the reference UI. */}
         {shouldShowNav && (
-          <nav className="bg-white border-t border-gray-100 px-6 py-3 flex justify-between items-end z-50 pb-8 shrink-0">
-            <NavButton 
-              active={currentView === 'FRIENDS'} 
-              onClick={() => onChangeView('FRIENDS')} 
-              icon={<Users size={24} />} 
-              label="Connect" 
-            />
-            <NavButton 
-              active={currentView === 'COMMUNITY'} 
-              onClick={() => onChangeView('COMMUNITY')} 
-              icon={<HeartHandshake size={24} />} 
-              label="Wall" 
-            />
-            
-            {/* Center Discovery Action Button */}
-            <button 
-              title="Browse"
+          <nav className="cmg-bottom-nav bg-white border-t border-gray-100 px-5 py-3 flex justify-around items-center z-50 pb-8 shrink-0">
+            <NavButton
+              active={currentView === 'BROWSE'}
               onClick={() => onChangeView('BROWSE')}
-              className={`-translate-y-4 w-16 h-16 rounded-full flex items-center justify-center shadow-2xl transition-all active:scale-95 ${
-                currentView === 'BROWSE' 
-                  ? 'bg-brand-orange text-white shadow-brand-orange/40 scale-110' 
-                  : 'bg-brand-blue text-white'
-              }`}
-            >
-              <Flame size={32} />
-            </button>
-
-            <NavButton 
-              active={currentView === 'CHAT'} 
-              onClick={() => onChangeView('CHAT')} 
-              icon={<MessageCircle size={24} />} 
-              label="Inbox" 
+              icon={<Compass size={24} />}
+              label="Discover"
             />
-            <NavButton 
-              active={currentView === 'PROFILE'} 
-              onClick={() => onChangeView('PROFILE')} 
-              icon={<User size={24} />} 
-              label="Me" 
+            <NavButton
+              active={currentView === 'FRIENDS'}
+              onClick={() => onChangeView('FRIENDS')}
+              icon={<Heart size={24} />}
+              label="Likes"
+            />
+            <NavButton
+              active={currentView === 'CHAT'}
+              onClick={() => onChangeView('CHAT')}
+              icon={<MessageCircle size={24} />}
+              label="Messages"
+            />
+            <NavButton
+              active={currentView === 'PROFILE'}
+              onClick={() => onChangeView('PROFILE')}
+              icon={<User size={24} />}
+              label="Profile"
             />
           </nav>
         )}
@@ -113,12 +100,12 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
 
 // Reusable Navigation Link Component
 const NavButton = ({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string }) => (
-  <button 
+  <button
     onClick={onClick}
-    className={`flex flex-col items-center gap-1 transition-all duration-200 ${active ? 'text-brand-orange scale-110' : 'text-gray-400 hover:text-gray-600'}`}
+    className={`flex flex-col items-center gap-1 transition-all duration-200 ${active ? 'text-brand-orange' : 'text-gray-400 hover:text-gray-600'}`}
   >
-    {icon}
-    <span className="text-[9px] font-black uppercase tracking-tight">{label}</span>
+    <span className={`flex h-7 items-center justify-center ${active ? 'scale-110' : ''} transition-transform`}>{icon}</span>
+    <span className={`text-[10px] tracking-tight ${active ? 'font-black' : 'font-bold'}`}>{label}</span>
   </button>
 );
 

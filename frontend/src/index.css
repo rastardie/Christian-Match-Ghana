@@ -74,3 +74,490 @@
 .cropper-rounded-full{
   border-radius: 9999px;
 }
+
+/* CMG reference UI: warm editorial canvas, navy structure, and orange actions. */
+:root {
+  --cmg-cream: #fffaf1;
+  --cmg-cream-deep: #f8efdf;
+  --cmg-navy: #092847;
+  --cmg-orange: #ff5b16;
+  --cmg-gold: #f0b938;
+  --cmg-green: #17734f;
+  --cmg-ink: #17253a;
+}
+
+body {
+  background: var(--cmg-cream);
+  color: var(--cmg-ink);
+}
+
+.cmg-app-backdrop,
+.cmg-stage {
+  background:
+    radial-gradient(circle at 8% 10%, rgba(255, 196, 78, 0.16), transparent 28rem),
+    radial-gradient(circle at 92% 84%, rgba(23, 115, 79, 0.1), transparent 24rem),
+    var(--cmg-cream);
+}
+
+.cmg-app-frame {
+  border-color: rgba(255, 255, 255, 0.82);
+  background: var(--cmg-cream);
+}
+
+.cmg-auth-card,
+.cmg-auth-panel,
+.cmg-onboarding-panel {
+  position: relative;
+  background-color: #fffaf1;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 450 600'%3E%3Cpath d='M330 35c-42-45-112-10-112 52 0 50 61 93 112 133 51-40 112-83 112-133 0-62-70-97-112-52z' fill='none' stroke='%23f1b83a' stroke-width='4' opacity='.10'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 450 600'%3E%3Cpath d='M60 380c-38-42-102-10-102 47 0 46 55 85 102 121 47-36 102-75 102-121 0-57-64-89-102-47z' fill='none' stroke='%23ff671f' stroke-width='4' opacity='.09'/%3E%3C/svg%3E");
+  background-position: 115% 26%, -20% 65%;
+  background-repeat: no-repeat;
+  background-size: 52%, 46%;
+}
+
+/* Mockup geometry: compact, top-left navy/orange/gold corner swoosh. */
+.cmg-auth-panel::before,
+.cmg-onboarding-panel::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 12.5rem;
+  height: 8.25rem;
+  z-index: 0;
+  pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='132' viewBox='0 0 200 132'%3E%3Cpath d='M0 0H200C158 43 103 67 0 102Z' fill='%230a2a4b'/%3E%3Cpath d='M0 28C68 20 127 12 174 0 139 42 85 71 0 118Z' fill='%23ff671f'/%3E%3Cpath d='M0 16C63 11 119 6 154 0 119 38 68 63 0 93Z' fill='%23f0b938'/%3E%3C/svg%3E") no-repeat left top / 100% 100%;
+}
+
+/* Mockup geometry: shallow bottom wave, not a full page footer. */
+.cmg-auth-panel::after,
+.cmg-onboarding-panel::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 5.3rem;
+  z-index: 0;
+  pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='440' height='86' viewBox='0 0 440 86' preserveAspectRatio='none'%3E%3Cpath d='M0 36C104 10 231 38 344 35c34-1 65-9 96-25v76H0Z' fill='%23f0b938'/%3E%3Cpath d='M0 50C106 22 222 51 338 49c38-1 72-12 102-29v66H0Z' fill='%232a7a53'/%3E%3Cpath d='M0 64C109 39 225 66 340 64c37-1 69-10 100-24v46H0Z' fill='%230a2a4b'/%3E%3Cpath d='M398 22c-7-8-20-3-20 7 0 8 10 15 20 23 10-8 20-15 20-23 0-10-13-15-20-7z' fill='none' stroke='%23f0b938' stroke-width='2'/%3E%3C/svg%3E") no-repeat bottom / 100% 100%;
+}
+
+.cmg-auth-panel > *,
+.cmg-onboarding-panel > * {
+  position: relative;
+  z-index: 1;
+}
+
+.cmg-auth-panel input,
+.cmg-auth-panel select,
+.cmg-auth-panel textarea,
+.cmg-onboarding-panel input,
+.cmg-onboarding-panel select,
+.cmg-onboarding-panel textarea {
+  border: 1px solid rgba(9, 40, 71, 0.12);
+  background: #ffffff;
+  border-radius: 1rem;
+  box-shadow: 0 6px 18px rgba(9, 40, 71, 0.05);
+}
+
+.cmg-auth-panel input:focus,
+.cmg-auth-panel select:focus,
+.cmg-auth-panel textarea:focus,
+.cmg-onboarding-panel input:focus,
+.cmg-onboarding-panel select:focus,
+.cmg-onboarding-panel textarea:focus {
+  border-color: var(--cmg-orange);
+  outline: 3px solid rgba(255, 91, 22, 0.12);
+}
+
+.cmg-auth-panel {
+  padding-top: 3rem;
+  padding-bottom: 3.5rem;
+}
+
+.cmg-onboarding-panel {
+  padding-top: 1rem;
+}
+
+.cmg-auth-panel label,
+.cmg-onboarding-panel label {
+  color: #6b7686;
+  letter-spacing: 0.06em;
+}
+
+.cmg-auth-panel input,
+.cmg-auth-panel select,
+.cmg-auth-panel textarea,
+.cmg-onboarding-panel input,
+.cmg-onboarding-panel select,
+.cmg-onboarding-panel textarea {
+  padding-top: 0.85rem;
+  padding-bottom: 0.85rem;
+}
+
+.cmg-auth-panel h1,
+.cmg-auth-panel h2,
+.cmg-onboarding-panel h1,
+.cmg-onboarding-panel h2 {
+  color: var(--cmg-navy);
+  font-family: Georgia, serif;
+  letter-spacing: -0.045em;
+}
+
+.cmg-auth-panel button[type="submit"],
+.cmg-onboarding-panel button.bg-brand-orange {
+  background: linear-gradient(100deg, var(--cmg-navy), #123e63);
+  border-radius: 0.95rem;
+  letter-spacing: 0.08em;
+}
+
+.cmg-onboarding-panel button.bg-brand-orange {
+  background: linear-gradient(100deg, var(--cmg-orange), #ff8a14);
+}
+
+@media (min-width: 640px) {
+  .cmg-stage {
+    padding: 1.5rem;
+  }
+
+  .cmg-auth-card {
+    min-height: min(92vh, 920px);
+    border: 1px solid rgba(9, 40, 71, 0.1);
+    border-radius: 2rem;
+    box-shadow: 0 24px 80px rgba(9, 40, 71, 0.14);
+    overflow: hidden;
+  }
+}
+
+.cmg-bottom-nav {
+  background: rgba(255, 255, 255, 0.94) !important;
+  border-top-color: rgba(9, 40, 71, 0.08) !important;
+  box-shadow: 0 -12px 32px rgba(9, 40, 71, 0.07);
+  backdrop-filter: blur(18px);
+}
+
+.cmg-bottom-nav button {
+  min-width: 3.25rem;
+}
+
+.cmg-bottom-nav button[title="Browse"] {
+  background: linear-gradient(135deg, var(--cmg-orange), #ff8b16) !important;
+  border: 4px solid var(--cmg-cream);
+}
+
+.cmg-messages-tab {
+  border: 1px solid rgba(9, 40, 71, 0.1);
+  color: var(--cmg-navy);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.cmg-messages-tab[data-active="true"] {
+  background: linear-gradient(120deg, var(--cmg-orange), #ff8b16);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 10px 20px rgba(255, 91, 22, 0.22);
+}
+
+.cmg-sticky-head {
+  background: rgba(255, 250, 241, 0.92);
+  backdrop-filter: blur(14px);
+}
+
+/* Auth composition — explicit dimensions mirror the supplied Welcome Back screen. */
+.cmg-auth-panel .cmg-auth-brand {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  margin: 1.05rem auto 2.25rem;
+  text-align: center;
+}
+
+.cmg-auth-panel .cmg-auth-brand img {
+  display: block;
+  margin: 0 auto 1.55rem;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(9, 40, 71, 0.13);
+}
+
+.cmg-auth-panel .cmg-auth-brand h2 {
+  margin: 0;
+  color: #0a2a4b;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(2.25rem, 9vw, 3.15rem);
+  font-weight: 800;
+  line-height: 0.98;
+  letter-spacing: -0.06em;
+}
+
+.cmg-auth-panel .cmg-auth-brand p {
+  max-width: 19rem;
+  margin: 1rem auto 0;
+  color: #526072;
+  font-size: 0.94rem;
+  font-weight: 600;
+  line-height: 1.48;
+}
+
+.cmg-auth-panel form {
+  max-width: 20rem;
+  margin: 0 auto;
+}
+
+.cmg-auth-panel form > button[type="submit"] {
+  min-height: 3.55rem;
+  margin-top: 0.7rem;
+  border-radius: 1rem;
+  box-shadow: 0 12px 22px rgba(9, 40, 71, 0.2);
+}
+
+.cmg-auth-panel > button:last-of-type {
+  min-height: 3.3rem;
+  margin-top: 1.55rem;
+  border-radius: 1rem;
+  color: #ef741e;
+  background: rgba(255, 255, 255, 0.46);
+  border: 1px solid rgba(239, 116, 30, 0.18);
+}
+
+@media (max-height: 760px) {
+  .cmg-auth-panel .cmg-auth-brand {
+    margin-top: 0.25rem;
+    margin-bottom: 1.25rem;
+  }
+  .cmg-auth-panel .cmg-auth-brand img {
+    margin-bottom: 0.8rem;
+  }
+  .cmg-auth-panel .cmg-auth-brand h2 {
+    font-size: 2.25rem;
+  }
+}
+
+/* Fixed artwork belongs to the viewport card, never to the scrollable form panel.
+   This prevents the coloured blend from wrapping across the top-right edge. */
+.cmg-auth-card {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background: #fffaf1;
+}
+
+/* Reusable faith-wallpaper themes. Each paints the themed top swoosh (anchored
+   top) and the feathered bottom wave (anchored bottom) over a cream base, with
+   no distortion or hard seam. Apply one theme class alongside the layout class. */
+.cmg-theme-sunrise,
+.cmg-theme-heart,
+.cmg-theme-cross,
+.cmg-theme-dove,
+.cmg-theme-globe,
+.cmg-theme-leaf,
+.cmg-theme-waves,
+.cmg-theme-community,
+.cmg-theme-city,
+.cmg-theme-rings {
+  background-color: #fffaf1;
+  background-repeat: no-repeat, no-repeat;
+  background-position: top center, bottom center;
+  background-size: 100% auto, 100% auto;
+}
+
+.cmg-theme-sunrise {
+  background-image:
+    url("/brand-reference/wallpapers/cmg-bg-sunrise-top.png"),
+    url("/brand-reference/wallpapers/cmg-bg-sunrise-bottom.png");
+}
+.cmg-theme-heart {
+  background-image:
+    url("/brand-reference/wallpapers/cmg-bg-heart-top.png"),
+    url("/brand-reference/wallpapers/cmg-bg-heart-bottom.png");
+}
+.cmg-theme-cross {
+  background-image:
+    url("/brand-reference/wallpapers/cmg-bg-cross-top.png"),
+    url("/brand-reference/wallpapers/cmg-bg-cross-bottom.png");
+}
+.cmg-theme-dove {
+  background-image:
+    url("/brand-reference/wallpapers/cmg-bg-dove-top.png"),
+    url("/brand-reference/wallpapers/cmg-bg-dove-bottom.png");
+}
+.cmg-theme-globe {
+  background-image:
+    url("/brand-reference/wallpapers/cmg-bg-globe-top.png"),
+    url("/brand-reference/wallpapers/cmg-bg-globe-bottom.png");
+}
+.cmg-theme-leaf {
+  background-image:
+    url("/brand-reference/wallpapers/cmg-bg-leaf-top.png"),
+    url("/brand-reference/wallpapers/cmg-bg-leaf-bottom.png");
+}
+.cmg-theme-waves {
+  background-image:
+    url("/brand-reference/wallpapers/cmg-bg-waves-top.png"),
+    url("/brand-reference/wallpapers/cmg-bg-waves-bottom.png");
+}
+.cmg-theme-community {
+  background-image:
+    url("/brand-reference/wallpapers/cmg-bg-community-top.png"),
+    url("/brand-reference/wallpapers/cmg-bg-community-bottom.png");
+}
+.cmg-theme-city {
+  background-image:
+    url("/brand-reference/wallpapers/cmg-bg-city-top.png"),
+    url("/brand-reference/wallpapers/cmg-bg-city-bottom.png");
+}
+.cmg-theme-rings {
+  background-image:
+    url("/brand-reference/wallpapers/cmg-bg-rings-top.png"),
+    url("/brand-reference/wallpapers/cmg-bg-rings-bottom.png");
+}
+
+/* App views carry a bottom navigation bar, so only the top swoosh accent is
+   painted on the fixed frame; the cream base keeps content readable. */
+.cmg-view-top-only {
+  background-repeat: no-repeat;
+  background-position: top center;
+  background-size: 100% auto;
+}
+
+/* Per-view themed top accent on the fixed app frame. The scroll area above is
+   transparent so this swoosh shows behind the view header. */
+.cmg-view-surface {
+  background-repeat: no-repeat;
+  background-position: top center;
+  background-size: 100% auto;
+  background-color: #fffaf1;
+}
+.cmg-view-surface[data-view="BROWSE"] {
+  background-image: url("/brand-reference/wallpapers/cmg-bg-community-top.png");
+}
+.cmg-view-surface[data-view="FRIENDS"] {
+  background-image: url("/brand-reference/wallpapers/cmg-bg-heart-top.png");
+}
+.cmg-view-surface[data-view="CHAT"] {
+  background-image: url("/brand-reference/wallpapers/cmg-bg-waves-top.png");
+}
+.cmg-view-surface[data-view="PROFILE"] {
+  background-image: url("/brand-reference/wallpapers/cmg-bg-rings-top.png");
+}
+.cmg-view-surface[data-view="COMMUNITY"] {
+  background-image: url("/brand-reference/wallpapers/cmg-bg-cross-top.png");
+}
+.cmg-view-surface[data-view="EDIT_PROFILE"] {
+  background-image: url("/brand-reference/wallpapers/cmg-bg-leaf-top.png");
+}
+
+/* Bottom ribbon + heart overlay for the Edit Profile screen. It sits above the
+   scrolling form (foreground) so the form content scrolls beneath it. */
+.cmg-edit-bottom-ribbon {
+  height: 12rem;
+  background: url("/brand-reference/wallpapers/cmg-bg-leaf-bottom.png") no-repeat bottom center / 100% auto;
+}
+
+/* Profile base ribbon overlay — reduced height so it reads above the bottom nav. */
+.cmg-profile-bottom-ribbon {
+  height: 8rem;
+  background: url("/brand-reference/wallpapers/cmg-bg-rings-bottom.png") no-repeat bottom center / 100% auto;
+}
+
+/* Shared base ribbon overlay for the other nav views (above the bottom nav). */
+.cmg-nav-bottom-ribbon {
+  height: 7rem;
+  background-repeat: no-repeat;
+  background-position: bottom center;
+  background-size: 100% auto;
+}
+.cmg-nav-bottom-ribbon[data-view="BROWSE"] {
+  background-image: url("/brand-reference/wallpapers/cmg-bg-community-bottom.png");
+}
+.cmg-nav-bottom-ribbon[data-view="FRIENDS"] {
+  background-image: url("/brand-reference/wallpapers/cmg-bg-heart-bottom.png");
+}
+.cmg-nav-bottom-ribbon[data-view="CHAT"] {
+  background-image: url("/brand-reference/wallpapers/cmg-bg-waves-bottom.png");
+}
+.cmg-nav-bottom-ribbon[data-view="COMMUNITY"] {
+  background-image: url("/brand-reference/wallpapers/cmg-bg-cross-bottom.png");
+}
+
+.cmg-auth-card::before,
+.cmg-auth-card::after {
+  content: none;
+}
+
+/* The panel remains a transparent content layer; its old pseudo layers are disabled. */
+.cmg-auth-panel::before,
+.cmg-auth-panel::after,
+.cmg-onboarding-panel::before,
+.cmg-onboarding-panel::after {
+  display: none;
+}
+
+.cmg-auth-panel,
+.cmg-onboarding-panel {
+  min-height: 100%;
+  z-index: 1;
+  background-color: transparent;
+  background-image: none;
+}
+
+.cmg-auth-panel > * {
+  z-index: 2;
+}
+
+/* Onboarding wizard: larger, more legible field text per the reference.
+   Scoped so these overrides never affect the login screen. The element+class
+   specificity (0,1,1) beats single Tailwind utilities such as text-[10px]. */
+.cmg-onboarding-panel label {
+  font-size: 0.72rem;
+  line-height: 1.1;
+}
+.cmg-onboarding-panel input,
+.cmg-onboarding-panel select,
+.cmg-onboarding-panel textarea {
+  font-size: 1.15rem;
+}
+.cmg-onboarding-panel input::placeholder,
+.cmg-onboarding-panel textarea::placeholder {
+  font-size: 1.15rem;
+}
+
+/* Faint themed (pink) fill on every form field across the auth and onboarding
+   screens, with a soft pink hairline so the inputs read as branded. */
+.cmg-onboarding-panel input,
+.cmg-onboarding-panel select,
+.cmg-onboarding-panel textarea,
+.cmg-auth-panel input,
+.cmg-auth-panel select,
+.cmg-auth-panel textarea,
+.cmg-edit-profile input,
+.cmg-edit-profile select,
+.cmg-edit-profile textarea {
+  background-color: #fdeef2;
+  border: 1px solid rgba(214, 93, 128, 0.22);
+}
+.cmg-onboarding-panel p.font-medium {
+  font-size: 1rem;
+}
+/* Step titles stay on a single line now that the forced breaks are removed. */
+.cmg-onboarding-panel h2 {
+  white-space: nowrap;
+}
+
+@media (max-width: 639px) {
+  .cmg-stage {
+    padding: 0;
+    align-items: stretch;
+  }
+  .cmg-auth-card {
+    width: 100%;
+    min-height: 100dvh;
+    height: 100dvh;
+    border-radius: 0;
+  }
+}
