@@ -1008,3 +1008,176 @@ functions:sendUnverifiedVerificationReminders
 It did not deploy Hosting, Firestore rules, Storage rules, or the frontend. SMTP credentials were intentionally removed from the deploy path because the previously shared mailbox password must be rotated.
 
 No email has been sent. The next operation is an authenticated administrator dry-run, followed by a single-recipient test only after the new SMTP password is configured.
+
+## Verification reminder campaign — current continuation state
+
+### Production access and deployment
+
+Firebase CLI authentication is working as:
+
+```text
+christianmatchghanaltd@gmail.com
+```
+
+Production project:
+
+```text
+christianmatch-app
+```
+
+The guarded Function is deployed and active:
+
+```text
+sendUnverifiedVerificationReminders
+Region:  us-central1
+Runtime: Node.js 22
+Status:  ACTIVE
+```
+
+Only this Function was deployed for the campaign. No Hosting, frontend, Firestore rules, Storage rules, or unrelated production Functions were deployed as part of the campaign setup.
+
+The Function is protected by:
+
+- Firebase Auth authentication.
+- Admin email allowlist including `christianmatchghanaltd@gmail.com`.
+- Dry-run by default.
+- Required campaign ID for real sends.
+- Required confirmation string for real sends.
+- Optional single-recipient filter.
+- Batch limit capped at 100 recipients.
+- Duplicate-recipient records in Firestore.
+
+### Production SMTP and Secret Manager
+
+The approved campaign mailbox is:
+
+```text
+info@christianmatchghana.com
+```
+
+The production SMTP password was placed in Firebase Secret Manager under:
+
+```text
+SMTP_PASS
+```
+
+The reminder Function uses the Secret Manager binding:
+
+```js
+functions.runWith({ secrets: ['SMTP_PASS'] })
+```
+
+The SMTP endpoint authentication was successfully tested without sending an email before deployment.
+
+Important security action still required:
+
+- The mailbox password was exposed in the conversation before Secret Manager setup.
+- Rotate the Stormer Host mailbox password.
+- Update the `SMTP_PASS` Secret Manager version after rotation.
+- Do not put the new password in Git, chat, or a committed file.
+
+The local `backend/functions/.env` is ignored and must not be used as the production source of truth after rotation. Secret Manager is the intended production storage mechanism.
+
+### Single-recipient test status
+
+Approved test recipient:
+
+```text
+rastardie@gmail.com
+```
+
+A temporary local runner was created:
+
+```text
+/tmp/cmg-send-one-verification-test.mjs
+```
+
+The runner signs in with Firebase Auth and invokes the deployed callable using:
+
+```json
+{
+  "dryRun": false,
+  "testEmail": "rastardie@gmail.com",
+  "limit": 1,
+  "campaignId": "verification-test-2026-10-14",
+  "confirm": "SEND_UNVERIFIED_VERIFICATION_REMINDERS"
+}
+```
+
+The first attempt did not send mail because the supplied admin password returned:
+
+```text
+auth/invalid-credential
+```
+
+Production Auth account check confirmed:
+
+```text
+Account:          christianmatchghanaltd@gmail.com
+Exists:           Yes
+Email verified:   Yes
+Disabled:         No
+Password account: Yes
+Google provider:  No
+```
+
+No email has been sent yet.
+
+To fix the admin authentication:
+
+1. Open `https://christianmatchghana.com`.
+2. Use the production login screen.
+3. Select `Forgot password`.
+4. Reset the password for `christianmatchghanaltd@gmail.com`.
+5. Confirm production login with the new password.
+6. Rerun the temporary runner without putting the password in chat:
+
+```bash
+read -s -p "Production admin password: " CMG_ADMIN_PASSWORD
+echo
+CMG_ADMIN_PASSWORD="$CMG_ADMIN_PASSWORD" \
+node /tmp/cmg-send-one-verification-test.mjs
+unset CMG_ADMIN_PASSWORD
+```
+
+This must remain a single-recipient test. Do not run a bulk campaign until the test email is received and its verification link is confirmed.
+
+### Production unverified-user report
+
+A read-only production Auth/Firestore lookup found:
+
+```text
+Enabled unverified users:          92
+Firestore profiles found:          83
+Complete name/email/phone first:   21
+```
+
+The protected local Excel report is:
+
+```text
+/Users/andrewstardie/Documents/TUTS/TESTS/cm/cmg-rebuilt/unverified-users-production.xlsx
+```
+
+It contains:
+
+```text
+#, Name, Email, Phone
+```
+
+The workbook is encrypted for file opening and worksheet editing with the password supplied by the user. It is owner-only (`0600`) and ignored by Git. It must not be uploaded to GitHub or Stormer Host.
+
+### Final campaign sequence
+
+```text
+1. Reset the Firebase Auth admin password.
+2. Rotate the exposed Stormer Host mailbox password.
+3. Update Secret Manager SMTP_PASS.
+4. Re-run the no-send SMTP verification.
+5. Run the single-recipient test to rastardie@gmail.com.
+6. Confirm sender, reply-to, delivery, spam placement, and verification link.
+7. Obtain explicit final approval for bulk sending.
+8. Run bounded batches using a new campaign ID.
+9. Review sent/alreadySent/failed counts and preserve the campaign record.
+```
+
+No bulk email has been sent.
