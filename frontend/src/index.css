@@ -174,8 +174,8 @@ body {
 }
 
 .cmg-auth-panel {
-  padding-top: 3rem;
-  padding-bottom: 3.5rem;
+  padding-top: 4.75rem;
+  padding-bottom: 7rem;
 }
 
 .cmg-onboarding-panel {
@@ -368,53 +368,53 @@ body {
 
 .cmg-theme-sunrise {
   background-image:
-    url("/brand-reference/wallpapers/cmg-bg-sunrise-top.png"),
-    url("/brand-reference/wallpapers/cmg-bg-sunrise-bottom.png");
+    url("../brand-reference/wallpapers/cmg-bg-sunrise-top.png"),
+    url("../brand-reference/wallpapers/cmg-bg-sunrise-bottom.png");
 }
 .cmg-theme-heart {
   background-image:
-    url("/brand-reference/wallpapers/cmg-bg-heart-top.png"),
-    url("/brand-reference/wallpapers/cmg-bg-heart-bottom.png");
+    url("../brand-reference/wallpapers/cmg-bg-heart-top.png"),
+    url("../brand-reference/wallpapers/cmg-bg-heart-bottom.png");
 }
 .cmg-theme-cross {
   background-image:
-    url("/brand-reference/wallpapers/cmg-bg-cross-top.png"),
-    url("/brand-reference/wallpapers/cmg-bg-cross-bottom.png");
+    url("../brand-reference/wallpapers/cmg-bg-cross-top.png"),
+    url("../brand-reference/wallpapers/cmg-bg-cross-bottom.png");
 }
 .cmg-theme-dove {
   background-image:
-    url("/brand-reference/wallpapers/cmg-bg-dove-top.png"),
-    url("/brand-reference/wallpapers/cmg-bg-dove-bottom.png");
+    url("../brand-reference/wallpapers/cmg-bg-dove-top.png"),
+    url("../brand-reference/wallpapers/cmg-bg-dove-bottom.png");
 }
 .cmg-theme-globe {
   background-image:
-    url("/brand-reference/wallpapers/cmg-bg-globe-top.png"),
-    url("/brand-reference/wallpapers/cmg-bg-globe-bottom.png");
+    url("../brand-reference/wallpapers/cmg-bg-globe-top.png"),
+    url("../brand-reference/wallpapers/cmg-bg-globe-bottom.png");
 }
 .cmg-theme-leaf {
   background-image:
-    url("/brand-reference/wallpapers/cmg-bg-leaf-top.png"),
-    url("/brand-reference/wallpapers/cmg-bg-leaf-bottom.png");
+    url("../brand-reference/wallpapers/cmg-bg-leaf-top.png"),
+    url("../brand-reference/wallpapers/cmg-bg-leaf-bottom.png");
 }
 .cmg-theme-waves {
   background-image:
-    url("/brand-reference/wallpapers/cmg-bg-waves-top.png"),
-    url("/brand-reference/wallpapers/cmg-bg-waves-bottom.png");
+    url("../brand-reference/wallpapers/cmg-bg-waves-top.png"),
+    url("../brand-reference/wallpapers/cmg-bg-waves-bottom.png");
 }
 .cmg-theme-community {
   background-image:
-    url("/brand-reference/wallpapers/cmg-bg-community-top.png"),
-    url("/brand-reference/wallpapers/cmg-bg-community-bottom.png");
+    url("../brand-reference/wallpapers/cmg-bg-community-top.png"),
+    url("../brand-reference/wallpapers/cmg-bg-community-bottom.png");
 }
 .cmg-theme-city {
   background-image:
-    url("/brand-reference/wallpapers/cmg-bg-city-top.png"),
-    url("/brand-reference/wallpapers/cmg-bg-city-bottom.png");
+    url("../brand-reference/wallpapers/cmg-bg-city-top.png"),
+    url("../brand-reference/wallpapers/cmg-bg-city-bottom.png");
 }
 .cmg-theme-rings {
   background-image:
-    url("/brand-reference/wallpapers/cmg-bg-rings-top.png"),
-    url("/brand-reference/wallpapers/cmg-bg-rings-bottom.png");
+    url("../brand-reference/wallpapers/cmg-bg-rings-top.png"),
+    url("../brand-reference/wallpapers/cmg-bg-rings-bottom.png");
 }
 
 /* App views carry a bottom navigation bar, so only the top swoosh accent is
@@ -434,35 +434,35 @@ body {
   background-color: #fffaf1;
 }
 .cmg-view-surface[data-view="BROWSE"] {
-  background-image: url("/brand-reference/wallpapers/cmg-bg-community-top.png");
+  background-image: url("../brand-reference/wallpapers/cmg-bg-community-top.png");
 }
 .cmg-view-surface[data-view="FRIENDS"] {
-  background-image: url("/brand-reference/wallpapers/cmg-bg-heart-top.png");
+  background-image: url("../brand-reference/wallpapers/cmg-bg-heart-top.png");
 }
 .cmg-view-surface[data-view="CHAT"] {
-  background-image: url("/brand-reference/wallpapers/cmg-bg-waves-top.png");
+  background-image: url("../brand-reference/wallpapers/cmg-bg-waves-top.png");
 }
 .cmg-view-surface[data-view="PROFILE"] {
-  background-image: url("/brand-reference/wallpapers/cmg-bg-rings-top.png");
+  background-image: url("../brand-reference/wallpapers/cmg-bg-rings-top.png");
 }
 .cmg-view-surface[data-view="COMMUNITY"] {
-  background-image: url("/brand-reference/wallpapers/cmg-bg-cross-top.png");
+  background-image: url("../brand-reference/wallpapers/cmg-bg-cross-top.png");
 }
 .cmg-view-surface[data-view="EDIT_PROFILE"] {
-  background-image: url("/brand-reference/wallpapers/cmg-bg-leaf-top.png");
+  background-image: url("../brand-reference/wallpapers/cmg-bg-leaf-top.png");
 }
 
 /* Bottom ribbon + heart overlay for the Edit Profile screen. It sits above the
    scrolling form (foreground) so the form content scrolls beneath it. */
 .cmg-edit-bottom-ribbon {
   height: 12rem;
-  background: url("/brand-reference/wallpapers/cmg-bg-leaf-bottom.png") no-repeat bottom center / 100% auto;
+  background: url("../brand-reference/wallpapers/cmg-bg-leaf-bottom.png") no-repeat bottom center / 100% auto;
 }
 
 /* Profile base ribbon overlay — reduced height so it reads above the bottom nav. */
 .cmg-profile-bottom-ribbon {
   height: 8rem;
-  background: url("/brand-reference/wallpapers/cmg-bg-rings-bottom.png") no-repeat bottom center / 100% auto;
+  background: url("../brand-reference/wallpapers/cmg-bg-rings-bottom.png") no-repeat bottom center / 100% auto;
 }
 
 /* Shared base ribbon overlay for the other nav views (above the bottom nav). */
@@ -473,16 +473,16 @@ body {
   background-size: 100% auto;
 }
 .cmg-nav-bottom-ribbon[data-view="BROWSE"] {
-  background-image: url("/brand-reference/wallpapers/cmg-bg-community-bottom.png");
+  background-image: url("../brand-reference/wallpapers/cmg-bg-community-bottom.png");
 }
 .cmg-nav-bottom-ribbon[data-view="FRIENDS"] {
-  background-image: url("/brand-reference/wallpapers/cmg-bg-heart-bottom.png");
+  background-image: url("../brand-reference/wallpapers/cmg-bg-heart-bottom.png");
 }
 .cmg-nav-bottom-ribbon[data-view="CHAT"] {
-  background-image: url("/brand-reference/wallpapers/cmg-bg-waves-bottom.png");
+  background-image: url("../brand-reference/wallpapers/cmg-bg-waves-bottom.png");
 }
 .cmg-nav-bottom-ribbon[data-view="COMMUNITY"] {
-  background-image: url("/brand-reference/wallpapers/cmg-bg-cross-bottom.png");
+  background-image: url("../brand-reference/wallpapers/cmg-bg-cross-bottom.png");
 }
 
 .cmg-auth-card::before,
@@ -560,4 +560,413 @@ body {
     height: 100dvh;
     border-radius: 0;
   }
+}
+
+/* Auth branding stays fixed while only the content shell scrolls. */
+.cmg-auth-login-panel,
+.cmg-auth-signup-panel {
+  box-sizing: border-box;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.cmg-auth-login-panel {
+  justify-content: center;
+}
+
+.cmg-auth-signup-panel {
+  padding-top: 1.5rem;
+  padding-bottom: 0;
+}
+
+.cmg-auth-form-shell {
+  box-sizing: border-box;
+  display: flex;
+  width: 100%;
+  min-height: 0;
+  flex-direction: column;
+  align-items: center;
+}
+
+.cmg-auth-login-shell {
+  flex: 0 0 auto;
+}
+
+.cmg-auth-signup-shell {
+  flex: 1 1 0;
+  min-height: 0;
+  margin-bottom: 11rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: 2rem;
+  scrollbar-width: thin;
+}
+
+.cmg-auth-signup-panel::before,
+.cmg-auth-signup-panel::after,
+.cmg-auth-login-panel::before,
+.cmg-auth-login-panel::after {
+  display: none;
+}
+
+/* Onboard-inspired landing typography, translated to CMG's existing palette. */
+@font-face {
+  font-family: "CMG Roboto";
+  src: url("../fonts/Roboto-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "CMG Roboto";
+  src: url("../fonts/Roboto-Medium.ttf") format("truetype");
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: "CMG Roboto";
+  src: url("../fonts/Roboto-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: "CMG Roboto";
+  src: url("../fonts/Roboto-Black.ttf") format("truetype");
+  font-weight: 900;
+  font-display: swap;
+}
+
+.cmg-auth-panel,
+.cmg-onboarding-panel {
+  font-family: "CMG Roboto", Arial, sans-serif;
+}
+
+.cmg-auth-panel .cmg-auth-brand p {
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.cmg-auth-panel form > button[type="submit"] {
+  min-height: 3.4rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.cmg-auth-panel form > button[type="submit"] {
+  min-height: 3.6rem;
+  font-size: 0.95rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+}
+
+.cmg-auth-login-panel .cmg-auth-brand {
+  margin-bottom: 1.75rem;
+}
+
+.cmg-auth-login-panel .cmg-auth-brand img {
+  margin-bottom: 1rem;
+}
+
+/* Separate landing CTA for visitors who do not yet have an account. */
+.cmg-auth-new-user-cta {
+  width: 100%;
+  max-width: 20rem;
+  margin-top: 1.75rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid rgba(9, 40, 71, 0.12);
+  text-align: center;
+}
+
+.cmg-auth-new-user-cta p {
+  margin: 0 0 0.45rem;
+  color: var(--cmg-navy);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.cmg-auth-new-user-button {
+  width: 100%;
+  min-height: 3.6rem;
+  border: 2px solid rgba(255, 91, 22, 0.55);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--cmg-orange);
+  font-size: 0.95rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  box-shadow: 0 10px 20px rgba(255, 91, 22, 0.1);
+  transition: background 180ms ease, transform 180ms ease;
+}
+
+.cmg-auth-new-user-button:hover {
+  background: rgba(255, 91, 22, 0.06);
+}
+
+.cmg-auth-new-user-button:active {
+  transform: scale(0.98);
+}
+
+/* Login supporting text is intentionally larger and easier to scan on mobile. */
+.cmg-auth-login-panel .cmg-auth-brand p {
+  font-size: 1.08rem;
+}
+
+.cmg-auth-login-panel form label[class*="text-[9px]"] {
+  font-size: 0.65rem;
+}
+
+.cmg-auth-login-panel form input {
+  font-size: 1.15rem;
+}
+
+.cmg-auth-login-panel .cmg-forgot-link {
+  font-size: 0.65rem;
+}
+
+.cmg-auth-signup-panel .cmg-auth-brand {
+  margin-top: 0;
+  margin-bottom: 1rem;
+}
+
+.cmg-auth-signup-panel .cmg-auth-brand img {
+  margin-bottom: 0.75rem;
+}
+
+.cmg-auth-signup-panel .cmg-auth-brand h2 {
+  width: 100%;
+  white-space: nowrap;
+  font-size: clamp(1.85rem, 7.2vw, 2.4rem);
+  letter-spacing: -0.07em;
+}
+
+/* Fade the fixed bottom wallpaper into the cream content area. */
+.cmg-auth-card::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 11rem;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 250, 241, 0.92) 0%,
+    rgba(255, 250, 241, 0.58) 34%,
+    rgba(255, 250, 241, 0.18) 68%,
+    rgba(255, 250, 241, 0) 100%
+  );
+}
+
+/* Shared CMG form typography: apply the readable signup treatment across form pages. */
+.cmg-auth-panel form input,
+.cmg-auth-panel form select,
+.cmg-auth-panel form textarea,
+.cmg-onboarding-panel input,
+.cmg-onboarding-panel select,
+.cmg-onboarding-panel textarea,
+.cmg-edit-profile input,
+.cmg-edit-profile select,
+.cmg-edit-profile textarea {
+  font-size: 1.21rem;
+  font-weight: 700;
+}
+
+.cmg-auth-panel form label[class*="text-[9px]"],
+.cmg-auth-panel form label[class*="text-[10px]"],
+.cmg-onboarding-panel label[class*="text-[9px]"],
+.cmg-onboarding-panel label[class*="text-[10px]"],
+.cmg-edit-profile label[class*="text-[9px]"],
+.cmg-edit-profile label[class*="text-[10px]"] {
+  font-size: 0.682rem;
+  font-weight: 900;
+}
+
+.cmg-auth-panel form .text-xs,
+.cmg-onboarding-panel .text-xs,
+.cmg-edit-profile .text-xs {
+  font-size: 0.9075rem;
+  font-weight: 600;
+}
+
+.cmg-auth-legal-copy {
+  max-width: 20rem;
+}
+
+.cmg-auth-legal-copy p {
+  color: #526072;
+  font-size: 0.84rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.cmg-auth-signup-shell .cmg-account-switch-link {
+  display: block;
+  width: 100%;
+  font-size: 0.825rem;
+  font-weight: 700;
+}
+
+/* Public landing: full-bleed clean CMG photo with real overlaid text and actions. */
+.cmg-landing-shell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  width: 100%;
+  max-width: 28rem;
+  height: 100dvh;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--cmg-navy);
+  border-radius: 2rem;
+  box-shadow: 0 24px 80px rgba(9, 40, 71, 0.16);
+}
+
+.cmg-landing-photo {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-color: var(--cmg-navy);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.cmg-landing-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(
+    to bottom,
+    rgba(9, 40, 71, 0.12) 0%,
+    rgba(9, 40, 71, 0) 32%,
+    rgba(9, 40, 71, 0.1) 52%,
+    rgba(9, 40, 71, 0.72) 82%,
+    rgba(9, 40, 71, 0.9) 100%
+  );
+}
+
+.cmg-landing-approved-logo {
+  position: absolute;
+  top: 5%;
+  left: 50%;
+  z-index: 3;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(9, 40, 71, 0.22);
+}
+
+.cmg-landing-panel {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 2rem 1.75rem 2.25rem;
+  text-align: center;
+}
+
+.cmg-landing-copy {
+  color: #fff;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.55);
+}
+
+.cmg-landing-copy h1 {
+  margin: 0 0 0.6rem;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(1.7rem, 6vw, 2.15rem);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+}
+
+.cmg-landing-copy p {
+  margin: 0 auto;
+  max-width: 22rem;
+  font-family: "CMG Roboto", Arial, sans-serif;
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.cmg-landing-dots {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.cmg-landing-dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.45);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  transition: background 200ms ease, transform 200ms ease;
+}
+
+.cmg-landing-dot.is-active {
+  background: #fff;
+  transform: scale(1.15);
+}
+
+.cmg-landing-primary {
+  display: flex;
+  min-height: 3.7rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(100deg, var(--cmg-orange), #ff8a14);
+  color: #fff;
+  font-family: "CMG Roboto", Arial, sans-serif;
+  font-size: 1.12rem;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  box-shadow: 0 14px 28px rgba(255, 91, 22, 0.3);
+  transition: transform 160ms ease;
+}
+
+.cmg-landing-primary:active {
+  transform: scale(0.98);
+}
+
+.cmg-landing-signin {
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.92);
+  font-family: "CMG Roboto", Arial, sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.cmg-landing-signin span {
+  margin-left: 0.35rem;
+  color: #ffc35a;
+  font-weight: 900;
+}
+
+@media (max-width: 639px) {
+  .cmg-landing-shell {
+    border-radius: 0;
+  }
+}
+
+@media (min-width: 640px) {
+  .cmg-landing-shell {
+    height: 90vh;
+  }
+}
+
+.cmg-landing-approved-logo img {
+  width: 160px;
+  height: 160px;
+  max-width: none;
 }

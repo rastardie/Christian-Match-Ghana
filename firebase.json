@@ -2,9 +2,13 @@
   "firestore": {
     "rules": "infra/firebase/firestore.rules"
   },
-  "storage": {
-    "rules": "infra/firebase/storage.rules"
-  },
+  "storage": [
+    {
+      "bucket": "christian-match-ghana.firebasestorage.app",
+      "rules": "infra/firebase/storage.rules",
+      "target": "staging"
+    }
+  ],
   "hosting": {
     "public": "frontend/dist",
     "ignore": [

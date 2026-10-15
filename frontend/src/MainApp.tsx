@@ -1,4 +1,80 @@
 import React, { useState, useEffect, useRef } from "react";
+const LandingPage = ({
+  onGetStarted,
+  onSignIn,
+}: {
+  onGetStarted: () => void;
+  onSignIn: () => void;
+}) => {
+  const landingBase = import.meta.env.BASE_URL || '/';
+  const slides = [
+    { title: 'Faith. Love. Purpose.', text: 'A Christ-centred community for meaningful connections in Ghana and beyond.' },
+    { title: 'Christ-Centred Relationships', text: 'Meet like-minded Christians who share your values, faith and life goals.' },
+    { title: 'Build a Godly Future', text: "More than dating, it's about building lasting relationships that honour God." },
+    { title: 'Shared Values. Brighter Tomorrows.', text: 'Find a partner who stands with you in faith, family and purpose.' },
+    { title: 'Connect with Real People', text: 'Chat, get to know each other and build genuine friendships that can lead to lasting love.' },
+    { title: 'More Than a Match', text: 'Be part of a like-minded Christian community with events, discussions and support.' },
+    { title: 'A Community That Prays Together', text: 'Join a supportive community that encourages you to grow spiritually and relationally.' },
+    { title: 'Real People. Real Faith. Real Connections.', text: 'Join a community where faith, love and purpose come together.' },
+    { title: 'Encouragement Every Step of the Way', text: 'Build friendships, find love and grow in faith with people who share your journey.' },
+    { title: 'Purposeful Connections for a Brighter Tomorrow', text: 'Join Christian Match Ghana and be part of a community that believes in love, faith and impact.' },
+  ].map((slide, index) => ({
+    ...slide,
+    photo: `${landingBase}landing-photos/photo-${String(index + 1).padStart(2, '0')}.png`,
+  }));
+  const [activeSlide, setActiveSlide] = useState(0);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setActiveSlide((current) => (current + 1) % slides.length);
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [slides.length]);
+
+  const slide = slides[activeSlide];
+
+  return (
+    <main className="cmg-landing-shell">
+      <div
+        className="cmg-landing-photo"
+        style={{ backgroundImage: `url("${slide.photo}")` }}
+        aria-label={`Introduction slide ${activeSlide + 1} of ${slides.length}`}
+      />
+      <div className="cmg-landing-scrim" />
+      <div className="cmg-landing-approved-logo">
+        <Logo size={160} className="drop-shadow-2xl" />
+      </div>
+
+      <div className="cmg-landing-panel">
+        <div className="cmg-landing-copy">
+          <h1>{slide.title}</h1>
+          <p>{slide.text}</p>
+        </div>
+
+        <div className="cmg-landing-dots" aria-label={`Slide ${activeSlide + 1} of ${slides.length}`}>
+          {slides.map((item, index) => (
+            <button
+              key={item.title}
+              type="button"
+              aria-label={`Show slide ${index + 1}`}
+              aria-current={index === activeSlide}
+              onClick={() => setActiveSlide(index)}
+              className={`cmg-landing-dot ${index === activeSlide ? 'is-active' : ''}`}
+            />
+          ))}
+        </div>
+
+        <button type="button" onClick={onGetStarted} className="cmg-landing-primary">
+          Get Started <ChevronRight size={22} />
+        </button>
+        <button type="button" onClick={onSignIn} className="cmg-landing-signin">
+          Already a member? <span>Sign in</span>
+        </button>
+      </div>
+    </main>
+  );
+};
+
 import { App as CapacitorApp } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 import {
@@ -25,6 +101,15 @@ import PaymentModal from "./components/PaymentModal";
 import ImageCropper from "./components/ImageCropper";
 import Logo from "./components/Logo";
 import { blockUser, unblockUser, isUserBlocked } from "./services/blockService";
+import {
+  checkNativeBiometry,
+  clearBiometricCredentials,
+  authenticateWithBiometry,
+  getStoredBiometricCredentials,
+  isNativeBiometricPlatform,
+  saveBiometricCredentials,
+  type BiometricLoginCredentials,
+} from "./services/biometricAuthService";
 import {
   MOCK_PROFILES,
   MOCK_CHATS,
@@ -59,6 +144,7 @@ import {
   RotateCcw,
   Eye,
   EyeOff,
+  Fingerprint,
   GraduationCap,
   Briefcase,
   Settings,
@@ -85,6 +171,16 @@ import {
   Flag,
   Users,
 } from "lucide-react";
+
+/** Prevent a slow Firebase request from leaving an auth form permanently loading. */
+function withTimeout<T>(promise: Promise<T>, milliseconds: number, message: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      window.setTimeout(() => reject(new Error(message)), milliseconds);
+    }),
+  ]);
+}
 
 const authActionUrl = import.meta.env.VITE_PUBLIC_APP_URL || 'https://christianmatchghana.com';
 const isLocalFirebaseEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true';
@@ -628,6 +724,7 @@ const NotificationBanner = ({
       >
         <X size={20} />
       </button>
+
     </div>
   );
 };
@@ -637,11 +734,13 @@ const NotificationBanner = ({
 const AuthView = ({
   onLogin,
   onNotify,
+  initialMode = 'login',
 }: {
   onLogin: (userData: Partial<User>, isNewUser?: boolean) => void;
   onNotify: (msg: string, type: "success" | "error") => void;
+  initialMode?: 'login' | 'signup';
 }) => {
-  const [isLogin, setIsLogin] = useState(true);
+  const [isLogin, setIsLogin] = useState(initialMode === 'login');
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [passwordResetSent, setPasswordResetSent] = useState(false);
   
@@ -651,14 +750,19 @@ const AuthView = ({
   const [repeatPassword, setRepeatPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   
-  // Signup Only State
+  // Signup details are completed in the onboarding flow after account creation.
   const [firstName, setFirstName] = useState("");
   const [surname, setSurname] = useState("");
   const [phone, setPhone] = useState("");
-  const [profilePhoto, setProfilePhoto] = useState<string>("");
-  const [coverPhoto, setCoverPhoto] = useState<string>("");
   
   const [loading, setLoading] = useState(false);
+  const submitInProgressRef = useRef(false);
+  const biometricCredentialsRef = useRef<BiometricLoginCredentials | null>(null);
+  const authFormRef = useRef<HTMLFormElement>(null);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [biometricOptIn, setBiometricOptIn] = useState(false);
+  const [biometricBusy, setBiometricBusy] = useState(false);
   const [isVerificationSent, setIsVerificationSent] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -672,6 +776,31 @@ const AuthView = ({
   }, [resendCooldown]);
   const [showTermsModal, setShowTermsModal] = useState(false);
 
+
+  useEffect(() => {
+    let active = true;
+    if (!isNativeBiometricPlatform()) return undefined;
+
+    void (async () => {
+      try {
+        const [biometry, storedCredentials] = await Promise.all([
+          checkNativeBiometry(),
+          getStoredBiometricCredentials(),
+        ]);
+        if (!active) return;
+        const available = Boolean(biometry?.isAvailable && biometry.deviceIsSecure);
+        setBiometricAvailable(available);
+        setBiometricEnabled(available && Boolean(storedCredentials));
+        setBiometricOptIn(available && Boolean(storedCredentials));
+      } catch (error) {
+        console.warn('Biometric capability check failed:', error);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, []);
   const resetVerificationFlow = async () => {
     setLoading(false);
     try {
@@ -688,44 +817,71 @@ const AuthView = ({
       setFirstName('');
       setSurname('');
       setPhone('');
-      setProfilePhoto('');
-      setCoverPhoto('');
     }
   };
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'profile' | 'cover') => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result as string;
-        if (type === 'profile') {
-          setProfilePhoto(result);
-        } else {
-          setCoverPhoto(result);
-        }
-      };
-      reader.readAsDataURL(file);
+  const handleBiometricLogin = async () => {
+    if (!biometricAvailable || !biometricEnabled || biometricBusy || loading) return;
+
+    setBiometricBusy(true);
+    try {
+      await authenticateWithBiometry();
+      const credentials = await getStoredBiometricCredentials();
+      if (!credentials) {
+        setBiometricEnabled(false);
+        setBiometricOptIn(false);
+        onNotify('Biometric login is not set up on this device.', 'error');
+        return;
+      }
+
+      biometricCredentialsRef.current = credentials;
+      setEmail(credentials.email);
+      setPassword(credentials.password);
+      window.setTimeout(() => authFormRef.current?.requestSubmit(), 0);
+    } catch (error: any) {
+      console.error('Biometric login failed:', error);
+      onNotify(error?.message || 'Biometric authentication failed.', 'error');
+    } finally {
+      setBiometricBusy(false);
     }
   };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (loading) return;
+    if (loading || submitInProgressRef.current) return;
+    submitInProgressRef.current = true;
 
     // Import Firebase auth functions dynamically
     const { auth } = await import('./firebase');
     const { signInWithEmailAndPassword, createUserWithEmailAndPassword } = await import('firebase/auth');
 
     setLoading(true);
+    const submittedEmail = biometricCredentialsRef.current?.email ?? email;
+    const submittedPassword = biometricCredentialsRef.current?.password ?? password;
 
     try {
       if (isLogin) {
         // FIREBASE LOGIN
-        console.log('🔐 Attempting login with email:', email);
+        console.log('🔐 Attempting login with email:', submittedEmail);
         try {
-          const userCredential = await signInWithEmailAndPassword(auth, email, password);
+          const userCredential = await withTimeout(
+            signInWithEmailAndPassword(auth, submittedEmail.trim(), submittedPassword),
+            15000,
+            'Login request timed out. Please check your connection and try again.'
+          );
           const firebaseUser = userCredential.user;
+
+          if (isNativeBiometricPlatform() && biometricAvailable && (biometricOptIn || biometricEnabled)) {
+            try {
+              await saveBiometricCredentials({
+                email: submittedEmail.trim(),
+                password: submittedPassword,
+              });
+              setBiometricEnabled(true);
+            } catch (biometricStorageError) {
+              console.warn('Biometric credentials could not be stored:', biometricStorageError);
+              onNotify('Signed in, but biometric sign-in could not be enabled.', 'error');
+            }
+          }
           
           console.log('✅ Login successful! User:', firebaseUser.uid);
           console.log('📧 Email verified:', firebaseUser.emailVerified);
@@ -733,7 +889,7 @@ const AuthView = ({
           // Check if email is verified
           if (!firebaseUser.emailVerified) {
             console.log('⚠️ Email not verified, showing verification screen');
-            setEmail(firebaseUser.email || email);
+            setEmail(firebaseUser.email || submittedEmail);
             setIsVerificationSent(true);
             setLoading(false);
             return;
@@ -742,14 +898,19 @@ const AuthView = ({
           // Load user from Firestore or create if doesn't exist
           const { getUserDocument, createUserDocument, userDocumentExists } = await import('./services/userService');
           
-          let userData = await getUserDocument(firebaseUser.uid);
+          let userData = await withTimeout(
+            getUserDocument(firebaseUser.uid),
+            15000,
+            'Loading your profile timed out. Please try again.'
+          );
           
           // If user doesn't exist in Firestore, create document
           if (!userData) {
             console.log('⚠️ User not in Firestore, creating document...');
-            await createUserDocument(firebaseUser.uid, {
-              id: firebaseUser.uid,
-              email: firebaseUser.email || email,
+            await withTimeout(
+              createUserDocument(firebaseUser.uid, {
+                id: firebaseUser.uid,
+              email: firebaseUser.email || submittedEmail,
               name: firebaseUser.displayName || 'User',
               age: 0,
               gender: '',
@@ -777,10 +938,17 @@ const AuthView = ({
               isPremium: false,
               termsAccepted: true,
               termsAcceptedAt: new Date().toISOString(),
-            });
+              }),
+              15000,
+              'Creating your profile timed out. Please try again.'
+            );
             
             // Reload user data
-            userData = await getUserDocument(firebaseUser.uid);
+            userData = await withTimeout(
+              getUserDocument(firebaseUser.uid),
+              15000,
+              'Reloading your profile timed out. Please try again.'
+            );
           }
           
           console.log('📝 User data loaded from Firestore:', userData);
@@ -798,9 +966,17 @@ const AuthView = ({
           // email verification and cohort/new-member eligibility; the client only triggers it.
           try {
             const { claimFreePromo } = await import('./services/userService');
-            const promo = await claimFreePromo();
+            const promo = await withTimeout(
+              claimFreePromo(),
+              10000,
+              'Premium access check timed out'
+            );
             if (promo.granted) {
-              const refreshed = await getUserDocument(firebaseUser.uid);
+              const refreshed = await withTimeout(
+                getUserDocument(firebaseUser.uid),
+                10000,
+                'Refreshing your profile timed out'
+              );
               if (refreshed) userData = refreshed;
               onNotify("You've unlocked free premium access!", "success");
             }
@@ -863,10 +1039,22 @@ const AuthView = ({
 
 
         try {
-          // Check if email is eligible for signup (10-day block check)
+          // Check if email is eligible for signup (10-day block check). Guard with a
+          // timeout: if the callable function is slow/unavailable, allow signup to proceed.
           const { checkSignupEligibility } = await import('./services/userService');
-          const eligibility = await checkSignupEligibility(email);
-          
+          let eligibility: { allowed: boolean; reason?: string } = { allowed: true };
+          try {
+            eligibility = await Promise.race([
+              checkSignupEligibility(email),
+              new Promise<{ allowed: boolean }>((resolve) =>
+                window.setTimeout(() => resolve({ allowed: true }), 10000)
+              ),
+            ]);
+          } catch (eligibilityError) {
+            console.error('⚠️ Eligibility check failed; allowing signup:', eligibilityError);
+            eligibility = { allowed: true };
+          }
+
           if (!eligibility.allowed) {
             onNotify(eligibility.reason || "You cannot use this email to create an account at this time.", "error");
             setLoading(false);
@@ -878,111 +1066,96 @@ const AuthView = ({
           
           console.log('✅ Account created! User:', firebaseUser.uid);
           
-          // Upload photos to Firebase Storage if provided
-          let photoURLs: string[] = [];
+          // Photos are collected during onboarding stage 4, not during account creation.
+          const photoURLs: string[] = [];
           
-          if (profilePhoto || coverPhoto) {
-            console.log('📤 Uploading signup photos to Firebase Storage...');
-            const { uploadProfilePhoto, uploadCoverPhoto, compressImage } = await import('./services/fileStorageService');
-            
-            // Helper: convert data URL to File
-            const dataURLtoFile = (dataUrl: string, filename: string): File => {
-              const arr = dataUrl.split(',');
-              const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
-              const bstr = atob(arr[1]);
-              let n = bstr.length;
-              const u8arr = new Uint8Array(n);
-              while (n--) {
-                u8arr[n] = bstr.charCodeAt(n);
-              }
-              return new File([u8arr], filename, { type: mime });
-            };
+          // Create user document in Firestore. Guard with a timeout so a slow or
+          // blocked Firestore write never leaves signup stuck on "Processing".
+          // If this times out, login will recreate the document on first sign-in.
+          const { createUserDocument } = await import('./services/userService');
 
-            // Upload profile photo (index 0)
-            if (profilePhoto) {
-              try {
-                const profileFile = dataURLtoFile(profilePhoto, 'profile.jpg');
-                const compressedProfile = await compressImage(profileFile, 1200, 1200, 0.8);
-                const profileMetadata = await uploadProfilePhoto(firebaseUser.uid, compressedProfile);
-                photoURLs[0] = profileMetadata.downloadURL;
-                console.log('✅ Profile photo uploaded:', photoURLs[0]);
-              } catch (profileUploadError) {
-                console.error('⚠️ Profile photo upload failed:', profileUploadError);
-              }
-            }
-            
-            // Upload cover photo (index 1)
-            if (coverPhoto) {
-              try {
-                // Ensure index 0 exists (Firestore rejects sparse arrays)
-                if (!photoURLs[0]) photoURLs[0] = '';
-                const coverFile = dataURLtoFile(coverPhoto, 'cover.jpg');
-                const compressedCover = await compressImage(coverFile, 1200, 1200, 0.8);
-                const coverMetadata = await uploadCoverPhoto(firebaseUser.uid, compressedCover);
-                photoURLs[1] = coverMetadata.downloadURL;
-                console.log('✅ Cover photo uploaded:', photoURLs[1]);
-              } catch (coverUploadError) {
-                console.error('⚠️ Cover photo upload failed:', coverUploadError);
-              }
-            }
-
-            // Filter out empty strings from the array
-            photoURLs = photoURLs.filter(url => url && url.length > 0);
-            console.log('📸 Final photo URLs to save:', photoURLs);
+          try {
+            await Promise.race([
+              createUserDocument(firebaseUser.uid, {
+                id: firebaseUser.uid,
+                email: email,
+                phone: phone.trim(),
+                name: `${firstName} ${surname}`,
+                age: 0, // Will be set in onboarding
+                gender: '',
+                height: 0,
+                country: 'Ghana',
+                location: '',
+                bio: '',
+                photos: photoURLs, // Store Firebase Storage URLs
+                denomination: '',
+                churchName: '',
+                churchAttendance: '',
+                churchInvolvement: '',
+                bibleReadingFreq: '',
+                prayerFreq: '',
+                faithMaturity: '',
+                favoriteVerse: '',
+                spiritualLesson: '',
+                education: '',
+                profession: '',
+                acceptsLongDistance: false,
+                intentions: '',
+                isVerified: false,
+                verificationStatus: 'unverified',
+                isContactVerified: false,
+                isPremium: false,
+                termsAccepted: true,
+                termsAcceptedAt: new Date().toISOString(),
+              }),
+              new Promise<never>((_, reject) =>
+                window.setTimeout(() => {
+                  const timeout: any = new Error('Profile write timed out');
+                  timeout.code = 'firestore/write-timeout';
+                  reject(timeout);
+                }, 15000)
+              ),
+            ]);
+            console.log('✅ User document created in Firestore');
+          } catch (profileWriteError) {
+            console.error('⚠️ Account created, but profile write was slow/failed:', profileWriteError);
           }
           
-          // Create user document in Firestore
-          const { createUserDocument } = await import('./services/userService');
-          
-          await createUserDocument(firebaseUser.uid, {
-            id: firebaseUser.uid,
-            email: email,
-            phone: phone.trim(),
-            name: `${firstName} ${surname}`,
-            age: 0, // Will be set in onboarding
-            gender: '',
-            height: 0,
-            country: 'Ghana',
-            location: '',
-            bio: '',
-            photos: photoURLs, // Store Firebase Storage URLs
-            denomination: '',
-            churchName: '',
-            churchAttendance: '',
-            churchInvolvement: '',
-            bibleReadingFreq: '',
-            prayerFreq: '',
-            faithMaturity: '',
-            favoriteVerse: '',
-            spiritualLesson: '',
-            education: '',
-            profession: '',
-            acceptsLongDistance: false,
-            intentions: '',
-            isVerified: false,
-            verificationStatus: 'unverified',
-            isContactVerified: false,
-            isPremium: false,
-            termsAccepted: true,
-            termsAcceptedAt: new Date().toISOString(),
-          });
-          
-          console.log('✅ User document created in Firestore');
-          
-          // Send verification email
+          // Send verification email. The account and profile document already exist;
+          // do not leave the signup UI stuck if Firebase email delivery hangs.
           const { sendEmailVerification } = await import('firebase/auth');
           const actionCodeSettings = {
             url: authActionUrl,
             handleCodeInApp: false,
           };
-          await sendEmailVerification(firebaseUser, actionCodeSettings);
-          
-          console.log('📧 Verification email sent to:', email);
-          
-          // Show verification screen instead of logging in
+          let verificationError: any = null;
+          try {
+            await Promise.race([
+              sendEmailVerification(firebaseUser, actionCodeSettings),
+              new Promise<never>((_, reject) =>
+                window.setTimeout(() => {
+                  const timeout: any = new Error('Verification email request timed out');
+                  timeout.code = 'auth/verification-timeout';
+                  reject(timeout);
+                }, 15000)
+              ),
+            ]);
+            console.log('📧 Verification email sent to:', email);
+          } catch (error: any) {
+            verificationError = error;
+            console.error('⚠️ Account created, but verification email failed:', error);
+          }
+
+          // Always leave PROCESSING after account creation. The verification
+          // screen includes Resend Verification Email for a later retry.
           setIsVerificationSent(true);
           setLoading(false);
-          onNotify("Account created! Please verify your email.", "success");
+          onNotify(
+            verificationError
+              ? "Account created, but the verification email could not be sent yet. Try Resend Verification Email later."
+              : "Account created! Please verify your email.",
+            verificationError ? "error" : "success"
+          );
           return;
         } catch (error: any) {
           console.error('Signup error:', error);
@@ -1000,7 +1173,9 @@ const AuthView = ({
       onNotify("Authentication failed", "error");
       setLoading(false);
     } finally {
-      if (loading) setLoading(false);
+      biometricCredentialsRef.current = null;
+      submitInProgressRef.current = false;
+      setLoading(false);
     }
   };
 
@@ -1018,7 +1193,16 @@ const AuthView = ({
             url: authActionUrl,
             handleCodeInApp: false,
           };
-          await sendEmailVerification(auth.currentUser, actionCodeSettings);
+          await Promise.race([
+            sendEmailVerification(auth.currentUser, actionCodeSettings),
+            new Promise<never>((_, reject) =>
+              window.setTimeout(() => {
+                const timeout: any = new Error('Verification email request timed out');
+                timeout.code = 'auth/verification-timeout';
+                reject(timeout);
+              }, 15000)
+            ),
+          ]);
           setResendCooldown(30);
           onNotify(
             isLocalFirebaseEmulator
@@ -1219,7 +1403,7 @@ const AuthView = ({
   }
 
   return (
-    <div className="cmg-auth-panel flex flex-col h-full bg-transparent p-8 justify-start items-center text-center overflow-y-auto">
+    <div className={`cmg-auth-panel ${isLogin ? "cmg-auth-login-panel" : "cmg-auth-signup-panel"} flex h-full flex-col bg-transparent p-8 justify-start items-center text-center overflow-hidden`}>
       {/* Terms & Conditions Modal */}
       {showTermsModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-2 sm:p-4">
@@ -1358,7 +1542,9 @@ const AuthView = ({
         </p>
       </div>
 
-      <form
+      <div className={`cmg-auth-form-shell ${isLogin ? "cmg-auth-login-shell" : "cmg-auth-signup-shell"}`}>
+        <form
+        ref={authFormRef}
         onSubmit={handleSubmit}
         className="space-y-4 w-full max-w-sm animate-in fade-in duration-1000 delay-300"
       >
@@ -1387,48 +1573,6 @@ const AuthView = ({
                 className="w-full p-4 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-brand-orange/10"
                 required
               />
-            </div>
-          </div>
-        )}
-
-        {!isLogin && (
-          <div className="space-y-3">
-            <div className="space-y-1 text-left">
-              <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-2">
-                Profile Photo
-              </label>
-              <div className="relative">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => handlePhotoUpload(e, 'profile')}
-                  className="w-full p-4 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-brand-orange/10 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-brand-orange/10 file:text-brand-orange hover:file:bg-brand-orange/20"
-                />
-                {profilePhoto && (
-                  <div className="mt-2">
-                    <img src={profilePhoto} alt="Profile preview" className="w-20 h-20 rounded-full object-cover" />
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            <div className="space-y-1 text-left">
-              <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-2">
-                Cover Photo (Optional)
-              </label>
-              <div className="relative">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => handlePhotoUpload(e, 'cover')}
-                  className="w-full p-4 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-brand-orange/10 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-brand-orange/10 file:text-brand-orange hover:file:bg-brand-orange/20"
-                />
-                {coverPhoto && (
-                  <div className="mt-2">
-                    <img src={coverPhoto} alt="Cover preview" className="w-full h-24 rounded-xl object-cover" />
-                  </div>
-                )}
-              </div>
             </div>
           </div>
         )}
@@ -1479,7 +1623,7 @@ const AuthView = ({
                 tabIndex={-1}
                 title="Forgot password"
                 onClick={() => setShowForgotPassword(true)}
-                className="text-[9px] font-black text-brand-orange uppercase tracking-widest"
+                className="cmg-forgot-link text-[9px] font-black text-brand-orange uppercase tracking-widest"
               >
                 Forgot?
               </button>
@@ -1504,6 +1648,35 @@ const AuthView = ({
             </button>
           </div>
         </div>
+
+        {isLogin && biometricAvailable && (
+          <label className="flex items-start gap-3 text-left rounded-2xl border border-brand-orange/15 bg-white/60 px-4 py-3 text-xs text-gray-600">
+            <input
+              type="checkbox"
+              checked={biometricOptIn}
+              onChange={async (event) => {
+                const enabled = event.target.checked;
+                setBiometricOptIn(enabled);
+                if (!enabled) {
+                  try {
+                    await clearBiometricCredentials();
+                    setBiometricEnabled(false);
+                  } catch (error) {
+                    console.warn('Unable to disable biometric sign-in:', error);
+                    onNotify('Unable to disable biometric sign-in on this device.', 'error');
+                  }
+                }
+              }}
+              className="mt-0.5 h-4 w-4 accent-brand-orange"
+            />
+            <span>
+              <span className="block font-bold text-brand-navy">Enable biometric sign-in on this device</span>
+              <span className="mt-1 block text-[11px] leading-relaxed text-gray-500">
+                Your password is stored only in the device’s secure storage and is released after biometric/device authentication.
+              </span>
+            </span>
+          </label>
+        )}
 
         {!isLogin && (
           <div className="space-y-1 text-left">
@@ -1563,20 +1736,48 @@ const AuthView = ({
         </button>
       </form>
 
-      <button
-        onClick={() => setIsLogin(!isLogin)}
-        title={isLogin ? "Register a new account" : "Sign in to your account"}
-        className="mt-8 text-[10px] font-black text-brand-orange uppercase tracking-[0.2em] transition-all hover:scale-105 active:scale-95 bg-brand-orange/5 px-6 py-3 rounded-xl border border-brand-orange/10"
-      >
-        {isLogin
-          ? "New Member? Create Account"
-          : "Have an account? Sign In"}
-      </button>
+      {isLogin && (
+        <div className="cmg-auth-new-user-cta">
+          <p>New user?</p>
+          <button
+            type="button"
+            onClick={() => setIsLogin(false)}
+            title="Create a new account"
+            className="cmg-auth-new-user-button"
+          >
+            CREATE ACCOUNT
+          </button>
+        </div>
+      )}
 
-      <div className="mt-8 max-w-xs mx-auto">
+      {isLogin && biometricAvailable && biometricEnabled && (
+        <button
+          type="button"
+          onClick={handleBiometricLogin}
+          disabled={loading || biometricBusy}
+          className="mt-4 flex min-h-[3.25rem] w-full max-w-sm items-center justify-center gap-2 rounded-2xl border-2 border-brand-orange/40 bg-white/80 px-5 py-3 text-xs font-black uppercase tracking-[0.12em] text-brand-orange shadow-lg shadow-brand-orange/10 transition-all hover:bg-brand-orange/5 active:scale-95 disabled:opacity-50"
+        >
+          <Fingerprint size={20} />
+          {biometricBusy ? "AUTHENTICATING..." : "SIGN IN WITH BIOMETRICS"}
+        </button>
+      )}
+
+      {!isLogin && (
+        <button
+          type="button"
+          onClick={() => setIsLogin(true)}
+          title="Sign in to your account"
+          className="cmg-account-switch-link mt-4 px-1 text-center text-[11px] font-bold tracking-wide text-brand-orange transition-colors hover:text-brand-blue"
+        >
+          Have an account? Sign in
+        </button>
+      )}
+
+      <div className="cmg-auth-legal-copy mt-8 max-w-xs mx-auto">
          <p className="text-[9px] text-gray-300 font-medium leading-relaxed">
             By continuing, you agree to our Terms of Service honoring God in your interactions.
          </p>
+      </div>
       </div>
     </div>
   );
@@ -5781,6 +5982,8 @@ export const isSubscriptionActive = (user: User | null | undefined): boolean => 
 const App = () => {
   const [user, setUser] = useState<User | null>(null);
   const [currentView, setCurrentView] = useState<ViewState>("AUTH");
+  const [showLanding, setShowLanding] = useState(true);
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [notification, setNotification] = useState<{
     message: string;
     type: "success" | "error";
@@ -5877,6 +6080,8 @@ const App = () => {
       setActiveChatId(null);
       setUser(null);
       setCurrentView("AUTH");
+      setAuthMode('login');
+      setShowLanding(true);
     }
   };
 
@@ -6244,41 +6449,64 @@ const App = () => {
   if (currentView === "AUTH")
     return (
       <div className="cmg-stage min-h-screen flex items-center justify-center">
-        <div className="cmg-auth-card cmg-theme-sunrise w-full max-w-md h-full sm:h-[90vh] relative">
-          {notification && (
-            <NotificationBanner
-              message={notification.message}
-              type={notification.type}
-              onClose={() => setNotification(null)}
-            />
-          )}
-          <AuthView
-            onLogin={(u) => {
-              setUser(u as User);
-              const params = new URLSearchParams(window.location.search);
-              const viewParam = params.get('view');
-              const chatIdParam = params.get('chatId');
-              if (u.age === 0) {
-                setCurrentView("ONBOARDING");
-              } else if (viewParam === 'CHAT') {
-                setCurrentView("CHAT");
-                if (chatIdParam) {
-                  setActiveChatId(chatIdParam);
-                }
-              } else {
-                setCurrentView("PROFILE");
-              }
+        {showLanding ? (
+          <LandingPage
+            onGetStarted={() => {
+              setAuthMode('signup');
+              setShowLanding(false);
             }}
-            onNotify={showNotify}
+            onSignIn={() => {
+              setAuthMode('login');
+              setShowLanding(false);
+            }}
           />
-        </div>
+        ) : (
+          <div className="cmg-auth-card cmg-theme-sunrise w-full max-w-md h-[100dvh] sm:h-[90vh] relative">
+            <button
+              type="button"
+              title="Back to landing page"
+              aria-label="Back to landing page"
+              onClick={() => setShowLanding(true)}
+              className="absolute left-4 top-4 z-[200] flex h-10 w-10 items-center justify-center rounded-full border border-gray-100 bg-white/95 text-brand-blue shadow-lg transition-transform active:scale-90 hover:bg-white"
+            >
+              <ArrowLeft size={21} />
+            </button>
+            {notification && (
+              <NotificationBanner
+                message={notification.message}
+                type={notification.type}
+                onClose={() => setNotification(null)}
+              />
+            )}
+            <AuthView
+              initialMode={authMode}
+              onLogin={(u) => {
+                setUser(u as User);
+                const params = new URLSearchParams(window.location.search);
+                const viewParam = params.get('view');
+                const chatIdParam = params.get('chatId');
+                if (u.age === 0) {
+                  setCurrentView("ONBOARDING");
+                } else if (viewParam === 'CHAT') {
+                  setCurrentView("CHAT");
+                  if (chatIdParam) {
+                    setActiveChatId(chatIdParam);
+                  }
+                } else {
+                  setCurrentView("PROFILE");
+                }
+              }}
+              onNotify={showNotify}
+            />
+          </div>
+        )}
       </div>
     );
 
   if (currentView === "ONBOARDING")
     return (
       <div className="cmg-stage min-h-screen flex items-center justify-center">
-        <div className="cmg-auth-card cmg-theme-leaf w-full max-w-md h-full sm:h-[90vh] relative">
+        <div className="cmg-auth-card cmg-theme-leaf w-full max-w-md h-[100dvh] sm:h-[90vh] relative">
           <div className="absolute top-4 left-4 right-4 z-[200] flex items-center justify-between pointer-events-none">
             <button
               type="button"

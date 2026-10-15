@@ -7,7 +7,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { ViewState } from '../types';
-import { Compass, MessageCircle, User, Heart, LogOut } from 'lucide-react';
+import { Compass, MessageCircle, User, Heart, LogOut, ArrowLeft } from 'lucide-react';
 import Logo from './Logo';
 
 
@@ -29,6 +29,20 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
     <div className="cmg-app-backdrop flex justify-center min-h-screen font-sans">
       <div data-view={currentView} className="cmg-app-frame cmg-view-surface w-full max-w-md h-[100dvh] flex flex-col relative shadow-2xl overflow-hidden sm:rounded-[2rem] sm:h-[92vh] sm:my-6 sm:border sm:border-white/70">
         
+        {/* Shared back control for app pages. Nested screens such as edit profile
+            and active message threads render their own contextual back control. */}
+        {onBack && currentView !== 'BROWSE' && currentView !== 'EDIT_PROFILE' && !hideNav && (
+          <button
+            type="button"
+            title="Back"
+            aria-label="Back"
+            onClick={onBack}
+            className="absolute left-5 top-5 z-40 flex h-10 w-10 items-center justify-center rounded-full border border-gray-100 bg-white/95 text-brand-blue shadow-lg transition-transform active:scale-90 hover:bg-white"
+          >
+            <ArrowLeft size={20} />
+          </button>
+        )}
+
         {/* Shared fixed header: centered brand logo (does not scroll). Profile
             renders its own header with settings, so it is excluded here. */}
         {shouldShowNav && currentView !== 'PROFILE' && (

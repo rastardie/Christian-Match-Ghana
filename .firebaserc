@@ -2,5 +2,15 @@
   "projects": {
     "staging": "christian-match-ghana",
     "production": "christianmatch-app"
-  }
+  },
+  "targets": {
+    "christian-match-ghana": {
+      "storage": {
+        "staging": [
+          "christian-match-ghana.firebasestorage.app"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

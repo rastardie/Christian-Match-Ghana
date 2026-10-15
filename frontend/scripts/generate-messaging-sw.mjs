@@ -37,6 +37,8 @@ if (missing.length) {
 const config = Object.fromEntries(
   Object.entries(keys).map(([name, envKey]) => [name, values[envKey]])
 );
+const basePath = values.VITE_BASE_PATH || '/';
+const iconPath = `${basePath.replace(/\/$/, '')}/icon-192x192.png`;
 const output = `importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js');
 
@@ -50,7 +52,7 @@ messaging.onBackgroundMessage((payload) => {
   const notificationTitle = payload.notification?.title || 'New Notification';
   const notificationOptions = {
     body: payload.notification?.body || 'You have a new message.',
-    icon: '/icon-192x192.png'
+    icon: '${iconPath}'
   };
   self.registration.showNotification(notificationTitle, notificationOptions);
 });
