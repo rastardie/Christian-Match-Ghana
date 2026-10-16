@@ -1175,13 +1175,17 @@ body {
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
-  /* Content scrolls over the base banner and ribbon; it fades toward the bottom
-     edge and returns to full opacity as it scrolls up. The extra bottom padding
-     keeps the Create Account button and legal copy clear of the fade zone when
-     fully scrolled. */
-  padding-bottom: 5rem;
-  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 4rem), transparent 100%);
-          mask-image: linear-gradient(to bottom, #000 calc(100% - 4rem), transparent 100%);
+  /* The scroll area reaches the card's bottom ribbon (no lifted margin), so the
+     fade lands exactly on the coloured ribbon/heart. Content stays fully opaque
+     everywhere above the colour and only fades as it scrolls over the ribbon.
+     --cmg-ribbon ~= the rendered bottom wallpaper height (image ratio 116/284 of
+     the card width). The matching bottom padding keeps the Create Account button
+     and the links above the colour (fully visible) when scrolled to the end. */
+  --cmg-ribbon: 11rem;
+  margin-bottom: 0;
+  padding-bottom: var(--cmg-ribbon);
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--cmg-ribbon)), transparent 100%);
+          mask-image: linear-gradient(to bottom, #000 calc(100% - var(--cmg-ribbon)), transparent 100%);
 }
 
 .cmg-auth-signup-copy {
