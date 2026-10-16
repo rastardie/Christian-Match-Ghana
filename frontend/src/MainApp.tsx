@@ -3292,7 +3292,7 @@ export const EditProfileView = ({
       </div>
 
       {/* App logo, consistent with the signup page. */}
-      <div className="flex justify-center pt-20 pb-1">
+      <div className="flex justify-center pt-8 pb-1">
         <Logo size={160} className="drop-shadow-lg" />
       </div>
       </div>
