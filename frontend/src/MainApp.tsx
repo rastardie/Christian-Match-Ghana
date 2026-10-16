@@ -2051,17 +2051,21 @@ const AuthView = ({
 
       <div className="cmg-auth-brand animate-in fade-in slide-in-from-bottom-6 duration-700">
         <Logo size={160} className="drop-shadow-xl" />
-        <h2>
-          {isLogin ? "Welcome back" : "Create your account"}
-        </h2>
-        <p>
-          {isLogin
-            ? "Your journey to a Christ-centred connection continues."
-            : "Join a community of believers seeking meaningful, Christ-centred relationships."}
-        </p>
+        {isLogin && (
+          <>
+            <h2>Welcome back</h2>
+            <p>Your journey to a Christ-centred connection continues.</p>
+          </>
+        )}
       </div>
 
       <div className={`cmg-auth-form-shell ${isLogin ? "cmg-auth-login-shell" : "cmg-auth-signup-shell"}`}>
+        {!isLogin && (
+          <div className="cmg-auth-signup-copy">
+            <h2>Create your account</h2>
+            <p>Join a community of believers seeking meaningful, Christ-centred relationships.</p>
+          </div>
+        )}
         <form
         ref={authFormRef}
         onSubmit={handleSubmit}

@@ -1157,3 +1157,59 @@ body {
   height: 160px;
   max-width: none;
 }
+
+/* Signup keeps only the logo fixed; its heading, fields, links, and legal copy scroll
+   in the form shell below it. The login composition remains unchanged. */
+.cmg-auth-signup-panel .cmg-auth-brand {
+  margin-bottom: 0.75rem;
+}
+
+.cmg-auth-signup-panel .cmg-auth-brand img {
+  margin-bottom: 0;
+}
+
+.cmg-auth-signup-shell {
+  min-height: 0;
+  flex: 1 1 auto;
+  width: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.cmg-auth-signup-copy {
+  width: 100%;
+  max-width: 20rem;
+  margin: 0 auto 1.25rem;
+  text-align: center;
+}
+
+.cmg-auth-signup-copy h2 {
+  margin: 0;
+  color: #0a2a4b;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(2.25rem, 9vw, 3.15rem);
+  font-weight: 800;
+  line-height: 0.98;
+  letter-spacing: -0.06em;
+}
+
+.cmg-auth-signup-copy p {
+  max-width: 19rem;
+  margin: 1rem auto 0;
+  color: #526072;
+  font-size: 0.94rem;
+  font-weight: 600;
+  line-height: 1.48;
+}
+
+/* Crop only the upper part of the signup bottom ribbon, retaining the heart and
+   lower bands while reducing the space occupied by the decoration. */
+.cmg-auth-signup-panel {
+  padding-bottom: 3.95rem;
+}
+
+.cmg-auth-signup-panel::after {
+  height: 3.95rem;
+  background-size: 100% 5.3rem;
+}
