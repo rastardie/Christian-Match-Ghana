@@ -3289,13 +3289,6 @@ export const EditProfileView = ({
         >
           <ArrowLeft size={21} />
         </button>
-        <button
-          onClick={saveProfile}
-          disabled={loading}
-          className="cmg-edit-save-button pointer-events-auto rounded-2xl border border-white/30 bg-brand-orange/85 px-5 py-3.5 text-xs font-black uppercase tracking-[0.16em] text-white shadow-xl backdrop-blur-sm transition-transform active:scale-[0.98] hover:bg-brand-orange disabled:opacity-50"
-        >
-          {loading ? "Saving..." : "Save"}
-        </button>
       </div>
 
       {/* App logo, consistent with the signup page. */}
@@ -3995,15 +3988,14 @@ export const EditProfileView = ({
             className="w-full p-4 bg-gray-50 rounded-2xl h-24"
           />
         </div>
-      </div>
 
-      <div className="cmg-edit-save-footer">
         <button
+          type="button"
           onClick={saveProfile}
           disabled={loading}
-          className="cmg-edit-save-button w-full rounded-2xl border border-white/30 bg-brand-orange/85 px-5 py-3.5 text-xs font-black uppercase tracking-[0.16em] text-white shadow-xl backdrop-blur-sm transition-transform active:scale-[0.98] hover:bg-brand-orange disabled:opacity-50"
+          className="cmg-edit-save-button w-full py-4 rounded-2xl font-black shadow-xl active:scale-95 transition-transform disabled:opacity-50 mt-4 uppercase tracking-widest text-xs flex items-center justify-center gap-2"
         >
-          {loading ? "Saving..." : "Save"}
+          {loading ? "SAVING..." : "SAVE"}
         </button>
       </div>
 

@@ -1312,9 +1312,9 @@ textarea::placeholder {
   background-size: 100% auto;
 }
 
-.cmg-edit-save-footer {
-  position: absolute;
-  inset-inline: 1.5rem;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);
-  z-index: 40;
+.cmg-edit-scroll .cmg-edit-save-button {
+  min-height: 2.3rem;
+  background: linear-gradient(100deg, var(--cmg-navy), #123e63);
+  border-radius: 0.95rem;
+  letter-spacing: 0.08em;
 }
