@@ -1039,7 +1039,7 @@ const AuthView = ({
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [biometricOptIn, setBiometricOptIn] = useState(false);
   const [biometricBusy, setBiometricBusy] = useState(false);
-  const [keepSignedIn, setKeepSignedIn] = useState(true);
+  const [keepSignedIn, setKeepSignedIn] = useState(false);
   const [socialBusy, setSocialBusy] = useState<null | 'google' | 'apple'>(null);
   const [isVerificationSent, setIsVerificationSent] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
@@ -2192,7 +2192,7 @@ const AuthView = ({
               </button>
             </div>
 
-            {biometricAvailable && (
+            {!biometricEnabled && biometricAvailable && (
               <label className="flex items-center gap-2 cursor-pointer px-1 text-sm font-medium text-gray-600">
                 <input
                   type="checkbox"
