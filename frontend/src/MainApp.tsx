@@ -7004,10 +7004,35 @@ const ForcedPasswordChangeView: React.FC<{
   );
 };
 
+// Synchronously restore the signed-in session from localStorage on the very first
+// render. Doing this inline (instead of in an async effect that awaits a dynamic
+// import) means a logged-in user never renders the AUTH/landing screen during a
+// cold start or reload — which otherwise caused a ~1s landing "flash".
+function readStoredSession(): { user: User | null; view: ViewState | null } {
+  try {
+    if (import.meta.env.VITE_LOCAL_TEST_FRESH_START === 'true') return { user: null, view: null };
+    const raw = localStorage.getItem('cmg_demo_user');
+    if (!raw) return { user: null, view: null };
+    const parsed = JSON.parse(raw);
+    const id = parsed?.id || parsed?.uid;
+    if (!id) return { user: null, view: null };
+    const storedView = localStorage.getItem('cmg_current_view') as ViewState | null;
+    let view: ViewState;
+    if (parsed.mustChangePassword) view = 'CHANGE_PASSWORD';
+    else if (parsed.age === 0) view = 'ONBOARDING';
+    else view = storedView || 'PROFILE';
+    return { user: { ...parsed, id } as User, view };
+  } catch (error) {
+    console.warn('Unable to restore stored session:', error);
+    return { user: null, view: null };
+  }
+}
+
 const App = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [currentView, setCurrentView] = useState<ViewState>("AUTH");
-  const [showLanding, setShowLanding] = useState(true);
+  const initialSession = readStoredSession();
+  const [user, setUser] = useState<User | null>(initialSession.user);
+  const [currentView, setCurrentView] = useState<ViewState>(initialSession.view || "AUTH");
+  const [showLanding, setShowLanding] = useState(!initialSession.user);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [notification, setNotification] = useState<{
     message: string;
