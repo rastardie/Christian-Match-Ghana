@@ -1161,7 +1161,7 @@ body {
 /* Signup keeps only the logo fixed; its heading, fields, links, and legal copy scroll
    in the form shell below it. The login composition remains unchanged. */
 .cmg-auth-signup-panel .cmg-auth-brand {
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.45rem;
 }
 
 .cmg-auth-signup-panel .cmg-auth-brand img {
