@@ -1318,3 +1318,12 @@ textarea::placeholder {
   border-radius: 0.95rem;
   letter-spacing: 0.08em;
 }
+
+/* Edit Profile guided text matches the Create your account inputs. */
+.cmg-edit-profile input::placeholder,
+.cmg-edit-profile textarea::placeholder {
+  color: #9aa3b1;
+  font-style: italic;
+  font-weight: 600;
+  opacity: 1;
+}
