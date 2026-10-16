@@ -1188,6 +1188,14 @@ body {
   --cmg-logo-fade: 1.75rem;
   margin-bottom: 0;
   padding-bottom: var(--cmg-ribbon);
+  /* At rest the top is fully opaque (no fade under the logo). The top fade is
+     only added once the content is actually scrolled (.is-scrolled), so the
+     heading is crisp until it starts sliding up toward the logo base. */
+  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - var(--cmg-ribbon)), transparent 100%);
+          mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - var(--cmg-ribbon)), transparent 100%);
+}
+
+.cmg-auth-signup-shell.is-scrolled {
   -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 var(--cmg-logo-fade), #000 calc(100% - var(--cmg-ribbon)), transparent 100%);
           mask-image: linear-gradient(to bottom, transparent 0, #000 var(--cmg-logo-fade), #000 calc(100% - var(--cmg-ribbon)), transparent 100%);
 }

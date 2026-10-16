@@ -1040,6 +1040,7 @@ const AuthView = ({
   const [biometricOptIn, setBiometricOptIn] = useState(false);
   const [biometricBusy, setBiometricBusy] = useState(false);
   const [keepSignedIn, setKeepSignedIn] = useState(false);
+  const [signupScrolled, setSignupScrolled] = useState(false);
   const [socialBusy, setSocialBusy] = useState<null | 'google' | 'apple'>(null);
   const [isVerificationSent, setIsVerificationSent] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
@@ -2059,7 +2060,10 @@ const AuthView = ({
         )}
       </div>
 
-      <div className={`cmg-auth-form-shell ${isLogin ? "cmg-auth-login-shell" : "cmg-auth-signup-shell"}`}>
+      <div
+        className={`cmg-auth-form-shell ${isLogin ? "cmg-auth-login-shell" : `cmg-auth-signup-shell ${signupScrolled ? "is-scrolled" : ""}`}`}
+        onScroll={isLogin ? undefined : (e) => setSignupScrolled(e.currentTarget.scrollTop > 2)}
+      >
         {!isLogin && (
           <div className="cmg-auth-signup-copy">
             <h2>Create your account</h2>
