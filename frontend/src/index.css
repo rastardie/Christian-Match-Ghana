@@ -1199,10 +1199,11 @@ body {
   margin: 0;
   color: #0a2a4b;
   font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(2.25rem, 9vw, 3.15rem);
+  font-size: clamp(1.5rem, 7vw, 2rem);
   font-weight: 800;
-  line-height: 0.98;
-  letter-spacing: -0.06em;
+  line-height: 1.05;
+  letter-spacing: -0.04em;
+  white-space: nowrap;
 }
 
 .cmg-auth-signup-copy p {
