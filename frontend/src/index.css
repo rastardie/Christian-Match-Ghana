@@ -1238,3 +1238,9 @@ body {
   height: 3.94rem;
   background-size: 100% 5.3rem;
 }
+
+/* Consistency: all guided (placeholder) text inside text boxes is italic. */
+input::placeholder,
+textarea::placeholder {
+  font-style: italic;
+}
