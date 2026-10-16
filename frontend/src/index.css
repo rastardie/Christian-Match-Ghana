@@ -1165,7 +1165,10 @@ body {
 }
 
 .cmg-auth-signup-panel .cmg-auth-brand img {
-  margin-bottom: 0;
+  /* The logo PNG carries ~8% transparent padding below the circle; a negative
+     offset cancels most of it so the heading sits closer to the visible arc.
+     Combined with the brand margin this cuts the visible gap by ~40%. */
+  margin-bottom: -0.5rem;
 }
 
 .cmg-auth-signup-shell {
