@@ -2189,14 +2189,14 @@ const AuthView = ({
               pattern={loginMethod === 'pin' ? '[0-9]{4,6}' : undefined}
               maxLength={loginMethod === 'pin' ? 6 : undefined}
               autoComplete={loginMethod === 'pin' ? 'one-time-code' : 'current-password'}
-              placeholder={isLogin ? 'Password or PIN' : '••••••••'}
+              placeholder={isLogin ? 'Password or PIN' : 'Password'}
               value={password}
               onChange={(e) => {
                 const next = e.target.value;
                 setPassword(next);
                 if (isLogin) setLoginMethod(/^\d{4,6}$/.test(next) ? 'pin' : 'password');
               }}
-              className="w-full p-4 pl-12 pr-12 bg-gray-50 rounded-2xl outline-none border-2 border-transparent focus:border-brand-orange/20 text-gray-900 font-medium transition-all"
+              className={`w-full p-4 pl-12 pr-12 bg-gray-50 rounded-2xl outline-none border-2 border-transparent focus:border-brand-orange/20 text-gray-900 font-medium transition-all${isLogin ? '' : ' placeholder:italic placeholder:text-gray-400'}`}
               required
             />
             <button
@@ -2267,10 +2267,10 @@ const AuthView = ({
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
-                placeholder="••••••••"
+                placeholder="Confirm Password"
                 value={repeatPassword}
                 onChange={(e) => setRepeatPassword(e.target.value)}
-                className="w-full p-4 bg-gray-50 rounded-2xl outline-none border-2 border-transparent focus:border-brand-orange/20 text-gray-900 font-medium transition-all"
+                className="w-full p-4 bg-gray-50 rounded-2xl outline-none border-2 border-transparent focus:border-brand-orange/20 text-gray-900 font-medium transition-all placeholder:italic placeholder:text-gray-400"
                 required
               />
             </div>
@@ -2280,7 +2280,7 @@ const AuthView = ({
         {!isLogin && (
           <div className="space-y-1 text-left">
             <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-2">
-              PIN <span className="font-bold normal-case text-gray-300">(optional)</span>
+              PIN <span className="font-bold normal-case text-gray-500">(optional)</span>
             </label>
             <div className="grid grid-cols-2 gap-3">
               <input
@@ -2308,7 +2308,7 @@ const AuthView = ({
                 className="w-full p-4 bg-gray-50 rounded-2xl outline-none border-2 border-transparent focus:border-brand-orange/20 text-gray-900 font-medium transition-all"
               />
             </div>
-            <p className="px-2 text-[10px] text-gray-400">Optional 4–6 digit PIN for quick sign-in. You can also set it later from your profile.</p>
+            <p className="px-2 text-[11px] text-gray-500">Optional 4–6 digit PIN for quick sign-in. You can also set it later from your profile.</p>
           </div>
         )}
 
