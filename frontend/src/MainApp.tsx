@@ -3292,7 +3292,7 @@ export const EditProfileView = ({
         <button
           onClick={saveProfile}
           disabled={loading}
-          className="pointer-events-auto rounded-full border border-white/30 bg-brand-orange/75 px-5 py-2.5 text-[11px] font-black uppercase tracking-[0.2em] text-white shadow-lg backdrop-blur-sm transition-transform active:scale-95 hover:bg-brand-orange/90 disabled:opacity-50"
+          className="cmg-edit-save-button pointer-events-auto rounded-2xl border border-white/30 bg-brand-orange/85 px-5 py-3.5 text-xs font-black uppercase tracking-[0.16em] text-white shadow-xl backdrop-blur-sm transition-transform active:scale-[0.98] hover:bg-brand-orange disabled:opacity-50"
         >
           {loading ? "Saving..." : "Save"}
         </button>
@@ -3995,6 +3995,16 @@ export const EditProfileView = ({
             className="w-full p-4 bg-gray-50 rounded-2xl h-24"
           />
         </div>
+      </div>
+
+      <div className="cmg-edit-save-footer">
+        <button
+          onClick={saveProfile}
+          disabled={loading}
+          className="cmg-edit-save-button w-full rounded-2xl border border-white/30 bg-brand-orange/85 px-5 py-3.5 text-xs font-black uppercase tracking-[0.16em] text-white shadow-xl backdrop-blur-sm transition-transform active:scale-[0.98] hover:bg-brand-orange disabled:opacity-50"
+        >
+          {loading ? "Saving..." : "Save"}
+        </button>
       </div>
 
       {/* Bottom ribbon + heart overlay: form content scrolls beneath this. */}

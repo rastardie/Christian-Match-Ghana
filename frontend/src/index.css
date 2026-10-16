@@ -1311,3 +1311,10 @@ textarea::placeholder {
   height: 11rem;
   background-size: 100% auto;
 }
+
+.cmg-edit-save-footer {
+  position: absolute;
+  inset-inline: 1.5rem;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);
+  z-index: 40;
+}
