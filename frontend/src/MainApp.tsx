@@ -2911,6 +2911,7 @@ export const EditProfileView = ({
     ...loadLocalDraft(),
   }));
   const [loading, setLoading] = React.useState(false);
+  const [editScrolled, setEditScrolled] = React.useState(false);
   const [draftStatus, setDraftStatus] = React.useState<"idle" | "saving" | "saved" | "error">("idle");
   const hydratedDraftRef = React.useRef(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -3277,32 +3278,32 @@ export const EditProfileView = ({
   return (
     <div className="cmg-edit-profile h-full flex flex-col bg-transparent relative overflow-hidden">
       {/* Frozen header: top ribbon, controls, logo and title stay visible while scrolling. */}
-      <div className="shrink-0 relative z-20">
-      {/* Floating controls over the top ribbon, matching the onboarding card. */}
-      <div className="relative z-40 flex items-center justify-between px-4 pt-5">
+      <div className="cmg-edit-profile-header shrink-0 relative z-20">
+      {/* Floating controls over the top ribbon, matching the signup page. */}
+      <div className="absolute inset-x-4 top-5 z-40 flex items-center justify-between pointer-events-none">
         <button
           onClick={onCancel}
           title="Back"
           aria-label="Back"
-          className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-100 bg-white/40 backdrop-blur-sm text-brand-blue shadow-lg transition-transform active:scale-90 hover:bg-white/60"
+          className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full border border-gray-100 bg-white/40 backdrop-blur-sm text-brand-blue shadow-lg transition-transform active:scale-90 hover:bg-white/60"
         >
           <ArrowLeft size={21} />
         </button>
         <button
           onClick={saveProfile}
           disabled={loading}
-          className="px-5 py-2.5 rounded-full bg-brand-orange text-white font-black text-[11px] uppercase tracking-[0.2em] shadow-lg disabled:opacity-50"
+          className="pointer-events-auto rounded-full border border-white/30 bg-brand-orange/75 px-5 py-2.5 text-[11px] font-black uppercase tracking-[0.2em] text-white shadow-lg backdrop-blur-sm transition-transform active:scale-95 hover:bg-brand-orange/90 disabled:opacity-50"
         >
           {loading ? "Saving..." : "Save"}
         </button>
       </div>
 
-      {/* App logo, consistent with the login and onboarding screens. */}
-      <div className="flex justify-center pt-2 pb-1">
+      {/* App logo, consistent with the signup page. */}
+      <div className="flex justify-center pt-20 pb-1">
         <Logo size={160} className="drop-shadow-lg" />
       </div>
       <div className="text-center pb-2">
-        <h2 className="text-2xl font-black text-brand-blue uppercase tracking-tighter">
+        <h2 className="cmg-edit-title text-2xl font-black text-brand-blue uppercase tracking-tighter">
           Edit Profile
         </h2>
         <div aria-live="polite" className="min-h-4 text-[10px] font-bold text-gray-400">
@@ -3317,7 +3318,10 @@ export const EditProfileView = ({
       </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-6 pt-4 pb-52 hide-scrollbar space-y-8 relative z-10">
+      <div
+        className={`cmg-edit-scroll flex-1 overflow-y-auto px-6 pt-4 pb-52 hide-scrollbar space-y-8 relative z-10 ${editScrolled ? "is-scrolled" : ""}`}
+        onScroll={(event) => setEditScrolled(event.currentTarget.scrollTop > 2)}
+      >
         {/* Photos Management */}
         <div>
           <div className="flex items-end justify-between mb-3">

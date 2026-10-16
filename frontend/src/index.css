@@ -1260,3 +1260,54 @@ textarea::placeholder {
   -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 var(--cmg-onboarding-logo-fade), #000 calc(100% - var(--cmg-onboarding-fade)), transparent 100%);
           mask-image: linear-gradient(to bottom, transparent 0, #000 var(--cmg-onboarding-logo-fade), #000 calc(100% - var(--cmg-onboarding-fade)), transparent 100%);
 }
+
+/* Edit Profile follows the Create your account visual blueprint while retaining
+   every existing profile field and action. */
+.cmg-edit-profile::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 10rem;
+  z-index: 0;
+  pointer-events: none;
+  background: url("../brand-reference/wallpapers/cmg-bg-leaf-top.png") no-repeat top center / 100% auto;
+}
+
+.cmg-edit-profile-header,
+.cmg-edit-scroll {
+  position: relative;
+}
+
+.cmg-edit-profile .cmg-edit-title {
+  color: var(--cmg-navy);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(2rem, 8vw, 2.7rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.05em;
+}
+
+.cmg-edit-profile label,
+.cmg-edit-profile h3 {
+  color: #6b7686;
+  letter-spacing: 0.06em;
+}
+
+.cmg-edit-scroll {
+  --cmg-edit-fade: 11rem;
+  --cmg-edit-logo-fade: 1.75rem;
+  min-height: 0;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - var(--cmg-edit-fade)), transparent 100%);
+          mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - var(--cmg-edit-fade)), transparent 100%);
+}
+
+.cmg-edit-scroll.is-scrolled {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 var(--cmg-edit-logo-fade), #000 calc(100% - var(--cmg-edit-fade)), transparent 100%);
+          mask-image: linear-gradient(to bottom, transparent 0, #000 var(--cmg-edit-logo-fade), #000 calc(100% - var(--cmg-edit-fade)), transparent 100%);
+}
+
+.cmg-edit-profile .cmg-edit-bottom-ribbon {
+  display: block !important;
+  height: 11rem;
+  background-size: 100% auto;
+}
