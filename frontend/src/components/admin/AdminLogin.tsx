@@ -5,7 +5,8 @@ import { auth, db, functions } from '../../firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { signInWithEmailAndPassword, signInWithCustomToken, sendPasswordResetEmail, updatePassword } from 'firebase/auth';
-import { Shield, Mail, Lock, AlertCircle, CheckCircle, ArrowRight, Loader2 } from 'lucide-react';
+import { Mail, Lock, AlertCircle, CheckCircle, ArrowRight, Loader2 } from 'lucide-react';
+import Logo from '../../components/Logo';
 
 const AdminLogin = () => {
   const navigate = useNavigate();
@@ -125,9 +126,7 @@ const AdminLogin = () => {
         {/* Header */}
         <div className="bg-brand-orange p-8 text-center relative overflow-hidden">
           <div className="relative z-10">
-            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-sm">
-              <Shield className="text-white" size={32} />
-            </div>
+            <Logo size={160} className="mx-auto mb-4 drop-shadow-lg" />
             <h2 className="text-2xl font-bold text-white mb-1">Admin Portal</h2>
             <p className="text-brand-orange-100 text-sm">Secure Access Only</p>
           </div>

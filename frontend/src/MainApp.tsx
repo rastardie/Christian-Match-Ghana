@@ -2469,6 +2469,7 @@ const OnboardingView = ({
 }) => {
   const draftStorageKey = userId ? `cmg_onboarding_draft_${userId}` : "";
   const [step, setStep] = useState(1);
+  const [onboardingScrolled, setOnboardingScrolled] = useState(false);
   const [validationMessage, setValidationMessage] = useState("");
   const [optionalPin, setOptionalPin] = useState("");
   const [optionalPinConfirm, setOptionalPinConfirm] = useState("");
@@ -2649,7 +2650,10 @@ const OnboardingView = ({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-8 pt-5 pb-24 hide-scrollbar">
+      <div
+        className={`cmg-onboarding-scroll flex-1 overflow-y-auto p-8 pt-5 hide-scrollbar ${onboardingScrolled ? "is-scrolled" : ""}`}
+        onScroll={(event) => setOnboardingScrolled(event.currentTarget.scrollTop > 2)}
+      >
         {step === 1 && (
           <div className="space-y-6 animate-in slide-in-from-right duration-500">
             <div>
@@ -2855,7 +2859,10 @@ const OnboardingView = ({
             {validationMessage}
           </p>
         )}
-        <div className="mt-6 mb-4 flex gap-4">
+      </div>
+
+      <div className="cmg-onboarding-actions shrink-0 px-8 pb-8 pt-4">
+        <div className="flex gap-4">
           {step > 1 && (
             <button
               onClick={() => setStep(step - 1)}
