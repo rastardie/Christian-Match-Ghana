@@ -2323,7 +2323,7 @@ const AuthView = ({
                 className="w-5 h-5 mt-0.5 text-brand-orange bg-gray-50 border-gray-300 rounded focus:ring-brand-orange focus:ring-2 cursor-pointer"
                 required
               />
-              <span className="text-xs text-gray-600 leading-relaxed">
+              <span className="text-xs text-gray-600 leading-snug">
                 I agree to the{" "}
                 <button
                   type="button"
