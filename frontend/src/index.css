@@ -1278,13 +1278,20 @@ textarea::placeholder {
   position: relative;
 }
 
+.cmg-edit-profile .cmg-edit-copy {
+  width: 100%;
+  margin: 0 auto;
+  text-align: center;
+}
+
 .cmg-edit-profile .cmg-edit-title {
-  color: var(--cmg-navy);
+  margin: 0;
+  color: #0a2a4b;
   font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(2rem, 8vw, 2.7rem);
+  font-size: clamp(1.5rem, 7vw, 2rem);
   font-weight: 800;
-  line-height: 1;
-  letter-spacing: -0.05em;
+  line-height: 1.05;
+  letter-spacing: -0.04em;
 }
 
 .cmg-edit-profile label,

@@ -3295,26 +3295,25 @@ export const EditProfileView = ({
       <div className="flex justify-center pt-20 pb-1">
         <Logo size={160} className="drop-shadow-lg" />
       </div>
-      <div className="text-center pb-2">
-        <h2 className="cmg-edit-title text-2xl font-black text-brand-blue uppercase tracking-tighter">
-          Edit Profile
-        </h2>
-        <div aria-live="polite" className="min-h-4 text-[10px] font-bold text-gray-400">
-          {draftStatus === "saving" && "Saving draft…"}
-          {draftStatus === "saved" && "Saved"}
-          {draftStatus === "error" && (
-            <button type="button" onClick={() => void persistEditDraft(formData)} className="text-red-500 underline">
-              Unable to save — Retry
-            </button>
-          )}
-        </div>
-      </div>
       </div>
 
       <div
         className={`cmg-edit-scroll flex-1 overflow-y-auto px-6 pt-4 pb-52 hide-scrollbar space-y-8 relative z-10 ${editScrolled ? "is-scrolled" : ""}`}
         onScroll={(event) => setEditScrolled(event.currentTarget.scrollTop > 2)}
       >
+        <div className="cmg-edit-copy">
+          <h2 className="cmg-edit-title">Edit profile</h2>
+          <div aria-live="polite" className="min-h-4 text-[10px] font-bold text-gray-400">
+            {draftStatus === "saving" && "Saving draft…"}
+            {draftStatus === "saved" && "Saved"}
+            {draftStatus === "error" && (
+              <button type="button" onClick={() => void persistEditDraft(formData)} className="text-red-500 underline">
+                Unable to save — Retry
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Photos Management */}
         <div>
           <div className="flex items-end justify-between mb-3">
