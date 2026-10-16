@@ -1,13 +1,17 @@
 import {
-  onDisconnect,
-  onValue,
-  ref,
+  doc,
+  onSnapshot,
   serverTimestamp,
-  set,
-  type DataSnapshot,
-} from 'firebase/database';
-import { realtimeDb } from '../firebase';
+  setDoc,
+  Timestamp,
+  type DocumentSnapshot,
+} from 'firebase/firestore';
+import { db } from '../firebase';
 
+// Firestore-backed presence. We don't have Realtime Database's onDisconnect, so
+// presence is derived from a periodic heartbeat plus a freshness window: a user
+// counts as online only if their last heartbeat is recent. A clean unmount also
+// writes an explicit offline marker.
 const HEARTBEAT_MS = 20_000;
 const STALE_AFTER_MS = 65_000;
 
@@ -18,79 +22,78 @@ export interface PresenceInfo {
 
 interface PresenceRecord {
   state?: 'online' | 'offline';
-  lastSeen?: number;
+  lastSeen?: Timestamp | null;
 }
 
 function presenceRef(userId: string) {
-  return ref(realtimeDb, `presence/${userId}`);
+  return doc(db, 'presence', userId);
+}
+
+function toMillis(value: Timestamp | null | undefined): number | null {
+  if (!value) return null;
+  try {
+    return value.toMillis();
+  } catch {
+    return null;
+  }
 }
 
 function isFresh(lastSeen: number | null): boolean {
   return Boolean(lastSeen && Date.now() - lastSeen <= STALE_AFTER_MS);
 }
 
-function readPresence(snapshot: DataSnapshot): PresenceInfo {
-  const value = snapshot.val() as PresenceRecord | null;
-  const lastSeen = typeof value?.lastSeen === 'number' ? value.lastSeen : null;
+function readPresence(snapshot: DocumentSnapshot): PresenceInfo {
+  const value = snapshot.data() as PresenceRecord | undefined;
+  const lastSeen = toMillis(value?.lastSeen ?? null);
   return {
     isOnline: value?.state === 'online' && isFresh(lastSeen),
     lastSeen,
   };
 }
 
-async function markOnline(userId: string): Promise<void> {
-  const userRef = presenceRef(userId);
-  await onDisconnect(userRef).set({
-    state: 'offline',
-    lastSeen: serverTimestamp(),
-  });
-  await set(userRef, {
-    state: 'online',
-    lastSeen: serverTimestamp(),
-  });
-}
-
-async function markOffline(userId: string): Promise<void> {
-  try {
-    const userRef = presenceRef(userId);
-    await set(userRef, {
-      state: 'offline',
-      lastSeen: serverTimestamp(),
-    });
-    await onDisconnect(userRef).cancel();
-  } catch (error) {
-    console.warn('Unable to mark presence offline:', error);
-  }
+async function writePresence(userId: string, state: 'online' | 'offline'): Promise<void> {
+  await setDoc(
+    presenceRef(userId),
+    { state, lastSeen: serverTimestamp() },
+    { merge: true },
+  );
 }
 
 /**
- * Starts connection-backed presence for the active user.
- * Realtime Database onDisconnect is the source of truth when the tab, PWA,
- * device, or network disappears without a clean React unmount.
+ * Starts heartbeat-backed presence for the active user. Firestore has no
+ * onDisconnect, so an abrupt tab/network loss stops the heartbeat and the record
+ * becomes stale within STALE_AFTER_MS; a clean unmount writes offline immediately.
  */
 export function startUserPresence(userId: string): () => void {
   let stopped = false;
   let heartbeat: number | undefined;
   let reconnectTimer: number | undefined;
 
+  const beat = () => {
+    if (stopped || document.visibilityState !== 'visible' || !navigator.onLine) return;
+    void writePresence(userId, 'online').catch((error) => {
+      console.warn('Presence heartbeat failed:', error);
+    });
+  };
+
   const connect = () => {
     if (stopped || document.visibilityState !== 'visible' || !navigator.onLine) return;
-    void markOnline(userId).catch((error) => {
-      console.warn('Unable to start realtime presence:', error);
-    });
+    beat();
     if (heartbeat === undefined) {
-      heartbeat = window.setInterval(() => {
-        if (!stopped && document.visibilityState === 'visible' && navigator.onLine) {
-          void markOnline(userId).catch((error) => {
-            console.warn('Presence heartbeat failed:', error);
-          });
-        }
-      }, HEARTBEAT_MS);
+      heartbeat = window.setInterval(beat, HEARTBEAT_MS);
     }
   };
 
   const disconnect = () => {
-    if (!stopped) void markOffline(userId);
+    if (heartbeat !== undefined) {
+      window.clearInterval(heartbeat);
+      heartbeat = undefined;
+    }
+    if (!stopped) {
+      void writePresence(userId, 'offline').catch((error) => {
+        console.warn('Unable to mark presence offline:', error);
+      });
+    }
   };
 
   const handleVisibility = () => {
@@ -115,7 +118,7 @@ export function startUserPresence(userId: string): () => void {
     document.removeEventListener('visibilitychange', handleVisibility);
     window.removeEventListener('online', handleOnline);
     window.removeEventListener('offline', handleOffline);
-    void markOffline(userId);
+    void writePresence(userId, 'offline').catch(() => undefined);
   };
 }
 
@@ -124,10 +127,16 @@ export function subscribeToPresence(
   callback: (presence: PresenceInfo) => void,
 ): () => void {
   let latest: PresenceInfo = { isOnline: false, lastSeen: null };
-  const unsubscribe = onValue(presenceRef(userId), (snapshot) => {
-    latest = readPresence(snapshot);
-    callback(latest);
-  });
+  const unsubscribe = onSnapshot(
+    presenceRef(userId),
+    (snapshot) => {
+      latest = readPresence(snapshot);
+      callback(latest);
+    },
+    (error) => console.warn('Presence subscription error:', error),
+  );
+  // Re-evaluate freshness periodically so a stale "online" record flips to offline
+  // even if no new snapshot arrives.
   const freshnessTimer = window.setInterval(() => {
     callback({
       ...latest,

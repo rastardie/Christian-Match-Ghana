@@ -2,7 +2,6 @@ import { initializeApp } from 'firebase/app';
 import { getAnalytics, isSupported as analyticsSupported } from 'firebase/analytics';
 import { getAuth, connectAuthEmulator } from 'firebase/auth';
 import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
-import { getDatabase, connectDatabaseEmulator } from 'firebase/database';
 import { getStorage, connectStorageEmulator } from 'firebase/storage';
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
 import { getMessaging, type Messaging } from 'firebase/messaging';
@@ -28,9 +27,6 @@ if (missingConfig.length > 0) {
 const app = initializeApp(requiredConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const databaseUrl = import.meta.env.VITE_FIREBASE_DATABASE_URL ||
-  `https://${requiredConfig.projectId}-default-rtdb.firebaseio.com`;
-const realtimeDb = getDatabase(app, databaseUrl);
 const storage = getStorage(app);
 const functions = getFunctions(
   app,
@@ -45,7 +41,6 @@ if (useEmulators) {
     disableWarnings: true,
   });
   connectFirestoreEmulator(db, emulatorHost, 8080);
-  connectDatabaseEmulator(realtimeDb, emulatorHost, 9000);
   connectStorageEmulator(storage, emulatorHost, 9199);
   connectFunctionsEmulator(functions, emulatorHost, 5001);
 }
@@ -72,4 +67,4 @@ if (typeof window !== 'undefined' && !useEmulators) {
   });
 }
 
-export { app, analytics, auth, db, realtimeDb, storage, functions, messaging };
+export { app, analytics, auth, db, storage, functions, messaging };

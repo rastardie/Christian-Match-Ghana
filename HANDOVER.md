@@ -1,56 +1,87 @@
 # Christian Match Ghana — Handover and Continuation Guide
 
-**Last updated:** 2026-10-15
+**Last updated:** 2026-10-16
 **Workspace:** `/Users/andrewstardie/Documents/TUTS/TESTS/cm/cmg-rebuilt`
 **Branch:** `sync/cmg-local-2026-10-13`
-**Remote:** `origin/sync/cmg-local-2026-10-13`
+**Remote:** `origin` → `https://github.com/rastardie/Christian-Match-Ghana.git`
+**Last pushed commit:** `c5a60b2 chore: add Vite client typings`
 
-## 1. Current objective and outcome
+## 1. Current system snapshot
 
-The current objective was to host a Firebase-staging development build of Christian Match Ghana at:
+Christian Match Ghana is a React/Vite/TypeScript + Firebase + Capacitor application with a Firebase Functions backend. The current work covered four major areas:
 
-```text
-https://christianmatchghana.com/dev/
-```
+1. **Secure administration:** canonical group-based RBAC, permissions, audit logs, Super Admin protection, administrator creation, username login, and forced first-login password changes.
+2. **Authentication and security:** email/password login, automatic Password-or-PIN detection, optional 4–6 digit PIN setup/change, server-side PIN hashing, biometric/passkey support, email verification, and password recovery.
+3. **Product/UI:** profile and main-page redesign, safe-area-aware mobile headers, balanced top controls, compact bottom navigation, profile welcome layout, and a landing promo video.
+4. **Platform reliability:** Realtime Database presence, support tickets, notification preferences, Storage photo upload, staging deployment configuration, and improved signup/onboarding recovery.
 
-The development frontend is hosted manually on StormerHost/cPanel/LiteSpeed under:
-
-```text
-/home/christi3/public_html/dev/
-```
-
-The frontend uses the Firebase staging project, not production. Authentication, Firestore, Storage, signup, login, email verification, onboarding, and stage-4 photo upload are now working end-to-end. The user confirmed the latest stage-4 flow is working.
-
-Production remains a separate Firebase project and was not intentionally modified during this work.
+Production Firebase was not intentionally modified. The work targets the staging project unless explicitly stated otherwise.
 
 ## 2. Repository architecture
 
 ```text
 frontend/                 React + TypeScript + Vite + Capacitor Android app
-frontend/src/             Main React application and services
-frontend/public/          Static assets, logos, wallpapers, manifest
-frontend/scripts/         Build-time service-worker generation
-backend/functions/        Firebase Cloud Functions source and CLI dependencies
-infra/firebase/           Firestore and Storage security rules
+frontend/src/             Main React application, views, Firebase services
+frontend/public/          Logos, landing photos, promo video, wallpapers, manifest
+backend/functions/        Firebase Cloud Functions source and dependencies
+infra/firebase/           Firestore, Realtime Database, and Storage rules
 firebase.json             Firebase deployment and emulator configuration
-.firebaserc               staging/production aliases
-deploy-dev.sh             Manual/optional StormerHost deployment helper
-docs/                     Existing implementation and deployment guides
-HANDOVER.md               This continuation guide
+.firebaserc               Staging/production Firebase aliases
+docs/                     Existing project documentation
+HANDOVER.md               This continuation document
 ```
 
-The recommended future workspace location is outside macOS Documents, because Android Studio and Gradle can encounter permissions issues there:
+Important source areas:
 
-```bash
-mkdir -p "/Users/andrewstardie/Developer"
-rsync -a \
-  "/Users/andrewstardie/Documents/TUTS/TESTS/cm/cmg-rebuilt/" \
-  "/Users/andrewstardie/Developer/cmg-rebuilt/"
+```text
+frontend/src/MainApp.tsx
+frontend/src/components/Layout.tsx
+frontend/src/components/Logo.tsx
+frontend/src/components/admin/AdminDashboard.tsx
+frontend/src/components/admin/AdminAccessControl.tsx
+frontend/src/components/admin/AdminLogin.tsx
+frontend/src/services/adminRbacService.ts
+frontend/src/services/pinAuthService.ts
+frontend/src/services/presenceService.ts
+frontend/src/services/supportService.ts
+backend/functions/src/index.js
+backend/functions/src/rbac.js
+backend/functions/src/smsService.js
+infra/firebase/firestore.rules
+infra/firebase/database.rules.json
 ```
 
-Do not delete the original until the copied workspace has been verified.
+## 3. GitHub state
 
-## 3. Firebase environments
+The current feature branch has been pushed successfully:
+
+```text
+Branch:  sync/cmg-local-2026-10-13
+Remote:  origin
+HEAD:    c5a60b2d7d971fcd119b5a88d9f9da244dcb9e1e
+```
+
+Recent commits:
+
+```text
+c5a60b2 chore: add Vite client typings
+05f47e1 feat: complete CMG admin, auth, and UI enhancements
+7006c81 feat: update staging app UX and landing experience
+```
+
+The working tree intentionally still contains local/generated files that were not committed:
+
+```text
+firebase-export-1792055726725kDM0Hm/
+frontend/dist.zip
+tmp/
+```
+
+Do not add these unless there is a deliberate reason. They may contain emulator exports, generated archives, or temporary test artifacts.
+
+Do not push directly to `main` or `master`. Continue using a feature branch and pull request workflow.
+
+## 4. Firebase environments
 
 ```text
 staging     christian-match-ghana     development/testing
@@ -60,505 +91,457 @@ production  christianmatch-app        live production system
 Staging:
 
 ```text
-Project name:    Christian Match Ghana Stg
 Project ID:      christian-match-ghana
 Project number:  481815915882
-Web app ID:      1:481815915882:web:6983b79d40683343b40913
 Hosting URL:     https://christian-match-ghana.web.app
 Console:         https://console.firebase.google.com/project/christian-match-ghana/overview
 ```
 
-Production was not intentionally changed. Always verify the selected Firebase project before deploying or changing billing, rules, users, or data.
-
-## 4. Current staging cloud state
-
-### Authentication
-
-- Email/password provider is enabled.
-- Authorized domains include:
-  - `localhost`
-  - `christian-match-ghana.firebaseapp.com`
-  - `christian-match-ghana.web.app`
-  - `christianmatchghana.com`
-  - `www.christianmatchghana.com`
-- The hosted action URL is:
-  - `https://christianmatchghana.com/dev`
-- The staging API key was corrected to the official Firebase web-app value.
-- A previous `auth/unauthorized-continue-uri` error was caused by the old action URL using `christianmatch.com`; the bundle now uses `christianmatchghana.com`.
-
-### Billing
-
-The staging project is linked to the open billing account named `Firebase Payment`. This was required for Firebase Storage provisioning and may incur charges beyond free quotas. Do not link or use an Eco-related billing account.
-
-### Firestore
-
-The missing staging Firestore database was the root cause of the earlier login `PROCESSING...` problem.
+The configured Firebase CLI account is:
 
 ```text
-Database: (default)
-Location: nam5
-Type:     FIRESTORE_NATIVE
-Rules:    infra/firebase/firestore.rules
-Status:   created and rules deployed
+christianmatchghanaltd@gmail.com
 ```
 
-The production Firestore database uses `nam5`; staging was created in the same location for parity.
+Do not use or involve the unrelated `atardie@ecobank.com` credential. Do not use an Eco-related billing account.
 
-### Storage
-
-The missing staging Storage bucket was the root cause of the earlier onboarding stage-4 hang. Firebase Storage was initialized in the Firebase Console after billing was enabled.
-
-```text
-Bucket:       christian-match-ghana.firebasestorage.app
-Location:     US-CENTRAL1
-Class:        REGIONAL
-Rules:        infra/firebase/storage.rules
-Status:       bucket created and rules deployed
-```
-
-`firebase.json` explicitly targets this bucket and assigns the `staging` Storage target. The matching `.firebaserc` target mapping is required by the Firebase Emulator Suite:
-
-```json
-"target": "staging"
-```
-
-This target mapping lets the same rules configuration work for both the cloud staging bucket and the local Storage emulator.
-
-`firebase.json` explicitly targets this bucket because the Firebase CLI default-bucket lookup endpoint was unreliable:
-
-```json
-"storage": [
-  {
-    "bucket": "christian-match-ghana.firebasestorage.app",
-    "rules": "infra/firebase/storage.rules"
-  }
-]
-```
-
-### Functions
-
-The repository contains Cloud Functions and the frontend calls functions such as `checkSignupEligibility`. Functions should be reviewed and deployed to staging after the current cloud setup is stabilized. Earlier deployment attempts were blocked by the staging billing/Blaze requirement; billing is now enabled, but a complete staging Functions deployment has not been recorded in this session.
-
-Recommended later command:
+Always specify the project explicitly:
 
 ```bash
-backend/functions/node_modules/.bin/firebase deploy \
-  --project staging \
-  --only functions \
+firebase --project christian-match-ghana <command>
+```
+
+The `.firebaserc` aliases are:
+
+```json
+{
+  "staging": "christian-match-ghana",
+  "production": "christianmatch-app"
+}
+```
+
+## 5. Current cloud deployment state
+
+### Successfully deployed to staging
+
+The following deployment completed successfully on 2026-10-16:
+
+```text
+Firestore rules and indexes
+Storage rules
+Firebase Hosting
+```
+
+Hosting found the current `frontend/dist` build and released it at:
+
+```text
+https://christian-match-ghana.web.app
+```
+
+### Functions deployment blocker
+
+Functions deployment was attempted but stopped during secret validation because the staging project is missing a version of:
+
+```text
+SMTP_PASS
+```
+
+The Functions code was not bypassed or partially forced into deployment. Until the secret is configured, the newer backend features are not live:
+
+- Admin RBAC callables
+- Administrator creation
+- Username resolver
+- PIN setup/change/login
+- Forced administrator password-change completion
+- Notification changes
+
+After the correct staging SMTP password is available, configure it without recording it in Git:
+
+```bash
+firebase functions:secrets:set SMTP_PASS \
+  --project christian-match-ghana
+```
+
+Then deploy Functions:
+
+```bash
+firebase deploy --only functions \
+  --project christian-match-ghana \
   --non-interactive
 ```
 
-Review the Functions environment and secrets before deploying. Never copy production secrets into staging.
+Review all existing Functions secrets before deployment. Never copy production secrets into staging.
 
-## 5. StormerHost `/dev` deployment
+### Realtime Database blocker
 
-The required cPanel structure is:
+The project does not yet have a Realtime Database instance. Database rules are present in:
 
 ```text
-public_html/dev/
-├── index.html
-├── .htaccess
-├── assets/
-├── brand-reference/
-├── cmg-logo-circle.png
-├── firebase-messaging-sw.js
-└── manifest.json
+infra/firebase/database.rules.json
 ```
 
-Do not leave files nested under `public_html/dev/dist/`.
+The full Firebase deploy stopped because no Realtime Database instance exists. Do not create one silently; choose and document the region first. After the instance is intentionally created:
 
-The latest locally packaged frontend archive is:
+```bash
+firebase deploy --only database \
+  --project christian-match-ghana \
+  --non-interactive
+```
+
+Until then, Realtime Database presence is not available in the deployed staging environment.
+
+## 6. Admin RBAC and administrator management
+
+### Canonical authority model
+
+Admin authority comes from canonical group membership in `adminUsers`, not from legacy `users.isAdmin` fields or frontend menu visibility.
+
+Collections:
+
+```text
+adminUsers
+adminGroups
+adminAuditLogs
+```
+
+Default groups:
+
+```text
+Super Admin
+Admin
+Moderator
+Customer Support
+Finance
+Notification Manager
+```
+
+Permission examples:
+
+```text
+users.view
+users.create
+users.edit
+users.suspend
+users.delete
+messages.view
+messages.moderate
+notifications.manage
+notifications.email.send
+notifications.sms.send
+subscriptions.manage
+payments.view
+groups.manage
+permissions.manage
+settings.manage
+audit.view
+```
+
+### Backend protections
+
+Implemented in `backend/functions/src/index.js` and `rbac.js`:
+
+- Backend callable permission checks.
+- Regular admins cannot grant Super Admin.
+- Regular admins cannot modify the Super Admin group.
+- Regular admins cannot grant permissions they do not possess.
+- Existing Super Admin access cannot be removed through the normal assignment path.
+- Group and assignment changes are audited.
+- Client writes to admin access, groups, and audit logs are denied by rules.
+- Legacy Super Admin email compatibility remains for the existing configured addresses.
+
+### Administrator creation
+
+The callable is:
+
+```text
+adminCreateAdministrator
+```
+
+It is Super Admin-only and creates:
+
+- Firebase Auth account.
+- Canonical `adminUsers` record.
+- `Super Admin` group assignment.
+- Full permission catalog.
+- Verified email state without requiring email confirmation.
+- Non-paid user profile.
+- `mustChangePassword: true`.
+- Audit record.
+
+The Access Control panel also contains the administrator creation form with:
+
+```text
+Username
+Full name
+Email
+Temporary password
+```
+
+### `ladmin` status
+
+The requested account is intended to be:
+
+```text
+Username: ladmin
+Email:    ladmin@christianmatchghana.com
+Role:     Super Admin
+Paid:     No
+Email confirmation: Not required
+First login: Forced password change
+```
+
+The live account has **not yet been created**, because Functions deployment is blocked by the missing `SMTP_PASS` secret. Do not place the initial password in source, this handover, logs, or a deployment archive. After Functions deployment, create it from the existing Super Admin Access Control panel or through the protected callable.
+
+## 7. Authentication and PIN support
+
+### Password or PIN login
+
+The main login and Admin Portal support automatic credential detection:
+
+- A 4–6 digit credential is treated as a PIN.
+- Other credentials are treated as passwords.
+- No separate Password/PIN selector is required.
+- The login field is labelled `Password or PIN`.
+- The identifier field supports email and administrator username.
+
+### PIN security
+
+PIN functionality follows the security pattern from the `onb` project:
+
+- Optional 4–6 digit PIN during onboarding.
+- PIN setup/change later from Profile → Settings.
+- Existing PIN changes require the current PIN.
+- PIN hashes are generated and verified server-side using `scrypt`.
+- PIN hashes never enter frontend state.
+- Firestore rules deny direct client writes to `pinHash` and `hasPin`.
+- PIN setup and change actions are audited.
+- PIN login uses a Firebase custom token generated after server-side verification.
+
+Functions:
+
+```text
+setUserPin
+loginWithPin
+```
+
+PIN login will remain unavailable in staging until the Functions deployment blocker is resolved.
+
+### Forced password change
+
+Administrator accounts created by the protected callable set:
+
+```text
+mustChangePassword: true
+```
+
+The normal app and Admin Portal route those users to a mandatory password-change screen before access. Completion is recorded by:
+
+```text
+completeAdminPasswordChange
+```
+
+## 8. Frontend and UX changes
+
+### Shared main-page header
+
+`frontend/src/components/Layout.tsx` now uses a balanced three-zone header:
+
+```text
+left:   Back, when applicable
+center: 64px CMG logo
+right:  Logout
+```
+
+Top controls use consistent 44px circular buttons and respect mobile safe-area insets.
+
+### Main/profile pages
+
+- Removed old top-left and bottom decorative ribbons from main app views.
+- Removed the profile cover-photo rendering that could display washed-out screenshots or broken-looking images.
+- Profile uses a professional rounded deep-navy cover card.
+- Avatar overlaps the cover card and falls back to initials when no profile photo exists.
+- Profile heading uses `Welcome back, <first name>` rather than the full bold name.
+- Bottom navigation uses compact 30%-reduced sizing and safe-area-aware bottom padding.
+
+### Landing page
+
+The promo video is first landing slide:
+
+```text
+frontend/public/landing-media/promo-vid-1.mp4
+```
+
+Behavior:
+
+- Muted autoplay preview.
+- 15-second preview for occasional users.
+- Fade begins at 12 seconds and transitions to the next photo at 15 seconds.
+- Tap restarts the video from the beginning and attempts full playback.
+- A visible `Tap to play full video` guide is shown.
+- Logo is removed on the video slide.
+- Users with more than three successful logins see the video for 5 seconds like other photos.
+
+The video is approximately 9.6 MB. Compress it before broad mobile rollout.
+
+### Presence, support, and notifications
+
+Added locally:
+
+- Realtime Database presence service with heartbeat and `onDisconnect` behavior.
+- Support ticket creation and protected `supportTickets` rules.
+- Notification preference model and server-side preference checks.
+- Deferred SMS adapter that does not contact a provider until a provider contract and secret configuration exist.
+
+## 9. Biometric/passkey support
+
+`frontend/src/services/biometricAuthService.ts` supports:
+
+- Native Capacitor biometric/device authentication.
+- WebAuthn platform authenticators where available.
+- Secure native credential storage.
+- Browser WebAuthn credential records for the web flow.
+
+Normal password login remains the source of truth. Biometric authentication should be tested separately on Android, iOS, and supported browsers before production enablement.
+
+## 10. Validation already completed
+
+The latest application changes passed:
+
+```text
+Node backend syntax check
+TypeScript noEmit check
+Vite staging-web build
+Messaging service-worker generation
+git diff --check
+Firestore rules compilation during Firebase deployment
+Storage rules compilation during Firebase deployment
+```
+
+Typical local validation:
+
+```bash
+cd /Users/andrewstardie/Documents/TUTS/TESTS/cm/cmg-rebuilt
+node --check backend/functions/src/index.js
+node --check backend/functions/src/rbac.js
+cd frontend
+node_modules/.bin/tsc --noEmit --pretty false
+node_modules/.bin/vite build --mode staging-web
+node scripts/generate-messaging-sw.mjs --mode=staging-web
+```
+
+The current Desktop package from the latest build is expected at:
 
 ```text
 /Users/andrewstardie/Desktop/cmg-dev-dist.zip
 ```
 
-The latest locally built JavaScript bundle at the time of this handover is:
-
-```text
-assets/index-BpMfTgjo.js
-```
-
-If the latest visual changes have not yet been uploaded, upload the Desktop archive and extract it directly into:
-
-```text
-/home/christi3/public_html/dev
-```
-
-Choose **Overwrite**. Then use a fresh private window or add a cache-busting query string:
-
-```text
-https://christianmatchghana.com/dev/?fresh=1
-```
-
-The archive includes an `.htaccess` that:
-
-- Disables caching for HTML entry points.
-- Allows long caching for content-hashed JS/CSS/image assets.
-- Preserves SPA fallback routing under `/dev/`.
-
-Automatic FTP/SFTP deployment was not reliable. Manual cPanel upload remains the known-good deployment method until valid credentials and a tested deployment route are available. Never print or commit `.deploy/stormerhost.env`.
-
-## 6. Frontend fixes completed
-
-### Firebase and auth
-
-- Firebase configuration is environment-driven through Vite.
-- `VITE_BASE_PATH=/dev/` is supported.
-- Logo, favicon, manifest, wallpapers, and messaging-worker paths are subpath-safe.
-- Staging Firebase configuration uses `VITE_USE_FIREBASE_EMULATORS=false`.
-- Verification links use the real hosted domain.
-- Verification resend has a cooldown and readable rate-limit messaging.
-- Verification screens include Return to Login and Cancel / Log Out.
-
-### Signup and login resilience
-
-Signup/login previously stayed at `PROCESSING...` when a Firebase call stalled. The auth flow now has:
-
-- Duplicate-submit protection.
-- A timeout around Firebase sign-in.
-- Timeouts around Firestore profile reads/writes.
-- A timeout around the optional premium-access check.
-- Timeouts around signup eligibility and verification-email calls.
-- Guaranteed loading-state cleanup.
-- Signup continuation to the verification screen after account creation even when email delivery is delayed.
-
-The timeout is a UI recovery mechanism, not a substitute for fixing Firebase services. The staging Firestore and Storage initialization resolved the underlying cloud failures.
-
-### Signup visual layout
-
-- The auth card is fixed to `100dvh` on mobile and `90vh` on larger screens.
-- Signup content scrolls inside the auth card.
-- The top wallpaper has reserved space for the logo and heading.
-- The bottom wallpaper/ribbon/heart has reserved layout space instead of covering form fields.
-- Signup uses a dedicated `cmg-auth-signup-panel` scroll class.
-- The card owns the fixed wallpaper; the scrolling panel no longer duplicates the decorative pseudo-artwork.
-
-### Onboarding stage 4
-
-Stage 4 uploads profile, cover, and gallery photos to Firebase Storage before saving the Firestore profile. This now works after Storage initialization and rules deployment.
-
-The current stage-4 flow is:
-
-```text
-image selection/cropping
-  -> client compression
-  -> Firebase Storage upload
-  -> download URLs
-  -> Firestore users/{uid} update
-  -> Browse view
-```
-
-## 7. Current source status
-
-The current branch contains local, uncommitted work. Check before committing:
-
-```bash
-git status --short
-git diff --check
-```
-
-Known modified/untracked items include the recent hosting/auth/layout changes and:
-
-```text
-firebase.json
-frontend/index.html
-frontend/scripts/generate-messaging-sw.mjs
-frontend/src/MainApp.tsx
-frontend/src/components/Logo.tsx
-frontend/src/index.css
-frontend/vite.config.ts
-deploy-dev.sh
-```
-
-There may also be local Firebase export folders and `frontend/dist.zip` artifacts. Review them before staging; do not commit emulator exports, test data, secrets, or deployment archives unless deliberately required.
-
-No commit was created during this session. Before committing, review the diff and use a conventional commit message. Do not push directly to `main` or `master`.
-
-## 8. Validation commands
-
-### Frontend staging build
-
-Dependencies are installed with the frontend lockfile:
-
-```bash
-npm ci --prefix frontend --no-audit --no-fund
-```
-
-Correct staging build sequence:
-
-```bash
-cd frontend
-node_modules/.bin/vite build --mode staging-web
-node scripts/generate-messaging-sw.mjs --mode=staging-web
-```
-
-`npm run build -- --mode staging-web` is not the reliable command for this project because the extra mode argument can be consumed by the service-worker generator instead of Vite.
-
-### Firebase rules
-
-```bash
-backend/functions/node_modules/.bin/firebase deploy \
-  --project staging \
-  --only firestore:rules,storage:rules \
-  --non-interactive
-```
-
-### Static checks
-
-```bash
-bash -n deploy-dev.sh start-cmg-emulators.sh run-cmg-pwa.sh run-cmg-android.sh
-node --check backend/functions/src/index.js
-cd frontend && npm run build
-```
-
-The build has known non-fatal Vite warnings about dynamic/static Firebase imports, unresolved runtime wallpaper URLs, and a large main JavaScript chunk.
-
-### Hosted smoke checks
-
-Verify that the hosted HTML references the expected current hash:
-
-```bash
-curl -ksS 'https://christianmatchghana.com/dev/?fresh=1' \
-  | grep -oE 'assets/index-[^" ]+\.js'
-```
-
-Test manually in a fresh private window:
-
-```text
-- Login with a verified staging account.
-- Create a staging-only account.
-- Confirm verification screen appears.
-- Complete onboarding stages 1–4.
-- Upload profile and cover photos.
-- Confirm photos appear after save.
-- Log out and log in again.
-```
-
-Do not test with production credentials or production data unless explicitly intended.
-
-## 9. Local emulator environment
-
-Local emulators remain separate from staging and production:
-
-```text
-Auth:        9099
-Firestore:   8080
-Functions:   5001
-Storage:     9199
-Emulator UI: 4000
-```
-
-Start from the repository root:
-
-```bash
-backend/functions/node_modules/.bin/firebase emulators:start \
-  --project staging \
-  --only auth,firestore,storage,functions \
-  --export-on-exit=.firebase-emulator-data
-```
-
-Start the frontend in emulator mode:
-
-```bash
-cd frontend
-VITE_USE_FIREBASE_EMULATORS=true \
-VITE_FIREBASE_EMULATOR_HOST=127.0.0.1 \
-VITE_PUBLIC_APP_URL=http://127.0.0.1:3000 \
-npm run dev -- --host 127.0.0.1
-```
-
-The hosted `/dev` build uses cloud Firebase because:
-
-```env
-VITE_USE_FIREBASE_EMULATORS=false
-```
-
-The local emulator does not deliver real verification email. Inspect the Auth Emulator UI or terminal output for verification links.
-
-Useful launchers:
-
-```text
-start-cmg-emulators.sh
-run-cmg-pwa.sh
-run-cmg-android.sh
-start-android.sh
-stop-cmg-local.sh
-```
-
-The Android package is:
-
-```text
-com.cmg.christianmatch
-```
-
-The Android Gradle wrapper executable bit was fixed previously. Local Android build/install/launch validation passed.
-
-## 10. Security and operations notes
-
-- Never commit `.env`, `.env.production`, `.env.staging-web`, backend `.env`, SMTP credentials, Paystack secret keys, OAuth credentials, or service-account keys.
-- Firebase web API keys are client identifiers, but environment files still should not be committed casually because they expose environment configuration.
-- Never use `pk_live_*` Paystack keys in staging.
-- Keep production and staging rules, users, Storage, billing, and Functions separate.
-- Firebase Storage now has billing enabled; configure budget alerts before real user testing.
-- Do not send bulk verification reminders until email templates, quotas, SMTP/delivery, and recipient filtering are tested.
-- Review Firestore and Storage rules for least privilege before inviting testers.
-- Add App Check and abuse/rate-limit controls before public launch.
-- Do not broadly cache authenticated Firebase responses in a PWA service worker.
-
-## 11. Prioritized future add-ons
-
-### P0 — stabilize and release safely
-
-1. **Commit and PR the current work.** Review `firebase.json`, auth fixes, subpath-safe assets, timeout handling, and signup layout changes. Add a release note describing the cloud staging initialization.
-2. **Create a repeatable staging deployment.** Replace manual cPanel zip upload with a reviewed GitHub Actions or SFTP/SSH deployment. Keep credentials in GitHub Actions secrets or a secret manager, never in the repository.
-3. **Add a staging smoke-test script.** Check HTML hash, Firebase project ID, Auth sign-in, Firestore profile read/write, Storage upload/delete, and verification action URL.
-4. **Add Cloud Billing budgets and alerts.** Set a low staging budget, email alerts, and a review process before adding testers.
-5. **Deploy and verify staging Functions.** Confirm callable functions, region, runtime configuration, and staging-only secrets.
+The package is large because it includes the promo video. Do not commit `frontend/dist.zip` unless explicitly required.
+
+## 11. Holistic future add-ons
+
+### P0 — unblock and stabilize the current release
+
+1. Configure the staging `SMTP_PASS` secret and deploy Functions.
+2. Create the Realtime Database instance intentionally, document its region, and deploy database rules.
+3. Create `ladmin` only after the protected Functions are deployed.
+4. Test password login, username login, PIN login, forced password change, Admin Portal access, and logout with staging accounts.
+5. Add a staging smoke-test script that checks Auth, Firestore, Storage, Functions, Hosting, and Rules.
+6. Add Firebase billing budgets and email alerts before inviting testers.
+
+### P1 — security and trust
+
+1. Add Firebase App Check for web and Android.
+2. Add brute-force protection for PIN attempts, including per-account and per-device lockouts.
+3. Add PIN reset/recovery that invalidates prior PINs and active sessions safely.
+4. Enforce stronger server-side password policy and session revocation after password reset.
+5. Add adversarial Firestore, Storage, Realtime Database, and callable-function rules tests.
+6. Add admin step-up authentication for Super Admin actions such as granting Super Admin or changing settings.
+7. Add immutable audit export/retention policy and alerting for privilege changes.
+8. Add account deletion/export workflows with verified ownership and privacy retention rules.
 
 ### P1 — reliability and observability
 
-1. **Upload progress, cancellation, retry, and timeout UI.** Stage 4 should show which photo is uploading and recover cleanly from a failed upload.
-2. **Centralized Firebase error handling.** Map Auth, Firestore, Storage, Functions, quota, and network errors to actionable messages with correlation IDs.
-3. **Crash and performance monitoring.** Add Firebase Crashlytics for Android and a browser error-monitoring solution for PWA/web, with staging and production separated.
-4. **Cloud Logging dashboards and alerts.** Monitor callable-function errors, Storage failures, Auth rate limits, Firestore permission errors, and unusual signup volume.
-5. **Resume-safe onboarding.** Save non-sensitive onboarding progress to Firestore and restore it after refresh or interrupted uploads.
+1. Add Firebase Crashlytics for Android and browser error monitoring for the PWA.
+2. Add Cloud Logging dashboards for Functions errors, Auth failures, Storage failures, rules denials, and signup spikes.
+3. Add correlation IDs to authentication, upload, payment, and support-ticket flows.
+4. Add upload progress, retry, cancellation, and resumable uploads.
+5. Add offline/reconnect states for presence, messaging, onboarding, and profile editing.
+6. Add automated backups and restore drills for Firestore and Storage with documented RPO/RTO.
 
-### P1 — security, trust, and moderation
+### P1 — payments and communications
 
-1. **Firebase App Check** for web and Android after validating that it does not block legitimate testers.
-2. **Rate limits and abuse controls** for signup, verification resend, password reset, messages, likes, reports, and photo uploads.
-3. **Moderation workflow** for reports, blocked users, suspicious accounts, image review, admin audit history, and appeal handling.
-4. **Review Firestore/Storage rules** with adversarial tests for cross-user reads/writes and unauthenticated access.
-5. **Privacy and retention controls**: account deletion, export, consent history, image deletion, and retention schedules.
+1. Complete Paystack server-side verification and webhook idempotency.
+2. Add subscription reconciliation for delayed, failed, refunded, or disputed payments.
+3. Configure verified email sending with SPF, DKIM, and DMARC.
+4. Select and implement an SMS provider only after consent, sender ID, cost, and Ghana delivery rules are documented.
+5. Add notification delivery history and retry/dead-letter handling.
+6. Add admin templates and preview/test-send workflows for email and SMS.
 
-### P1 — email and communication quality
+### P2 — testing and delivery
 
-1. Configure a verified custom email sender with SPF, DKIM, and DMARC.
-2. Separate staging and production email templates and sender identities.
-3. Add email delivery diagnostics and a resend cooldown persisted across reloads.
-4. Test verification, password reset, change-email, and deep links on desktop, mobile browser, and Android.
+1. Add Firebase Emulator Suite tests for Auth, Firestore, Storage, Realtime Database, and Functions.
+2. Add Playwright tests for signup, email verification recovery, password login, PIN login, onboarding, upload, profile, support, and admin RBAC.
+3. Add visual regression screenshots for landing, auth, profile, messages, connections, and admin pages.
+4. Add CI checks for TypeScript, rules, backend syntax, Vite build, dependency audit, and bundle size.
+5. Add preview Hosting deployments for pull requests without production data.
+6. Replace manual cPanel upload with a reviewed GitHub Actions SFTP/SSH deployment using repository secrets.
 
-### P2 — test automation and delivery
+### P2 — product growth and user experience
 
-1. Add Firebase Emulator Suite integration tests for Auth, Firestore, Storage, and callable Functions.
-2. Add Playwright end-to-end tests for signup, verification-screen recovery, login, onboarding, photo upload, logout, and profile editing.
-3. Add visual regression screenshots for login, signup, stage 4, profile, and mobile/desktop breakpoints.
-4. Add TypeScript checks, linting, dependency audit, rules tests, and build validation to CI.
-5. Add preview deployments for pull requests without exposing production data.
+1. Add paginated discovery/search with Firestore indexes and denormalized counters.
+2. Add richer match-quality signals based on faith, goals, location, and preferences.
+3. Add report/moderation queues with evidence, appeal workflows, and moderator SLAs.
+4. Add support-ticket admin management, assignment, internal notes, status history, and response notifications.
+5. Add event/community features such as prayer groups, church/community events, and moderated discussions.
+6. Add accessibility testing: keyboard navigation, focus management, contrast, reduced motion, and screen readers.
+7. Add localization and regional settings for Ghanaian date, phone, currency, and future country expansion.
+8. Add safe static-only service-worker caching; never broadly cache authenticated Firebase responses.
 
-### P2 — product and platform enhancements
-
-1. **PWA service worker** with safe static-asset caching only; never cache private Firebase responses broadly.
-2. **Push notifications** with permission UX, token lifecycle management, and server-side notification preferences.
-3. **Search and discovery quality** with Firestore indexes, pagination, denormalized counters, and tested filters.
-4. **Payments hardening**: Paystack server-side verification, webhook signature validation, idempotency, subscription reconciliation, and test/live environment separation.
-5. **Accessibility**: keyboard navigation, focus management, semantic labels, contrast checks, reduced-motion support, and screen-reader testing.
-6. **Internationalization and regional settings** for Ghanaian locales, phone formats, date/time, and future country expansion.
-7. **Backups and disaster recovery** for Firestore and Storage, with restore drills and documented RPO/RTO.
-
-## 12. Immediate next session checklist
+## 12. Immediate next-session checklist
 
 ```text
-[ ] Confirm the latest Desktop zip was uploaded to public_html/dev.
-[ ] Confirm hosted HTML references the expected current JS hash.
-[ ] Retest signup/login in a fresh private window.
-[ ] Confirm stage-4 photo uploads and profile save.
-[ ] Deploy/verify staging Functions after billing is enabled.
-[ ] Add Firebase budget alerts.
-[ ] Review git diff and remove local export/archive artifacts.
-[ ] Commit current source/config changes on the feature branch.
-[ ] Create a PR; do not push directly to main/master.
+[ ] Verify no Ecobank credential is selected or used.
+[ ] Configure staging SMTP_PASS without committing it.
+[ ] Deploy Functions to christian-match-ghana.
+[ ] Decide and create the Realtime Database region/instance.
+[ ] Deploy database rules.
+[ ] Create ladmin through the protected Super Admin flow.
+[ ] Test ladmin password login, forced password change, username login, and PIN setup.
+[ ] Test regular Admin boundaries and audit records.
+[ ] Run staging smoke tests.
+[ ] Confirm Hosting URL and, separately, cPanel /dev deployment if needed.
+[ ] Keep firebase-export-*, frontend/dist.zip, and tmp/ out of Git.
 ```
 
-## 13. Session continuation commands
+## 13. Continuation commands
 
 ```bash
 cd "/Users/andrewstardie/Documents/TUTS/TESTS/cm/cmg-rebuilt"
 git status --short
+git log -3 --oneline
 git diff --check
 ```
 
-Inspect the staging Firebase project before cloud changes:
+Confirm GitHub branch:
 
 ```bash
+git ls-remote --heads origin sync/cmg-local-2026-10-13
+```
+
+Confirm Firebase account and project:
+
+```bash
+backend/functions/node_modules/.bin/firebase login:list
 backend/functions/node_modules/.bin/firebase projects:list
-backend/functions/node_modules/.bin/firebase use staging
 ```
 
-Never assume the active Firebase project is safe. Confirm the project ID in command output before deploying rules, Functions, Storage, or hosting.
+Deploy only after checking the project ID in command output:
 
-## 14. Biometric authentication implementation
-
-The `onb` reference is Flutter, while CMG is React/Vite/Capacitor. CMG now uses the equivalent Capacitor-native approach rather than copying Dart code.
-
-Pinned dependencies:
-
-```text
-@aparajita/capacitor-biometric-auth: 10.0.0
-@aparajita/capacitor-secure-storage:    8.0.1
+```bash
+backend/functions/node_modules/.bin/firebase deploy \
+  --project christian-match-ghana \
+  --only functions,firestore,hosting,storage \
+  --non-interactive
 ```
 
-Implementation:
-
-```text
-frontend/src/services/biometricAuthService.ts
-frontend/src/MainApp.tsx
-```
-
-Behavior:
-
-1. The normal email/password login remains the source of truth.
-2. On native Android/iOS only, the app checks for enrolled biometry/device security.
-3. The user opts in with `Enable biometric sign-in on this device`.
-4. After a successful normal login, the email/password pair is stored in the plugin’s encrypted native storage.
-5. The `SIGN IN WITH BIOMETRICS` button prompts for fingerprint/Face ID/device credentials.
-6. After successful biometric authentication, the existing Firebase login flow runs with the securely stored credentials.
-7. Disabling the checkbox removes the stored credentials.
-8. Web/PWA builds do not display or use the native biometric credential flow.
-
-Security boundary:
-
-- Credentials are stored only on the native device through `@aparajita/capacitor-secure-storage`.
-- The web implementation is intentionally disabled; the secure-storage plugin’s web fallback must not be treated as production credential storage.
-- The biometric prompt gates access to the stored credentials; it does not replace Firebase Auth.
-- A future WebAuthn/passkey implementation would be preferable for browser biometric login because it avoids storing passwords and requires a server-side challenge/credential model. CMG does not currently have that backend implementation.
-
-Android validation:
-
-```text
-Capacitor sync:       Passed
-Biometric plugin:     Registered in Android project
-Secure storage plugin:Registered in Android project
-Android debug APK:    Produced successfully (approximately 17 MB)
-```
-
-The outer Gradle timeout wrapper reported after the build completed, but the Gradle output itself ended with `BUILD SUCCESSFUL` and the APK was verified at:
-
-```text
-frontend/android/app/build/outputs/apk/debug/app-debug.apk
-```
-
-Native test checklist:
-
-```text
-[ ] Install the new debug APK on a biometric-capable Android device/emulator.
-[ ] Enroll a fingerprint or compatible device credential.
-[ ] Sign in normally and enable biometric sign-in.
-[ ] Log out and confirm SIGN IN WITH BIOMETRICS appears.
-[ ] Authenticate successfully and confirm Firebase login completes.
-[ ] Cancel/fail biometric authentication and confirm the user remains logged out.
-[ ] Disable the option and confirm the biometric button disappears.
-[ ] Test a changed Firebase password; clear/re-enable stored biometric credentials.
-```
-
-The `onb` landing-style translation uses locally bundled Roboto files copied into:
-
-```text
-frontend/public/fonts/Roboto-Regular.ttf
-frontend/public/fonts/Roboto-Medium.ttf
-frontend/public/fonts/Roboto-Bold.ttf
-frontend/public/fonts/Roboto-Black.ttf
-```
-
-CMG keeps its existing cream/navy/orange/gold brand, logo, and wallpapers. The adopted `onb` patterns are the heavy Roboto typography, compact CTA rhythm, high-contrast navy/orange structure, and local/offline font loading. The unrelated `onb` logo and background assets were not copied.
+Never use production aliases or modify `christianmatch-app` without a separate explicit production request.

@@ -7441,9 +7441,9 @@ const App = () => {
     }
   }, [user]);
 
-  // Realtime Database presence is authoritative for online state. Its
-  // onDisconnect handler covers tab closure, PWA suspension, and network loss;
-  // visibility/network events and heartbeats cover active-session changes.
+  // Firestore-backed presence: a periodic heartbeat marks the user online, and a
+  // clean unmount writes offline. Visibility/network events pause and resume it;
+  // stale heartbeats are treated as offline by subscribers.
   useEffect(() => {
     if (!user?.id) return;
     return startUserPresence(user.id);
