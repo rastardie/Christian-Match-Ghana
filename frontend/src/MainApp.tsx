@@ -1765,7 +1765,10 @@ const AuthView = ({
     };
 
     return (
-      <div className="cmg-auth-panel flex flex-col h-full bg-transparent p-8 justify-center items-center text-center animate-in fade-in duration-500">
+      <div className="cmg-auth-panel flex flex-col h-full bg-transparent p-8 justify-start items-center text-center overflow-y-auto animate-in fade-in duration-500">
+        <div className="cmg-auth-brand">
+          <Logo size={160} className="drop-shadow-xl" />
+        </div>
         <div className="relative mb-6 flex items-center justify-center">
           <span className="absolute h-32 w-32 rounded-full bg-brand-orange/20 blur-2xl" />
           <span className="absolute h-28 w-28 rounded-full bg-brand-orange/15 animate-pulse" />
@@ -1835,7 +1838,10 @@ const AuthView = ({
   // Password Reset Success Screen
   if (passwordResetSent) {
     return (
-      <div className="cmg-auth-panel flex flex-col h-full bg-transparent p-8 justify-center items-center text-center animate-in fade-in duration-500">
+      <div className="cmg-auth-panel flex flex-col h-full bg-transparent p-8 justify-start items-center text-center overflow-y-auto animate-in fade-in duration-500">
+        <div className="cmg-auth-brand">
+          <Logo size={160} className="drop-shadow-xl" />
+        </div>
         <div className="w-24 h-24 bg-brand-orange/10 rounded-full flex items-center justify-center text-brand-orange mb-6 animate-bounce">
           <Mail size={40} />
         </div>
@@ -1907,10 +1913,14 @@ const AuthView = ({
           title="Back"
           aria-label="Back"
           onClick={() => setShowForgotPassword(false)}
-          className="absolute top-12 left-8 p-3 text-gray-500 bg-gray-50 rounded-2xl hover:bg-gray-100 transition-colors"
+          className="absolute left-4 top-4 z-[200] flex h-10 w-10 items-center justify-center rounded-full border border-gray-100 bg-white/40 backdrop-blur-sm text-brand-blue shadow-lg transition-transform active:scale-90 hover:bg-white/60"
         >
-          <ArrowLeft size={24} />
+          <ArrowLeft size={21} />
         </button>
+
+        <div className="cmg-auth-brand">
+          <Logo size={160} className="drop-shadow-xl" />
+        </div>
 
         <div className="flex flex-col items-center mb-10">
           <div className="w-20 h-20 bg-brand-orange/10 rounded-[2rem] flex items-center justify-center text-brand-orange mb-6">
@@ -2590,7 +2600,7 @@ const OnboardingView = ({
 
       {/* Compact brand mark above the four-step wizard. */}
       <div className="flex justify-center pt-4 pb-1 shrink-0">
-        <Logo size={170} className="drop-shadow-lg" />
+        <Logo size={160} className="drop-shadow-lg" />
       </div>
       <div aria-live="polite" className="min-h-4 px-6 text-center text-[10px] font-bold text-gray-400">
         {draftStatus === "saving" && "Saving draft…"}
@@ -3267,7 +3277,7 @@ export const EditProfileView = ({
           onClick={onCancel}
           title="Back"
           aria-label="Back"
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-brand-blue shadow-lg border border-gray-100"
+          className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-100 bg-white/40 backdrop-blur-sm text-brand-blue shadow-lg transition-transform active:scale-90 hover:bg-white/60"
         >
           <ArrowLeft size={21} />
         </button>
@@ -3282,7 +3292,7 @@ export const EditProfileView = ({
 
       {/* App logo, consistent with the login and onboarding screens. */}
       <div className="flex justify-center pt-2 pb-1">
-        <Logo size={120} className="drop-shadow-lg" />
+        <Logo size={160} className="drop-shadow-lg" />
       </div>
       <div className="text-center pb-2">
         <h2 className="text-2xl font-black text-brand-blue uppercase tracking-tighter">
@@ -7061,6 +7071,9 @@ const ForcedPasswordChangeView: React.FC<{
   return (
     <div className="cmg-stage min-h-screen flex items-center justify-center p-4">
       <section className="w-full max-w-md rounded-[2rem] bg-white p-8 shadow-2xl">
+        <div className="flex justify-center">
+          <Logo size={160} className="drop-shadow-lg" />
+        </div>
         <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-orange/10 text-brand-orange">
           <Lock size={30} />
         </div>
@@ -7634,7 +7647,7 @@ const App = () => {
               title="Back"
               aria-label="Back"
               onClick={() => setCurrentView("PROFILE")}
-              className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-brand-blue shadow-lg border border-gray-100"
+              className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full border border-gray-100 bg-white/40 backdrop-blur-sm text-brand-blue shadow-lg transition-transform active:scale-90 hover:bg-white/60"
             >
               <ArrowLeft size={21} />
             </button>
@@ -7643,7 +7656,7 @@ const App = () => {
               title="Log out"
               aria-label="Log out"
               onClick={handleLogout}
-              className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full bg-brand-blue text-white shadow-lg"
+              className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full bg-brand-blue/70 backdrop-blur-sm text-white shadow-lg transition-transform active:scale-90 hover:bg-brand-blue/85"
             >
               <LogOut size={19} />
             </button>
