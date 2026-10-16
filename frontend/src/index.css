@@ -1175,6 +1175,13 @@ body {
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
+  /* Content scrolls over the base banner and ribbon; it fades toward the bottom
+     edge and returns to full opacity as it scrolls up. The extra bottom padding
+     keeps the Create Account button and legal copy clear of the fade zone when
+     fully scrolled. */
+  padding-bottom: 5rem;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 4rem), transparent 100%);
+          mask-image: linear-gradient(to bottom, #000 calc(100% - 4rem), transparent 100%);
 }
 
 .cmg-auth-signup-copy {
@@ -1203,10 +1210,11 @@ body {
   line-height: 1.48;
 }
 
-/* Crop only the upper part of the signup bottom ribbon, retaining the heart and
-   lower bands while reducing the space occupied by the decoration. */
+/* The signup content scrolls over the base banner and ribbon, so the panel no
+   longer reserves a bottom gap. The ribbon stays a background decoration behind
+   the (faded) tail of the scrolling content. */
 .cmg-auth-signup-panel {
-  padding-bottom: 3.94rem;
+  padding-bottom: 0;
 }
 
 .cmg-auth-signup-panel::after {
