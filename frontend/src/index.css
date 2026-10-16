@@ -1185,10 +1185,11 @@ body {
      the card width). The matching bottom padding keeps the Create Account button
      and the links above the colour (fully visible) when scrolled to the end. */
   --cmg-ribbon: 11rem;
+  --cmg-logo-fade: 1.75rem;
   margin-bottom: 0;
   padding-bottom: var(--cmg-ribbon);
-  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--cmg-ribbon)), transparent 100%);
-          mask-image: linear-gradient(to bottom, #000 calc(100% - var(--cmg-ribbon)), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 var(--cmg-logo-fade), #000 calc(100% - var(--cmg-ribbon)), transparent 100%);
+          mask-image: linear-gradient(to bottom, transparent 0, #000 var(--cmg-logo-fade), #000 calc(100% - var(--cmg-ribbon)), transparent 100%);
 }
 
 .cmg-auth-signup-copy {

@@ -7512,7 +7512,7 @@ const App = () => {
               title="Back to landing page"
               aria-label="Back to landing page"
               onClick={() => setShowLanding(true)}
-              className="absolute left-4 top-4 z-[200] flex h-10 w-10 items-center justify-center rounded-full border border-gray-100 bg-white/95 text-brand-blue shadow-lg transition-transform active:scale-90 hover:bg-white"
+              className="absolute left-4 top-4 z-[200] flex h-10 w-10 items-center justify-center rounded-full border border-gray-100 bg-white/40 backdrop-blur-sm text-brand-blue shadow-lg transition-transform active:scale-90 hover:bg-white/60"
             >
               <ArrowLeft size={21} />
             </button>
