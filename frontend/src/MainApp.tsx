@@ -1023,6 +1023,8 @@ const AuthView = ({
   const [email, setEmail] = useState(() => initialMode === 'signup' ? initialSignupDraft.email || "" : "");
   const [password, setPassword] = useState("");
   const [repeatPassword, setRepeatPassword] = useState("");
+  const [pin, setPin] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   
   // Signup details are completed in the onboarding flow after account creation.
@@ -1113,6 +1115,8 @@ const AuthView = ({
       setIsLogin(true);
       setPassword('');
       setRepeatPassword('');
+      setPin('');
+      setConfirmPin('');
       setFirstName('');
       setSurname('');
       setPhone('');
@@ -1501,6 +1505,22 @@ const AuthView = ({
           return;
         }
 
+        // Optional PIN: only validated/created if the user entered one.
+        const trimmedPin = pin.trim();
+        const trimmedConfirmPin = confirmPin.trim();
+        if (trimmedPin || trimmedConfirmPin) {
+          if (!/^\d{4,6}$/.test(trimmedPin)) {
+            onNotify("PIN must be 4 to 6 digits", "error");
+            setLoading(false);
+            return;
+          }
+          if (trimmedPin !== trimmedConfirmPin) {
+            onNotify("PINs do not match", "error");
+            setLoading(false);
+            return;
+          }
+        }
+
         // Check if terms are accepted
         if (!termsAccepted) {
           onNotify("Please accept the Terms & Conditions to continue", "error");
@@ -1588,7 +1608,20 @@ const AuthView = ({
           // Do not hold email delivery behind the profile write. If the background
           // write fails, the first verified login can recreate the profile document.
           void createUserDocument(firebaseUser.uid, profileData)
-            .then(() => console.log('✅ User document created in Firestore'))
+            .then(async () => {
+              console.log('✅ User document created in Firestore');
+              // Set the optional PIN only after the profile document exists, so the
+              // profile write (which uses setDoc) can't overwrite the PIN hash.
+              if (trimmedPin) {
+                try {
+                  const { setUserPin } = await import('./services/pinAuthService');
+                  await setUserPin(trimmedPin);
+                  console.log('✅ Optional PIN created at signup');
+                } catch (pinError) {
+                  console.warn('Optional PIN setup at signup failed; it can be set later from the profile:', pinError);
+                }
+              }
+            })
             .catch((profileWriteError) => {
               console.error('⚠️ Account created, but profile write failed:', profileWriteError);
             });
@@ -2143,7 +2176,7 @@ const AuthView = ({
         <div className="space-y-1 text-left">
           <div className="flex justify-between items-center px-2">
             <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">
-              Password or PIN
+              {isLogin ? 'Password or PIN' : 'Password'}
             </label>
           </div>
           <div className="relative">
@@ -2241,6 +2274,41 @@ const AuthView = ({
                 required
               />
             </div>
+          </div>
+        )}
+
+        {!isLogin && (
+          <div className="space-y-1 text-left">
+            <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-2">
+              PIN <span className="font-bold normal-case text-gray-300">(optional)</span>
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <input
+                type="tel"
+                inputMode="numeric"
+                pattern="[0-9]{4,6}"
+                maxLength={6}
+                autoComplete="off"
+                placeholder="PIN"
+                aria-label="PIN (optional)"
+                value={pin}
+                onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                className="w-full p-4 bg-gray-50 rounded-2xl outline-none border-2 border-transparent focus:border-brand-orange/20 text-gray-900 font-medium transition-all"
+              />
+              <input
+                type="tel"
+                inputMode="numeric"
+                pattern="[0-9]{4,6}"
+                maxLength={6}
+                autoComplete="off"
+                placeholder="Confirm PIN"
+                aria-label="Confirm PIN"
+                value={confirmPin}
+                onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                className="w-full p-4 bg-gray-50 rounded-2xl outline-none border-2 border-transparent focus:border-brand-orange/20 text-gray-900 font-medium transition-all"
+              />
+            </div>
+            <p className="px-2 text-[10px] text-gray-400">Optional 4–6 digit PIN for quick sign-in. You can also set it later from your profile.</p>
           </div>
         )}
 
