@@ -29,39 +29,39 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
     <div className="cmg-app-backdrop flex justify-center min-h-screen font-sans">
       <div data-view={currentView} className="cmg-app-frame cmg-view-surface w-full max-w-md h-[100dvh] flex flex-col relative shadow-2xl overflow-hidden sm:rounded-[2rem] sm:h-[92vh] sm:my-6 sm:border sm:border-white/70">
         
-        {/* Shared back control for app pages. Nested screens such as edit profile
-            and active message threads render their own contextual back control. */}
-        {onBack && currentView !== 'BROWSE' && currentView !== 'EDIT_PROFILE' && !hideNav && (
-          <button
-            type="button"
-            title="Back"
-            aria-label="Back"
-            onClick={onBack}
-            className="absolute left-5 top-5 z-40 flex h-10 w-10 items-center justify-center rounded-full border border-gray-100 bg-white/95 text-brand-blue shadow-lg transition-transform active:scale-90 hover:bg-white"
-          >
-            <ArrowLeft size={20} />
-          </button>
-        )}
-
-        {/* Shared fixed header: centered brand logo (does not scroll). Profile
-            renders its own header with settings, so it is excluded here. */}
+        {/* Shared top bar: balanced left action, centered logo, and right action. */}
         {shouldShowNav && currentView !== 'PROFILE' && (
-          <div className="shrink-0 relative z-30 px-5 pt-5 pb-2">
-            <div className="relative flex items-center justify-center">
-              <Logo size={60} className="drop-shadow-lg rounded-full" />
-              {onLogout && (
-                <button
-                  type="button"
-                  title="Log out"
-                  aria-label="Log out"
-                  onClick={onLogout}
-                  className="absolute right-0 flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-brand-blue shadow-lg border border-gray-100 active:scale-90 transition-transform hover:bg-white"
-                >
-                  <LogOut size={18} />
-                </button>
-              )}
+          <header className="cmg-main-header shrink-0 relative z-30 px-5 cmg-safe-top">
+            <div className="cmg-main-header__grid">
+              <div className="cmg-main-header__side cmg-main-header__side--left">
+                {onBack && currentView !== 'BROWSE' && !hideNav && (
+                  <button
+                    type="button"
+                    title="Back"
+                    aria-label="Back"
+                    onClick={onBack}
+                    className="cmg-main-icon-button"
+                  >
+                    <ArrowLeft size={20} />
+                  </button>
+                )}
+              </div>
+              <Logo size={64} className="cmg-main-header__logo drop-shadow-lg rounded-full" />
+              <div className="cmg-main-header__side cmg-main-header__side--right">
+                {onLogout && (
+                  <button
+                    type="button"
+                    title="Log out"
+                    aria-label="Log out"
+                    onClick={onLogout}
+                    className="cmg-main-icon-button"
+                  >
+                    <LogOut size={18} />
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
+          </header>
         )}
 
         {/* Scrollable view area with a base ribbon overlay that content scrolls beneath. */}
@@ -78,31 +78,33 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
           )}
         </div>
 
-        {/* Persistent Bottom Tab Bar — flat four-tab layout from the reference UI. */}
+        {/* Persistent bottom tab bar — professional pill-indicator layout.
+            Height is driven by .cmg-bottom-nav padding (safe-area aware) so it stays
+            compact on normal screens and clears the home indicator on notched phones. */}
         {shouldShowNav && (
-          <nav className="cmg-bottom-nav bg-white border-t border-gray-100 px-5 py-3 flex justify-around items-center z-50 pb-8 shrink-0">
+          <nav className="cmg-bottom-nav flex items-center justify-around px-3 z-50 shrink-0">
             <NavButton
               active={currentView === 'BROWSE'}
               onClick={() => onChangeView('BROWSE')}
-              icon={<Compass size={24} />}
+              icon={<Compass size={20} />}
               label="Discover"
             />
             <NavButton
               active={currentView === 'FRIENDS'}
               onClick={() => onChangeView('FRIENDS')}
-              icon={<Heart size={24} />}
+              icon={<Heart size={20} />}
               label="Likes"
             />
             <NavButton
               active={currentView === 'CHAT'}
               onClick={() => onChangeView('CHAT')}
-              icon={<MessageCircle size={24} />}
+              icon={<MessageCircle size={20} />}
               label="Messages"
             />
             <NavButton
               active={currentView === 'PROFILE'}
               onClick={() => onChangeView('PROFILE')}
-              icon={<User size={24} />}
+              icon={<User size={20} />}
               label="Profile"
             />
           </nav>
@@ -112,14 +114,30 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
   );
 };
 
-// Reusable Navigation Link Component
+// Reusable Navigation Link Component — pill-highlighted active state.
 const NavButton = ({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string }) => (
   <button
     onClick={onClick}
-    className={`flex flex-col items-center gap-1 transition-all duration-200 ${active ? 'text-brand-orange' : 'text-gray-400 hover:text-gray-600'}`}
+    aria-label={label}
+    aria-current={active ? 'page' : undefined}
+    className="group relative flex flex-1 flex-col items-center gap-1 py-0.5"
   >
-    <span className={`flex h-7 items-center justify-center ${active ? 'scale-110' : ''} transition-transform`}>{icon}</span>
-    <span className={`text-[10px] tracking-tight ${active ? 'font-black' : 'font-bold'}`}>{label}</span>
+    <span
+      className={`flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-200 ${
+        active
+          ? 'bg-brand-orange text-white shadow-lg shadow-brand-orange/30 scale-105'
+          : 'text-gray-400 group-hover:bg-gray-100 group-hover:text-gray-600'
+      }`}
+    >
+      {icon}
+    </span>
+    <span
+      className={`text-[10px] tracking-tight transition-colors ${
+        active ? 'font-black text-brand-orange' : 'font-bold text-gray-400 group-hover:text-gray-600'
+      }`}
+    >
+      {label}
+    </span>
   </button>
 );
 

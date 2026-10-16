@@ -120,7 +120,10 @@ export async function getUserDocument(uid: string): Promise<User | null> {
     
     if (userSnap.exists()) {
       console.log('✅ User document retrieved from Firestore:', uid);
-      return { id: uid, ...userSnap.data() } as User;
+      const data = userSnap.data();
+      // Credential hashes are server-only and must never enter client state.
+      const { pinHash: _pinHash, ...safeData } = data;
+      return { id: uid, ...safeData } as User;
     } else {
       console.log('⚠️ User document not found in Firestore:', uid);
       return null;

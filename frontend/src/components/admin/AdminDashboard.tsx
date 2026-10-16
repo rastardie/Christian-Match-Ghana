@@ -6,10 +6,21 @@ import { getDashboardStats, getAdminUsers, getAdminPrayers, getAdminReports, del
 import { LayoutDashboard, Users, Shield, Activity, LogOut, MessageSquare, Heart, Trash2, Search, CheckCircle, XCircle, Link as LinkIcon, CreditCard, DollarSign, Calendar, MoreHorizontal } from 'lucide-react';
 import { EditProfileView } from '../../MainApp';
 import { updateUserDocument } from '../../services/userService';
+import AdminAccessControl from './AdminAccessControl';
 
+import { getCurrentAdminAccess } from '../../services/adminRbacService';
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
+  const [permissions, setPermissions] = useState<Set<string>>(new Set());
   const navigate = useNavigate();
+
+  useEffect(() => {
+    void getCurrentAdminAccess().then((access) => {
+      setPermissions(new Set(access.permissions));
+    }).catch((error) => console.error('Unable to load admin permissions:', error));
+  }, []);
+
+  const can = (permission: string) => permissions.has(permission) || permissions.has('permissions.manage');
 
   const handleSignOut = async () => {
     try {
@@ -36,6 +47,10 @@ const AdminDashboard = () => {
         return <ModerationView />;
       case 'analytics':
         return <AnalyticsView />;
+      case 'access-control':
+        return <AdminAccessControl initialTab="groups" />;
+      case 'audit-logs':
+        return <AdminAccessControl initialTab="audit" />;
       default:
         return <Overview />;
     }
@@ -89,11 +104,23 @@ const AdminDashboard = () => {
             active={activeTab === 'moderation'} 
             onClick={() => setActiveTab('moderation')}
           />
-          <NavItem 
-            icon={<Activity size={20} />} 
-            label="Analytics" 
-            active={activeTab === 'analytics'} 
+          <NavItem
+            icon={<Activity size={20} />}
+            label="Analytics"
+            active={activeTab === 'analytics'}
             onClick={() => setActiveTab('analytics')}
+          />
+          <NavItem
+            icon={<Shield size={20} />}
+            label="Access Control"
+            active={activeTab === 'access-control'}
+            onClick={() => setActiveTab('access-control')}
+          />
+          <NavItem
+            icon={<Activity size={20} />}
+            label="Audit Logs"
+            active={activeTab === 'audit-logs'}
+            onClick={() => setActiveTab('audit-logs')}
           />
         </nav>
 

@@ -6,7 +6,7 @@ interface LogoProps {
   className?: string;
 }
 
-const logoSrc = `${import.meta.env.BASE_URL}cmg-logo-circle.png`;
+const logoSrc = `${import.meta.env.BASE_URL}cmg-logo-circle.png?v=2`;
 
 /** The supplied CMG circular mark, kept as an image so every surface uses the same artwork. */
 const Logo: React.FC<LogoProps> = ({ size = 150, className = "" }) => (

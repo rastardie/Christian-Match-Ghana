@@ -12,30 +12,59 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Helper function to check if user is an admin
-    // Update the email list or add 'isAdmin: true' to your user document in Firestore to verify
-    function isAdmin() {
+    // Canonical admin authorization: legacy Super Admin emails remain supported,
+    // while all new access comes from adminUsers group-derived permissions.
+    function hasAdminPermission(permission) {
       return isSignedIn() && (
-        request.auth.token.email == 'christianmatchghanaltd@gmail.com' || 
+        request.auth.token.email == 'christianmatchghanaltd@gmail.com' ||
         request.auth.token.email == 'admin@example.com' ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true)
+        (
+          exists(/databases/$(database)/documents/adminUsers/$(request.auth.uid)) &&
+          (
+            get(/databases/$(database)/documents/adminUsers/$(request.auth.uid)).data.isSuperAdmin == true ||
+            permission in get(/databases/$(database)/documents/adminUsers/$(request.auth.uid)).data.permissions
+          )
+        )
       );
     }
+
+    function isAdmin() {
+      return hasAdminPermission('users.view');
+    }
     
+    // ============================================
+    function canUpdateProfileFields() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['pinHash', 'hasPin']);
+    }
+
+    // RBAC ACCESS CONTROL
+    // ============================================
+    match /adminUsers/{userId} {
+      allow read: if isOwner(userId) || hasAdminPermission('groups.manage');
+      allow write: if false;
+    }
+
+    match /adminGroups/{groupId} {
+      allow read: if hasAdminPermission('groups.manage');
+      allow write: if false;
+    }
+
+    match /adminAuditLogs/{logId} {
+      allow read: if hasAdminPermission('audit.view');
+      allow write: if false;
+    }
+
     // ============================================
     // USERS/PROFILES COLLECTION
     // ============================================
     match /users/{userId} {
-      // Anyone can read profile data (needed for browsing)
+      // Anyone authenticated can browse profiles; administrative writes require specific permissions.
       allow read: if isSignedIn();
-      
-      // Users can only create/update their own profile
-      allow create, update: if isOwner(userId);
-      
-      
-      // Users can delete their own profile or admins
-      allow delete: if isOwner(userId) || isAdmin();
+      allow create: if (isOwner(userId) || hasAdminPermission('users.create')) && !request.resource.data.keys().hasAny(['pinHash', 'hasPin']);
+      allow update: if (isOwner(userId) && canUpdateProfileFields()) ||
+        (hasAdminPermission('users.edit') && canUpdateProfileFields()) ||
+        (hasAdminPermission('users.suspend') && canUpdateProfileFields() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isBlocked', 'updatedAt']));
+      allow delete: if isOwner(userId) || hasAdminPermission('users.delete');
       
       // Subcollection: User's uploaded files metadata
       match /files/{fileId} {
@@ -135,12 +164,22 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
     // ============================================
+    // SUPPORT TICKETS
+    // ============================================
+    match /supportTickets/{ticketId} {
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ============================================
     // PAYMENTS COLLECTION
     // ============================================
     match /payments/{paymentId} {
-      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow read: if hasAdminPermission('payments.view') || (isSignedIn() && resource.data.userId == request.auth.uid);
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isAdmin();
+      allow update: if hasAdminPermission('subscriptions.manage');
     }
   }
 }

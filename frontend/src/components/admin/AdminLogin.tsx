@@ -1,8 +1,10 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { auth } from '../../firebase';
-import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
+import { auth, db, functions } from '../../firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
+import { signInWithEmailAndPassword, signInWithCustomToken, sendPasswordResetEmail, updatePassword } from 'firebase/auth';
 import { Shield, Mail, Lock, AlertCircle, CheckCircle, ArrowRight, Loader2 } from 'lucide-react';
 
 const AdminLogin = () => {
@@ -13,6 +15,10 @@ const AdminLogin = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [loginMethod, setLoginMethod] = useState<'password' | 'pin'>('password');
+  const [mustChangePassword, setMustChangePassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,8 +31,27 @@ const AdminLogin = () => {
     setError(null);
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      // Login successful, redirect handled by auth state listener or manual redirect
+      const detectedLoginMethod = /^\d{4,6}$/.test(password.trim()) ? 'pin' : 'password';
+      let loginEmail = email.trim();
+      if (!loginEmail.includes('@')) {
+        const resolveLoginIdentifier = httpsCallable(functions, 'resolveLoginIdentifier');
+        const result = await resolveLoginIdentifier({ identifier: loginEmail });
+        loginEmail = String((result.data as { email?: string }).email || '');
+      }
+      if (!loginEmail) throw new Error('Invalid credentials.');
+      if (detectedLoginMethod === 'pin') {
+        const result = await httpsCallable(functions, 'loginWithPin')({ identifier: loginEmail, pin: password });
+        const token = String((result.data as { token?: string }).token || '');
+        if (!token) throw new Error('Invalid credentials.');
+        await signInWithCustomToken(auth, token);
+      } else {
+        await signInWithEmailAndPassword(auth, loginEmail, password);
+      }
+      const accessSnapshot = await getDoc(doc(db, 'adminUsers', auth.currentUser?.uid || ''));
+      if (accessSnapshot.exists() && accessSnapshot.data().mustChangePassword === true) {
+        setMustChangePassword(true);
+        return;
+      }
       navigate('/admin');
     } catch (err: any) {
       console.error("Login failed", err);
@@ -42,24 +67,53 @@ const AdminLogin = () => {
     }
   };
 
+  const handleForcedPasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (newPassword.length < 12 || !/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/\d/.test(newPassword) || !/[^A-Za-z0-9]/.test(newPassword)) {
+      setError('Use at least 12 characters with uppercase, lowercase, a number, and a special character.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError('The passwords do not match.');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      if (!auth.currentUser) throw new Error('Your session has expired. Please sign in again.');
+      await updatePassword(auth.currentUser, newPassword);
+      await httpsCallable(functions, 'completeAdminPasswordChange')();
+      navigate('/admin');
+    } catch (err: any) {
+      setError(err?.message || 'Unable to update the temporary password.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) {
-      setError('Please enter your email address to reset password');
+      setError('Please enter your username or email address to reset password');
       return;
     }
-
     setIsLoading(true);
     setError(null);
     setSuccess(null);
-
     try {
-      await sendPasswordResetEmail(auth, email);
+      let resetEmail = email.trim();
+      if (!resetEmail.includes('@')) {
+        const resolveLoginIdentifier = httpsCallable(functions, 'resolveLoginIdentifier');
+        const result = await resolveLoginIdentifier({ identifier: resetEmail });
+        resetEmail = String((result.data as { email?: string }).email || '');
+      }
+      if (!resetEmail) throw new Error('Invalid login identifier.');
+      await sendPasswordResetEmail(auth, resetEmail);
       setSuccess('Password reset link sent to your email!');
       setTimeout(() => setIsForgotPassword(false), 3000);
     } catch (err: any) {
       console.error("Reset failed", err);
-      setError('Failed to send reset email. Please check the email provided.');
+      setError('Failed to send reset email. Please check the identifier provided.');
     } finally {
       setIsLoading(false);
     }
@@ -98,14 +152,22 @@ const AdminLogin = () => {
             </div>
           )}
 
-          {!isForgotPassword ? (
+          {mustChangePassword ? (
+            <form onSubmit={handleForcedPasswordChange} className="space-y-5">
+              <div className="text-center mb-6"><h3 className="text-lg font-semibold text-gray-900">Set a new password</h3><p className="text-sm text-gray-500 mt-1">Your temporary administrator password must be changed before continuing.</p></div>
+              <input type="password" autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} placeholder="New password" className="w-full px-4 py-2.5 border border-gray-300 rounded-lg" required />
+              <input type="password" autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} placeholder="Confirm new password" className="w-full px-4 py-2.5 border border-gray-300 rounded-lg" required />
+              <p className="text-xs text-gray-500">Minimum 12 characters with uppercase, lowercase, number, and special character.</p>
+              <button type="submit" disabled={isLoading} className="w-full bg-brand-orange text-white py-3 rounded-lg font-semibold disabled:opacity-70">{isLoading ? 'Updating…' : 'Set new password'}</button>
+            </form>
+          ) : !isForgotPassword ? (
             <form onSubmit={handleLogin} className="space-y-5">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Email Address</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Username or Email</label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                  <input 
-                    type="email" 
+                  <input
+                    type="text"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-orange/20 focus:border-brand-orange focus:outline-none transition-all"
@@ -117,8 +179,8 @@ const AdminLogin = () => {
 
               <div>
                 <div className="flex justify-between items-center mb-1.5">
-                  <label className="block text-sm font-medium text-gray-700">Password</label>
-                  <button 
+                  <label className="block text-sm font-medium text-gray-700">Password or PIN</label>
+                  <button
                     type="button"
                     onClick={() => {
                         setIsForgotPassword(true);
@@ -132,19 +194,23 @@ const AdminLogin = () => {
                 </div>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                  <input 
-                    type="password" 
+                  <input
+                    type={loginMethod === 'pin' ? 'tel' : 'password'}
+                    inputMode={loginMethod === 'pin' ? 'numeric' : undefined}
+                    pattern={loginMethod === 'pin' ? '[0-9]{4,6}' : undefined}
+                    maxLength={loginMethod === 'pin' ? 6 : undefined}
+                    autoComplete={loginMethod === 'pin' ? 'one-time-code' : 'current-password'}
+                    placeholder="Password or PIN"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-orange/20 focus:border-brand-orange focus:outline-none transition-all"
-                    placeholder="••••••••"
                     required
                   />
                 </div>
               </div>
 
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 disabled={isLoading}
                 className="w-full bg-brand-orange text-white py-3 rounded-lg font-semibold flex items-center justify-center gap-2 hover:bg-brand-orange/90 transition-colors shadow-lg shadow-brand-orange/20 disabled:opacity-70 disabled:cursor-not-allowed"
               >
@@ -165,11 +231,11 @@ const AdminLogin = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Email Address</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Username or Email</label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                  <input 
-                    type="email" 
+                  <input
+                    type="text"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-orange/20 focus:border-brand-orange focus:outline-none transition-all"
@@ -179,8 +245,8 @@ const AdminLogin = () => {
                 </div>
               </div>
 
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 disabled={isLoading}
                 className="w-full bg-slate-800 text-white py-3 rounded-lg font-semibold flex items-center justify-center gap-2 hover:bg-slate-700 transition-colors shadow-lg shadow-slate-800/20 disabled:opacity-70 disabled:cursor-not-allowed"
               >
@@ -191,7 +257,7 @@ const AdminLogin = () => {
                 )}
               </button>
 
-              <button 
+              <button
                 type="button"
                 onClick={() => {
                     setIsForgotPassword(false);
@@ -205,7 +271,7 @@ const AdminLogin = () => {
             </form>
           )}
         </div>
-        
+
         {/* Footer */}
         <div className="bg-gray-50 p-4 text-center border-t border-gray-100">
            <p className="text-xs text-gray-400">© 2026 CMG Ltd. Authorized personnel only.</p>

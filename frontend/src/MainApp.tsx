@@ -7,7 +7,7 @@ const LandingPage = ({
   onSignIn: () => void;
 }) => {
   const landingBase = import.meta.env.BASE_URL || '/';
-  const slides = [
+  const photoSlides = [
     { title: 'Faith. Love. Purpose.', text: 'A Christ-centred community for meaningful connections in Ghana and beyond.' },
     { title: 'Christ-Centred Relationships', text: 'Meet like-minded Christians who share your values, faith and life goals.' },
     { title: 'Build a Godly Future', text: "More than dating, it's about building lasting relationships that honour God." },
@@ -20,35 +20,155 @@ const LandingPage = ({
     { title: 'Purposeful Connections for a Brighter Tomorrow', text: 'Join Christian Match Ghana and be part of a community that believes in love, faith and impact.' },
   ].map((slide, index) => ({
     ...slide,
+    type: 'photo' as const,
     photo: `${landingBase}landing-photos/photo-${String(index + 1).padStart(2, '0')}.png`,
   }));
-  const [activeSlide, setActiveSlide] = useState(0);
 
+  // The promo video is slide #1 and plays first; the photo carousel follows.
+  const videoSlide = {
+    type: 'video' as const,
+    title: 'Welcome to Christian Match Ghana',
+    text: '',
+    src: `${landingBase}landing-media/promo-vid-1.mp4`,
+    poster: `${landingBase}landing-photos/photo-01.png`,
+  };
+  const slides = [videoSlide, ...photoSlides];
+
+  // Returning users who have logged in more than 3 times see the promo as a quick
+  // 5s slide like the photos; new/occasional users get the full 15s preview.
+  const loginCount = (() => {
+    try {
+      return Number(localStorage.getItem('cmg-login-count') || '0');
+    } catch {
+      return 0;
+    }
+  })();
+  const isFrequentUser = loginCount > 3;
+
+  const [activeSlide, setActiveSlide] = useState(0);
+  // When the user taps the promo, it plays through in full instead of the preview.
+  const [videoFullPlay, setVideoFullPlay] = useState(false);
+  // Fades the promo out over its final seconds to crossfade into the next photo.
+  const [videoFading, setVideoFading] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  const advance = () => setActiveSlide((current) => (current + 1) % slides.length);
+
+  // Slide timing. Photos rotate every 5s. The promo previews for 15s and begins
+  // fading out at 12s to make way for the next photo — unless the viewer has tapped
+  // to watch it in full, or is a frequent user (then it behaves like a 5s photo).
   useEffect(() => {
-    const timer = window.setInterval(() => {
-      setActiveSlide((current) => (current + 1) % slides.length);
-    }, 5000);
+    if (slides[activeSlide]?.type === 'video') {
+      if (videoFullPlay) return; // watching in full; wait for onEnded
+      if (isFrequentUser) {
+        const quick = window.setTimeout(advance, 5000);
+        return () => window.clearTimeout(quick);
+      }
+      const fade = window.setTimeout(() => setVideoFading(true), 12000);
+      const next = window.setTimeout(advance, 15000);
+      return () => {
+        window.clearTimeout(fade);
+        window.clearTimeout(next);
+      };
+    }
+    const timer = window.setInterval(advance, 5000);
     return () => window.clearInterval(timer);
-  }, [slides.length]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSlide, videoFullPlay, isFrequentUser, slides.length]);
+
+  // When the video slide becomes active, reset to a muted preview from the start.
+  useEffect(() => {
+    if (slides[activeSlide]?.type === 'video') {
+      setVideoFullPlay(false);
+      setVideoFading(false);
+      const video = videoRef.current;
+      if (video) {
+        video.currentTime = 0;
+        video.muted = true;
+        void video.play().catch(() => {
+          /* Autoplay may be blocked; the poster stays until the user taps. */
+        });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSlide]);
+
+  // Tapping the promo restarts it from the beginning and plays the full video with sound.
+  const handleVideoTap = () => {
+    setVideoFullPlay(true);
+    setVideoFading(false);
+    const video = videoRef.current;
+    if (video) {
+      video.currentTime = 0;
+      video.muted = false;
+      void video.play().catch(() => {
+        /* If playback with sound is blocked, keep playing muted. */
+        video.muted = true;
+        void video.play().catch(() => {});
+      });
+    }
+  };
 
   const slide = slides[activeSlide];
+  const nextPhoto = photoSlides[0].photo;
 
   return (
     <main className="cmg-landing-shell">
-      <div
-        className="cmg-landing-photo"
-        style={{ backgroundImage: `url("${slide.photo}")` }}
-        aria-label={`Introduction slide ${activeSlide + 1} of ${slides.length}`}
-      />
+      {slide.type === 'video' ? (
+        <>
+          {/* Next photo sits beneath the promo so the fade-out crossfades cleanly. */}
+          {videoFading && (
+            <div
+              className="cmg-landing-photo"
+              style={{ backgroundImage: `url("${nextPhoto}")` }}
+              aria-hidden
+            />
+          )}
+          <video
+            ref={videoRef}
+            className={`cmg-landing-photo cmg-landing-video ${videoFading ? 'is-fading' : ''}`}
+            src={slide.src}
+            poster={slide.poster}
+            autoPlay
+            muted
+            playsInline
+            preload="auto"
+            onClick={handleVideoTap}
+            onEnded={advance}
+            aria-label="Christian Match Ghana introduction video — tap to play in full"
+          />
+          {!videoFullPlay && (
+            <button
+              type="button"
+              onClick={handleVideoTap}
+              className="cmg-landing-tap-hint"
+              aria-label="Tap to play the full video"
+            >
+              <span className="cmg-landing-tap-hint__icon">
+                <Play size={26} fill="currentColor" />
+              </span>
+              Tap to play full video
+            </button>
+          )}
+        </>
+      ) : (
+        <div
+          className="cmg-landing-photo"
+          style={{ backgroundImage: `url("${slide.photo}")` }}
+          aria-label={`Introduction slide ${activeSlide + 1} of ${slides.length}`}
+        />
+      )}
       <div className="cmg-landing-scrim" />
-      <div className="cmg-landing-approved-logo">
-        <Logo size={160} className="drop-shadow-2xl" />
-      </div>
+      {slide.type !== 'video' && (
+        <div className="cmg-landing-approved-logo">
+          <Logo size={160} className="drop-shadow-2xl" />
+        </div>
+      )}
 
       <div className="cmg-landing-panel">
         <div className="cmg-landing-copy">
           <h1>{slide.title}</h1>
-          <p>{slide.text}</p>
+          {slide.text ? <p>{slide.text}</p> : null}
         </div>
 
         <div className="cmg-landing-dots" aria-label={`Slide ${activeSlide + 1} of ${slides.length}`}>
@@ -95,6 +215,8 @@ import {
   Friendship,
   FaithMoment,
   Comment,
+  NotificationPreferences,
+  DEFAULT_NOTIFICATION_PREFERENCES,
 } from "./types";
 import Layout from "./components/Layout";
 import PaymentModal from "./components/PaymentModal";
@@ -106,7 +228,7 @@ import {
   clearBiometricCredentials,
   authenticateWithBiometry,
   getStoredBiometricCredentials,
-  isNativeBiometricPlatform,
+  isBiometricCapablePlatform,
   saveBiometricCredentials,
   type BiometricLoginCredentials,
 } from "./services/biometricAuthService";
@@ -116,6 +238,12 @@ import {
   MOCK_PRAYERS,
   MOCK_MOMENTS,
 } from "./constants";
+import {
+  formatPresenceLabel,
+  startUserPresence,
+  subscribeToPresence,
+  type PresenceInfo,
+} from "./services/presenceService";
 import {
   MapPin,
   Check,
@@ -128,6 +256,7 @@ import {
   Camera,
   Church,
   ArrowLeft,
+  ArrowRight,
   Edit2,
   Bot,
   Bell,
@@ -155,6 +284,7 @@ import {
   TrendingUp,
   Image as ImageIcon,
   ChevronRight,
+  Play,
   User as UserIcon,
   Mic,
   MicOff,
@@ -170,6 +300,7 @@ import {
   Moon,
   Flag,
   Users,
+  Pencil,
 } from "lucide-react";
 
 /** Prevent a slow Firebase request from leaving an auth form permanently loading. */
@@ -182,10 +313,151 @@ function withTimeout<T>(promise: Promise<T>, milliseconds: number, message: stri
   ]);
 }
 
-const authActionUrl = import.meta.env.VITE_PUBLIC_APP_URL || 'https://christianmatchghana.com';
+const defaultAuthActionUrl = typeof window !== 'undefined'
+  ? new URL(import.meta.env.BASE_URL || '/', window.location.origin).toString()
+  : 'https://christianmatchghana.com/';
+const authActionUrl = import.meta.env.VITE_PUBLIC_APP_URL || defaultAuthActionUrl;
 const isLocalFirebaseEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true';
 const freshLocalTestStart = import.meta.env.VITE_LOCAL_TEST_FRESH_START === 'true';
 
+/** Accept local and international telephone formats while requiring a real number. */
+export function isValidTelephoneNumber(value: string): boolean {
+  const digits = value.replace(/\D/g, '');
+  if (digits.length < 9 || digits.length > 15 || /^0+$/.test(digits)) return false;
+
+  // Validate Ghana mobile numbers when the international country code is present.
+  if (digits.startsWith('233')) {
+    const local = digits.slice(3);
+    return /^(20|23|24|25|26|27|28|50|54|55|59)\d{7}$/.test(local);
+  }
+
+  return true;
+}
+
+const SIGNUP_DRAFT_KEY = "cmg_signup_draft_v1";
+
+type SignupDraft = {
+  firstName?: string;
+  surname?: string;
+  phone?: string;
+  email?: string;
+  termsAccepted?: boolean;
+};
+
+function readSignupDraft(): SignupDraft {
+  try {
+    const stored = localStorage.getItem(SIGNUP_DRAFT_KEY);
+    return stored ? JSON.parse(stored) : {};
+  } catch (error) {
+    console.warn("Unable to load signup draft:", error);
+    return {};
+  }
+}
+
+interface PhoneCountry {
+  code: string;
+  dialCode: string;
+  flag: string;
+  name: string;
+  localDigits: number;
+}
+
+const PHONE_COUNTRIES: PhoneCountry[] = [
+  { code: "GH", dialCode: "+233", flag: "🇬🇭", name: "Ghana", localDigits: 9 },
+  { code: "NG", dialCode: "+234", flag: "🇳🇬", name: "Nigeria", localDigits: 10 },
+  { code: "US", dialCode: "+1", flag: "🇺🇸", name: "United States", localDigits: 10 },
+  { code: "CA", dialCode: "+1", flag: "🇨🇦", name: "Canada", localDigits: 10 },
+  { code: "GB", dialCode: "+44", flag: "🇬🇧", name: "United Kingdom", localDigits: 10 },
+  { code: "ZA", dialCode: "+27", flag: "🇿🇦", name: "South Africa", localDigits: 9 },
+  { code: "KE", dialCode: "+254", flag: "🇰🇪", name: "Kenya", localDigits: 9 },
+  { code: "DE", dialCode: "+49", flag: "🇩🇪", name: "Germany", localDigits: 10 },
+  { code: "AU", dialCode: "+61", flag: "🇦🇺", name: "Australia", localDigits: 9 },
+];
+
+function getPhoneCountry(value: string): PhoneCountry {
+  return PHONE_COUNTRIES.find((country) => value.startsWith(country.dialCode)) || PHONE_COUNTRIES[0];
+}
+
+function getLocalPhoneDigits(value: string, country: PhoneCountry): string {
+  const digits = value.replace(/\D/g, "");
+  const dialDigits = country.dialCode.replace(/\D/g, "");
+  let local = digits.startsWith(dialDigits) ? digits.slice(dialDigits.length) : digits;
+  if (country.code === "GH" && local.startsWith("0")) local = local.slice(1);
+  return local.slice(0, country.localDigits);
+}
+
+function formatPhoneDigits(digits: string, country: PhoneCountry): string {
+  if (country.code === "GH") {
+    return [digits.slice(0, 2), digits.slice(2, 5), digits.slice(5, 9)].filter(Boolean).join(" ");
+  }
+  return [digits.slice(0, 3), digits.slice(3, 6), digits.slice(6, 10)].filter(Boolean).join(" ");
+}
+
+const PhoneInput = ({
+  id,
+  value,
+  onChange,
+  required = false,
+}: {
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  required?: boolean;
+}) => {
+  const [country, setCountry] = useState<PhoneCountry>(() => getPhoneCountry(value));
+  const localDigits = getLocalPhoneDigits(value, country);
+
+  const updatePhone = (nextDigits: string, nextCountry = country) => {
+    const digits = nextDigits.replace(/\D/g, "").slice(0, nextCountry.localDigits);
+    onChange(digits ? `${nextCountry.dialCode}${digits}` : "");
+  };
+
+  return (
+    <div className="flex w-full overflow-hidden rounded-2xl border-2 border-transparent bg-gray-50 transition-all focus-within:border-brand-orange/20">
+      <select
+        aria-label="Country code"
+        value={country.code}
+        onChange={(event) => {
+          const nextCountry = PHONE_COUNTRIES.find((item) => item.code === event.target.value) || PHONE_COUNTRIES[0];
+          setCountry(nextCountry);
+          updatePhone(localDigits, nextCountry);
+        }}
+        className="w-[6.8rem] shrink-0 border-r border-gray-200 bg-transparent px-2 text-sm font-bold text-gray-700 outline-none"
+      >
+        {PHONE_COUNTRIES.map((item) => (
+          <option key={item.code} value={item.code}>
+            {item.flag} {item.dialCode}
+          </option>
+        ))}
+      </select>
+      <input
+        id={id}
+        type="tel"
+        inputMode="tel"
+        autoComplete="tel"
+        required={required}
+        placeholder={country.code === "GH" ? "24 123 4567" : "123 456 7890"}
+        value={formatPhoneDigits(localDigits, country)}
+        onChange={(event) => updatePhone(event.target.value)}
+        className="min-w-0 flex-1 bg-transparent px-3 py-3.5 text-gray-900 outline-none"
+      />
+    </div>
+  );
+};
+
+export function getAdultDateLimit(): string {
+  const limit = new Date();
+  limit.setHours(0, 0, 0, 0);
+  limit.setFullYear(limit.getFullYear() - 18);
+  const year = limit.getFullYear();
+  const month = String(limit.getMonth() + 1).padStart(2, "0");
+  const day = String(limit.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export function isAdultDateOfBirth(value: string): boolean {
+  return Boolean(value) && value <= getAdultDateLimit();
+}
 export const TERMS_TEXT =
   "By using CMG, you agree to honor God in your interactions. We have zero tolerance for harassment, vulgarity, or scammers. Violators will be banned without earning.";
 
@@ -343,7 +615,7 @@ export const isProfileFullyComplete = (user: User | null) => {
     'name', 'phone', 'dob', 'country', 'location', 'gender', 'maritalStatus', 
     'hasChildren', 'wantChildren', 'height', 'bodyType', 'complexion', 
     'languages', 'smoking', 'alcohol', 'education', 'occupation', 
-    'incomeRange', 'intentions', 'intendToMarry', 'willingToRelocate',
+    'incomeRange', 'intentions', 'willingToRelocate',
     'preferredAgeMin', 'preferredAgeMax', 'preferredLocation', 'preferredDenomination',
     'preferredEthnicGroup', 'dealBreakers', 'healthCondition', 'lifestyleInfo',
     'denomination', 'churchAttendance', 'churchName', 'bio'
@@ -740,22 +1012,26 @@ const AuthView = ({
   onNotify: (msg: string, type: "success" | "error") => void;
   initialMode?: 'login' | 'signup';
 }) => {
+  const signupDraftRef = useRef<SignupDraft>(readSignupDraft());
+  const initialSignupDraft = signupDraftRef.current;
   const [isLogin, setIsLogin] = useState(initialMode === 'login');
+  const [loginMethod, setLoginMethod] = useState<'password' | 'pin'>('password');
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [passwordResetSent, setPasswordResetSent] = useState(false);
   
   // Auth State
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() => initialMode === 'signup' ? initialSignupDraft.email || "" : "");
   const [password, setPassword] = useState("");
   const [repeatPassword, setRepeatPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   
   // Signup details are completed in the onboarding flow after account creation.
-  const [firstName, setFirstName] = useState("");
-  const [surname, setSurname] = useState("");
-  const [phone, setPhone] = useState("");
+  const [firstName, setFirstName] = useState(() => initialMode === 'signup' ? initialSignupDraft.firstName || "" : "");
+  const [surname, setSurname] = useState(() => initialMode === 'signup' ? initialSignupDraft.surname || "" : "");
+  const [phone, setPhone] = useState(() => initialMode === 'signup' ? initialSignupDraft.phone || "" : "");
   
   const [loading, setLoading] = useState(false);
+  const [signupStage, setSignupStage] = useState<"idle" | "creating" | "saving" | "sending" | "finishing" | "error">("idle");
   const submitInProgressRef = useRef(false);
   const biometricCredentialsRef = useRef<BiometricLoginCredentials | null>(null);
   const authFormRef = useRef<HTMLFormElement>(null);
@@ -763,9 +1039,11 @@ const AuthView = ({
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [biometricOptIn, setBiometricOptIn] = useState(false);
   const [biometricBusy, setBiometricBusy] = useState(false);
+  const [keepSignedIn, setKeepSignedIn] = useState(true);
+  const [socialBusy, setSocialBusy] = useState<null | 'google' | 'apple'>(null);
   const [isVerificationSent, setIsVerificationSent] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
-  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(() => initialMode === 'signup' ? Boolean(initialSignupDraft.termsAccepted) : false);
 
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -779,7 +1057,7 @@ const AuthView = ({
 
   useEffect(() => {
     let active = true;
-    if (!isNativeBiometricPlatform()) return undefined;
+    if (!isBiometricCapablePlatform()) return undefined;
 
     void (async () => {
       try {
@@ -801,6 +1079,25 @@ const AuthView = ({
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (isLogin || isVerificationSent) return;
+    const timer = window.setTimeout(() => {
+      try {
+        localStorage.setItem(SIGNUP_DRAFT_KEY, JSON.stringify({
+          firstName,
+          surname,
+          phone,
+          email,
+          termsAccepted,
+        } satisfies SignupDraft));
+      } catch (error) {
+        console.warn("Unable to save signup draft:", error);
+      }
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [isLogin, isVerificationSent, firstName, surname, phone, email, termsAccepted]);
+
   const resetVerificationFlow = async () => {
     setLoading(false);
     try {
@@ -810,6 +1107,7 @@ const AuthView = ({
     } catch (error) {
       console.warn('Auth sign-out during verification reset failed:', error);
     } finally {
+      localStorage.removeItem(SIGNUP_DRAFT_KEY);
       setIsVerificationSent(false);
       setIsLogin(true);
       setPassword('');
@@ -819,6 +1117,26 @@ const AuthView = ({
       setPhone('');
     }
   };
+
+  const openSignup = () => {
+    const draft = readSignupDraft();
+    setFirstName(draft.firstName || "");
+    setSurname(draft.surname || "");
+    setPhone(draft.phone || "");
+    setEmail(draft.email || "");
+    setTermsAccepted(Boolean(draft.termsAccepted));
+    setSignupStage("idle");
+    setIsLogin(false);
+  };
+
+  const signupStageLabel = {
+    idle: "CREATE ACCOUNT",
+    creating: "CREATING ACCOUNT…",
+    saving: "SAVING DETAILS…",
+    sending: "SENDING VERIFICATION…",
+    finishing: "ALMOST FINISHED…",
+    error: "TRY AGAIN",
+  }[signupStage];
 
   const handleBiometricLogin = async () => {
     if (!biometricAvailable || !biometricEnabled || biometricBusy || loading) return;
@@ -830,7 +1148,7 @@ const AuthView = ({
       if (!credentials) {
         setBiometricEnabled(false);
         setBiometricOptIn(false);
-        onNotify('Biometric login is not set up on this device.', 'error');
+        onNotify('Sign in once with "Keep me signed in" and enable biometrics to use this.', 'error');
         return;
       }
 
@@ -845,6 +1163,118 @@ const AuthView = ({
       setBiometricBusy(false);
     }
   };
+  const handleSocialLogin = async (providerName: 'google' | 'apple') => {
+    if (loading || socialBusy) return;
+    setSocialBusy(providerName);
+    try {
+      const { auth } = await import('./firebase');
+      const authModule = await import('firebase/auth');
+      const {
+        GoogleAuthProvider,
+        OAuthProvider,
+        signInWithPopup,
+        setPersistence,
+        browserLocalPersistence,
+        browserSessionPersistence,
+      } = authModule;
+
+      try {
+        await setPersistence(auth, keepSignedIn ? browserLocalPersistence : browserSessionPersistence);
+      } catch (persistenceError) {
+        console.warn('Unable to set auth persistence:', persistenceError);
+      }
+
+      let provider: any;
+      if (providerName === 'google') {
+        provider = new GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: 'select_account' });
+      } else {
+        provider = new OAuthProvider('apple.com');
+        provider.addScope('email');
+        provider.addScope('name');
+      }
+
+      const result = await signInWithPopup(auth, provider);
+      const firebaseUser = result.user;
+
+      const { getUserDocument, createUserDocument, claimFreePromo } = await import('./services/userService');
+      let userData = await withTimeout(
+        getUserDocument(firebaseUser.uid),
+        15000,
+        'Loading your profile timed out. Please try again.'
+      );
+
+      if (!userData) {
+        await withTimeout(
+          createUserDocument(firebaseUser.uid, {
+            id: firebaseUser.uid,
+            email: firebaseUser.email || '',
+            name: firebaseUser.displayName || 'User',
+            age: 0,
+            gender: '',
+            height: 0,
+            country: 'Ghana',
+            location: '',
+            bio: '',
+            photos: [],
+            denomination: '',
+            churchName: '',
+            churchAttendance: '',
+            churchInvolvement: '',
+            bibleReadingFreq: '',
+            prayerFreq: '',
+            faithMaturity: '',
+            favoriteVerse: '',
+            spiritualLesson: '',
+            education: '',
+            profession: '',
+            acceptsLongDistance: false,
+            intentions: '',
+            isVerified: false,
+            verificationStatus: 'unverified',
+            isContactVerified: false,
+            isPremium: false,
+            termsAccepted: true,
+            termsAcceptedAt: new Date().toISOString(),
+          } as any),
+          15000,
+          'Creating your profile timed out. Please try again.'
+        );
+        userData = await withTimeout(
+          getUserDocument(firebaseUser.uid),
+          15000,
+          'Reloading your profile timed out. Please try again.'
+        );
+      }
+
+      try {
+        const promo = await withTimeout(claimFreePromo(), 10000, 'Premium access check timed out');
+        if (promo.granted) {
+          const refreshed = await getUserDocument(firebaseUser.uid);
+          if (refreshed) userData = refreshed;
+        }
+      } catch (promoError) {
+        console.error('Promo claim error (non-blocking):', promoError);
+      }
+
+      onLogin(userData as User, false);
+      onNotify('Welcome back!', 'success');
+    } catch (error: any) {
+      console.error('Social login failed:', error);
+      if (error?.code === 'auth/operation-not-allowed') {
+        onNotify(`${providerName === 'google' ? 'Google' : 'Apple'} sign-in is not enabled yet.`, 'error');
+      } else if (error?.code === 'auth/popup-closed-by-user' || error?.code === 'auth/cancelled-popup-request') {
+        // User dismissed the popup; no error message needed.
+      } else if (error?.code === 'auth/account-exists-with-different-credential') {
+        onNotify('An account already exists with this email using a different sign-in method.', 'error');
+      } else {
+        onNotify(error?.message || 'Social sign-in failed.', 'error');
+      }
+    } finally {
+      setSocialBusy(null);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (loading || submitInProgressRef.current) return;
@@ -852,7 +1282,7 @@ const AuthView = ({
 
     // Import Firebase auth functions dynamically
     const { auth } = await import('./firebase');
-    const { signInWithEmailAndPassword, createUserWithEmailAndPassword } = await import('firebase/auth');
+    const { signInWithEmailAndPassword, signInWithCustomToken, createUserWithEmailAndPassword } = await import('firebase/auth');
 
     setLoading(true);
     const submittedEmail = biometricCredentialsRef.current?.email ?? email;
@@ -860,17 +1290,52 @@ const AuthView = ({
 
     try {
       if (isLogin) {
-        // FIREBASE LOGIN
-        console.log('🔐 Attempting login with email:', submittedEmail);
+        const detectedLoginMethod = /^\d{4,6}$/.test(submittedPassword) ? 'pin' : 'password';
+        let resolvedLoginEmail = submittedEmail.trim();
+        if (detectedLoginMethod === 'password' && !resolvedLoginEmail.includes('@')) {
+          const { httpsCallable } = await import('firebase/functions');
+          const { functions } = await import('./firebase');
+          const resolveLoginIdentifier = httpsCallable(functions, 'resolveLoginIdentifier');
+          const resolution = await withTimeout(
+            resolveLoginIdentifier({ identifier: resolvedLoginEmail }),
+            10000,
+            'Login identifier lookup timed out. Please try again.'
+          );
+          resolvedLoginEmail = String((resolution.data as { email?: string }).email || '');
+          if (!resolvedLoginEmail) throw new Error('Invalid login credentials.');
+        }
+        // Firebase password login or server-verified PIN login.
+        console.log('🔐 Attempting login with:', submittedEmail);
         try {
+          try {
+            const { setPersistence, browserLocalPersistence, browserSessionPersistence } = await import('firebase/auth');
+            await setPersistence(auth, keepSignedIn ? browserLocalPersistence : browserSessionPersistence);
+          } catch (persistenceError) {
+            console.warn('Unable to set auth persistence:', persistenceError);
+          }
           const userCredential = await withTimeout(
-            signInWithEmailAndPassword(auth, submittedEmail.trim(), submittedPassword),
+            detectedLoginMethod === 'pin'
+              ? (async () => {
+                  const { loginWithPin } = await import('./services/pinAuthService');
+                  const token = await loginWithPin(submittedEmail, submittedPassword);
+                  if (!token) throw new Error('Invalid login credentials.');
+                  return signInWithCustomToken(auth, token);
+                })()
+              : signInWithEmailAndPassword(auth, resolvedLoginEmail, submittedPassword),
             15000,
             'Login request timed out. Please check your connection and try again.'
           );
           const firebaseUser = userCredential.user;
 
-          if (isNativeBiometricPlatform() && biometricAvailable && (biometricOptIn || biometricEnabled)) {
+          // Track successful logins so the landing promo can shorten for returning users.
+          try {
+            const previousLogins = Number(localStorage.getItem('cmg-login-count') || '0');
+            localStorage.setItem('cmg-login-count', String(previousLogins + 1));
+          } catch (counterError) {
+            console.warn('Unable to update login counter:', counterError);
+          }
+
+          if (biometricAvailable && (biometricOptIn || biometricEnabled)) {
             try {
               await saveBiometricCredentials({
                 email: submittedEmail.trim(),
@@ -1005,14 +1470,20 @@ const AuthView = ({
         }
       } else {
         // FIREBASE SIGNUP
-        if (!firstName || !surname) {
-          onNotify("Name is required", "error");
+        if (!firstName.trim() || !surname.trim()) {
+          onNotify("First name and surname are required", "error");
           setLoading(false);
           return;
         }
 
-        if (!phone.trim()) {
+        const normalizedPhone = phone.trim();
+        if (!normalizedPhone) {
           onNotify("Telephone number is required", "error");
+          setLoading(false);
+          return;
+        }
+        if (!isValidTelephoneNumber(normalizedPhone)) {
+          onNotify("Enter a valid telephone number with 9 to 15 digits", "error");
           setLoading(false);
           return;
         }
@@ -1039,13 +1510,14 @@ const AuthView = ({
 
 
         try {
+          setSignupStage("creating");
           // Check if email is eligible for signup (10-day block check). Guard with a
           // timeout: if the callable function is slow/unavailable, allow signup to proceed.
           const { checkSignupEligibility } = await import('./services/userService');
           let eligibility: { allowed: boolean; reason?: string } = { allowed: true };
           try {
             eligibility = await Promise.race([
-              checkSignupEligibility(email),
+              checkSignupEligibility(email.trim()),
               new Promise<{ allowed: boolean }>((resolve) =>
                 window.setTimeout(() => resolve({ allowed: true }), 10000)
               ),
@@ -1061,12 +1533,17 @@ const AuthView = ({
             return;
           }
 
-          const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+          const userCredential = await withTimeout(
+            createUserWithEmailAndPassword(auth, email.trim(), password),
+            30000,
+            'Account creation timed out. Please check your connection and try again.'
+          );
           const firebaseUser = userCredential.user;
-          
+          setSignupStage("saving");
           console.log('✅ Account created! User:', firebaseUser.uid);
           
-          // Photos are collected during onboarding stage 4, not during account creation.
+          // Photos are intentionally deferred until after email verification and can
+          // be added later from Edit Profile; registration never uploads photos.
           const photoURLs: string[] = [];
           
           // Create user document in Firestore. Guard with a timeout so a slow or
@@ -1074,55 +1551,48 @@ const AuthView = ({
           // If this times out, login will recreate the document on first sign-in.
           const { createUserDocument } = await import('./services/userService');
 
-          try {
-            await Promise.race([
-              createUserDocument(firebaseUser.uid, {
-                id: firebaseUser.uid,
-                email: email,
-                phone: phone.trim(),
-                name: `${firstName} ${surname}`,
-                age: 0, // Will be set in onboarding
-                gender: '',
-                height: 0,
-                country: 'Ghana',
-                location: '',
-                bio: '',
-                photos: photoURLs, // Store Firebase Storage URLs
-                denomination: '',
-                churchName: '',
-                churchAttendance: '',
-                churchInvolvement: '',
-                bibleReadingFreq: '',
-                prayerFreq: '',
-                faithMaturity: '',
-                favoriteVerse: '',
-                spiritualLesson: '',
-                education: '',
-                profession: '',
-                acceptsLongDistance: false,
-                intentions: '',
-                isVerified: false,
-                verificationStatus: 'unverified',
-                isContactVerified: false,
-                isPremium: false,
-                termsAccepted: true,
-                termsAcceptedAt: new Date().toISOString(),
-              }),
-              new Promise<never>((_, reject) =>
-                window.setTimeout(() => {
-                  const timeout: any = new Error('Profile write timed out');
-                  timeout.code = 'firestore/write-timeout';
-                  reject(timeout);
-                }, 15000)
-              ),
-            ]);
-            console.log('✅ User document created in Firestore');
-          } catch (profileWriteError) {
-            console.error('⚠️ Account created, but profile write was slow/failed:', profileWriteError);
-          }
-          
-          // Send verification email. The account and profile document already exist;
-          // do not leave the signup UI stuck if Firebase email delivery hangs.
+          const profileData = {
+            id: firebaseUser.uid,
+            email: email.trim(),
+            phone: normalizedPhone,
+            name: `${firstName.trim()} ${surname.trim()}`,
+            age: 0,
+            gender: '',
+            height: 0,
+            country: 'Ghana',
+            location: '',
+            bio: '',
+            photos: photoURLs,
+            denomination: '',
+            churchName: '',
+            churchAttendance: '',
+            churchInvolvement: '',
+            bibleReadingFreq: '',
+            prayerFreq: '',
+            faithMaturity: '',
+            favoriteVerse: '',
+            spiritualLesson: '',
+            education: '',
+            profession: '',
+            acceptsLongDistance: false,
+            intentions: '',
+            isVerified: false,
+            verificationStatus: 'unverified',
+            isContactVerified: false,
+            isPremium: false,
+            termsAccepted: true,
+            termsAcceptedAt: new Date().toISOString(),
+          };
+
+          // Do not hold email delivery behind the profile write. If the background
+          // write fails, the first verified login can recreate the profile document.
+          void createUserDocument(firebaseUser.uid, profileData)
+            .then(() => console.log('✅ User document created in Firestore'))
+            .catch((profileWriteError) => {
+              console.error('⚠️ Account created, but profile write failed:', profileWriteError);
+            });
+
+          setSignupStage("sending");
           const { sendEmailVerification } = await import('firebase/auth');
           const actionCodeSettings = {
             url: authActionUrl,
@@ -1146,8 +1616,10 @@ const AuthView = ({
             console.error('⚠️ Account created, but verification email failed:', error);
           }
 
+          setSignupStage(verificationError ? "error" : "finishing");
           // Always leave PROCESSING after account creation. The verification
           // screen includes Resend Verification Email for a later retry.
+          localStorage.removeItem(SIGNUP_DRAFT_KEY);
           setIsVerificationSent(true);
           setLoading(false);
           onNotify(
@@ -1159,6 +1631,7 @@ const AuthView = ({
           return;
         } catch (error: any) {
           console.error('Signup error:', error);
+          setSignupStage("error");
           if (error.code === 'auth/email-already-in-use') {
             onNotify("User already exists. Sign in?", "error");
           } else {
@@ -1230,17 +1703,52 @@ const AuthView = ({
       }
     };
 
+    const handleConfirmVerified = async () => {
+      if (loading) return;
+      try {
+        setLoading(true);
+        const { auth } = await import('./firebase');
+        const { reload } = await import('firebase/auth');
+        if (!auth.currentUser) {
+          await resetVerificationFlow();
+          return;
+        }
+        await reload(auth.currentUser);
+        if (auth.currentUser.emailVerified) {
+          onNotify('Email verified! Please sign in to continue.', 'success');
+          await resetVerificationFlow();
+        } else {
+          onNotify(
+            "We can't see your verification yet. Open the link in your email, then try again.",
+            'error',
+          );
+        }
+      } catch (error: any) {
+        onNotify(error.message || 'Could not check verification status.', 'error');
+      } finally {
+        setLoading(false);
+      }
+    };
+
     return (
       <div className="cmg-auth-panel flex flex-col h-full bg-transparent p-8 justify-center items-center text-center animate-in fade-in duration-500">
-        <div className="w-24 h-24 bg-brand-orange/10 rounded-full flex items-center justify-center text-brand-orange mb-6 animate-bounce">
-          <Mail size={40} />
+        <div className="relative mb-6 flex items-center justify-center">
+          <span className="absolute h-32 w-32 rounded-full bg-brand-orange/20 blur-2xl" />
+          <span className="absolute h-28 w-28 rounded-full bg-brand-orange/15 animate-pulse" />
+          <div className="relative flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-brand-orange to-[#ff8a14] text-white shadow-xl shadow-brand-orange/40">
+            <Mail size={40} />
+          </div>
         </div>
-        <h2 className="text-3xl font-black text-brand-blue uppercase tracking-tighter mb-4">
-          Verify Your Email
+
+        <h2 className="cmg-verify-heading mb-4 text-brand-blue">
+          Verify your email
         </h2>
-        <p className="text-gray-700 font-medium mb-4 max-w-md leading-relaxed text-base">
-          We have sent you a verification email to{" "}
-          <span className="text-brand-orange font-bold">{email}</span>. Verify it and log in.
+        <p className="mb-2 max-w-sm text-base leading-relaxed text-gray-600">
+          We&rsquo;ve sent a verification link to{" "}
+          <span className="font-bold text-brand-orange">{email}</span>
+        </p>
+        <p className="mb-7 max-w-xs text-sm leading-relaxed text-gray-500">
+          Open your inbox and follow the link to activate your account.
         </p>
 
         {isLocalFirebaseEmulator && (
@@ -1254,35 +1762,38 @@ const AuthView = ({
             </p>
           </div>
         )}
-        
-        <div className="flex flex-col gap-3 w-full max-w-sm">
+
+        <div className="flex w-full max-w-sm flex-col gap-3">
           <button
-            onClick={resetVerificationFlow}
-            className="bg-brand-blue text-white px-12 py-5 rounded-2xl font-black uppercase tracking-widest text-sm shadow-xl active:scale-95 transition-all hover:bg-brand-blue/90"
+            onClick={handleConfirmVerified}
+            disabled={loading}
+            className="flex items-center justify-center gap-2 rounded-2xl bg-brand-blue px-8 py-4 text-sm font-black uppercase tracking-widest text-white shadow-xl shadow-brand-blue/20 transition-all active:scale-95 hover:bg-brand-blue/90 disabled:opacity-50"
           >
-            Return to Login
+            {loading ? "Checking…" : <>I&rsquo;ve verified — Log in <ArrowRight size={18} /></>}
           </button>
-          
+
           <button
             onClick={handleResendEmail}
             disabled={loading || resendCooldown > 0}
-            className="bg-white text-brand-orange border-2 border-brand-orange px-8 py-3 rounded-2xl font-bold uppercase tracking-widest text-xs active:scale-95 transition-all hover:bg-brand-orange/5 disabled:opacity-50"
+            className="flex items-center justify-center gap-2 rounded-2xl border-2 border-brand-orange bg-white px-8 py-3.5 text-sm font-bold uppercase tracking-wide text-brand-orange transition-all active:scale-95 hover:bg-brand-orange/5 disabled:opacity-50"
           >
-            {loading
-              ? "Sending..."
-              : resendCooldown > 0
-                ? `Try again in ${resendCooldown}s`
-                : "Resend Verification Email"}
+            <RotateCcw size={16} />
+            {resendCooldown > 0 ? `Try again in ${resendCooldown}s` : "Resend verification email"}
           </button>
 
           <button
             type="button"
             onClick={resetVerificationFlow}
-            className="text-gray-500 py-3 rounded-2xl font-bold uppercase tracking-widest text-xs hover:text-brand-orange transition-colors"
+            className="flex items-center justify-center gap-2 py-2 text-sm font-bold text-brand-orange transition-colors hover:text-brand-blue"
           >
-            Cancel / Log Out
+            <Pencil size={15} />
+            Change email address
           </button>
         </div>
+
+        <p className="mt-6 text-xs text-gray-400">
+          Check your spam folder if you can&rsquo;t find it.
+        </p>
       </div>
     );
   }
@@ -1328,7 +1839,11 @@ const AuthView = ({
         handleCodeInApp: false,
       };
       
-      await sendPasswordResetEmail(auth, email, actionCodeSettings);
+      await withTimeout(
+        sendPasswordResetEmail(auth, email.trim(), actionCodeSettings),
+        20000,
+        'Password reset email request timed out. Please check your connection and try again.'
+      );
       
       console.log('📧 Password reset email sent to:', email);
       setPasswordResetSent(true);
@@ -1339,6 +1854,10 @@ const AuthView = ({
         onNotify("No account found with this email", "error");
       } else if (error.code === 'auth/invalid-email') {
         onNotify("Invalid email address", "error");
+      } else if (error.code === 'auth/unauthorized-continue-uri' || error.code === 'auth/invalid-continue-uri') {
+        onNotify("Password reset is not configured for this app URL yet. Please contact support.", "error");
+      } else if (error.code === 'auth/network-request-failed' || /timed out/i.test(error.message || '')) {
+        onNotify("Password reset email could not be sent yet. Check your connection and try again.", "error");
       } else {
         onNotify(error.message || "Failed to send reset email", "error");
       }
@@ -1577,65 +2096,66 @@ const AuthView = ({
           </div>
         )}
 
-        <div className="space-y-1 text-left">
-          <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-2">
-            Email Address
-          </label>
-          <input
-            type="email"
-            placeholder="grace@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full p-4 bg-gray-50 rounded-2xl outline-none border-2 border-transparent focus:border-brand-orange/20 text-gray-900 font-medium transition-all"
-            required
-          />
-        </div>
-
         {!isLogin && (
           <div className="space-y-1 text-left animate-in fade-in slide-in-from-bottom-4">
-            <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-2">
-              Telephone Number
+            <label htmlFor="phone" className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-2">
+              Telephone Number <span className="text-brand-orange">*</span>
             </label>
-            <div className="relative">
-              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
-                <Phone size={18} />
-              </div>
-              <input
-                type="tel"
-                placeholder="0241234567"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="w-full p-4 pl-12 bg-gray-50 rounded-2xl outline-none border-2 border-transparent focus:border-brand-orange/20 text-gray-900 font-medium transition-all"
-                required
-              />
-            </div>
+            <PhoneInput
+              id="phone"
+              value={phone}
+              onChange={setPhone}
+              required
+            />
+            <p className="px-2 text-[10px] text-gray-400">Required so we can help you if email verification is difficult.</p>
           </div>
         )}
 
         <div className="space-y-1 text-left">
+          <label htmlFor="email" className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-2">
+            {isLogin ? 'Email or Username' : 'Email Address'} <span className="text-brand-orange">*</span>
+          </label>
+          <div className="relative">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-orange">
+              <Mail size={18} />
+            </div>
+            <input
+              id="email"
+              type={isLogin ? "text" : "email"}
+              autoComplete={isLogin ? "username" : "email"}
+              placeholder="grace@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full p-4 pl-12 bg-gray-50 rounded-2xl outline-none border-2 border-transparent focus:border-brand-orange/20 text-gray-900 font-medium transition-all"
+              required
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1 text-left">
           <div className="flex justify-between items-center px-2">
             <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">
-              Password
+              Password or PIN
             </label>
-            {isLogin && (
-              <button
-                type="button"
-                tabIndex={-1}
-                title="Forgot password"
-                onClick={() => setShowForgotPassword(true)}
-                className="cmg-forgot-link text-[9px] font-black text-brand-orange uppercase tracking-widest"
-              >
-                Forgot?
-              </button>
-            )}
           </div>
           <div className="relative">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-orange">
+              <Lock size={18} />
+            </div>
             <input
-              type={showPassword ? "text" : "password"}
-              placeholder="••••••••"
+              type={loginMethod === 'pin' ? 'tel' : (showPassword ? "text" : "password")}
+              inputMode={loginMethod === 'pin' ? 'numeric' : undefined}
+              pattern={loginMethod === 'pin' ? '[0-9]{4,6}' : undefined}
+              maxLength={loginMethod === 'pin' ? 6 : undefined}
+              autoComplete={loginMethod === 'pin' ? 'one-time-code' : 'current-password'}
+              placeholder={isLogin ? 'Password or PIN' : '••••••••'}
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full p-4 bg-gray-50 rounded-2xl outline-none border-2 border-transparent focus:border-brand-orange/20 text-gray-900 font-medium transition-all"
+              onChange={(e) => {
+                const next = e.target.value;
+                setPassword(next);
+                if (isLogin) setLoginMethod(/^\d{4,6}$/.test(next) ? 'pin' : 'password');
+              }}
+              className="w-full p-4 pl-12 pr-12 bg-gray-50 rounded-2xl outline-none border-2 border-transparent focus:border-brand-orange/20 text-gray-900 font-medium transition-all"
               required
             />
             <button
@@ -1649,33 +2169,53 @@ const AuthView = ({
           </div>
         </div>
 
-        {isLogin && biometricAvailable && (
-          <label className="flex items-start gap-3 text-left rounded-2xl border border-brand-orange/15 bg-white/60 px-4 py-3 text-xs text-gray-600">
-            <input
-              type="checkbox"
-              checked={biometricOptIn}
-              onChange={async (event) => {
-                const enabled = event.target.checked;
-                setBiometricOptIn(enabled);
-                if (!enabled) {
-                  try {
-                    await clearBiometricCredentials();
-                    setBiometricEnabled(false);
-                  } catch (error) {
-                    console.warn('Unable to disable biometric sign-in:', error);
-                    onNotify('Unable to disable biometric sign-in on this device.', 'error');
-                  }
-                }
-              }}
-              className="mt-0.5 h-4 w-4 accent-brand-orange"
-            />
-            <span>
-              <span className="block font-bold text-brand-navy">Enable biometric sign-in on this device</span>
-              <span className="mt-1 block text-[11px] leading-relaxed text-gray-500">
-                Your password is stored only in the device’s secure storage and is released after biometric/device authentication.
-              </span>
-            </span>
-          </label>
+        {isLogin && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between px-1">
+              <label className="flex items-center gap-2 cursor-pointer text-sm font-medium text-gray-600">
+                <input
+                  type="checkbox"
+                  checked={keepSignedIn}
+                  onChange={(e) => setKeepSignedIn(e.target.checked)}
+                  className="h-4 w-4 shrink-0 rounded accent-brand-orange"
+                />
+                Keep me signed in
+              </label>
+              <button
+                type="button"
+                tabIndex={-1}
+                title="Forgot password"
+                onClick={() => setShowForgotPassword(true)}
+                className="cmg-forgot-link text-sm font-bold text-brand-orange hover:text-brand-blue transition-colors"
+              >
+                Forgot password?
+              </button>
+            </div>
+
+            {biometricAvailable && (
+              <label className="flex items-center gap-2 cursor-pointer px-1 text-sm font-medium text-gray-600">
+                <input
+                  type="checkbox"
+                  checked={biometricOptIn}
+                  onChange={async (event) => {
+                    const enabled = event.target.checked;
+                    setBiometricOptIn(enabled);
+                    if (!enabled) {
+                      try {
+                        await clearBiometricCredentials();
+                        setBiometricEnabled(false);
+                      } catch (error) {
+                        console.warn('Unable to disable biometric sign-in:', error);
+                        onNotify('Unable to disable biometric sign-in on this device.', 'error');
+                      }
+                    }
+                  }}
+                  className="h-4 w-4 shrink-0 rounded accent-brand-orange"
+                />
+                <span className="whitespace-nowrap">Enable biometric sign-in on this device</span>
+              </label>
+            )}
+          </div>
         )}
 
         {!isLogin && (
@@ -1725,41 +2265,84 @@ const AuthView = ({
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-brand-blue text-white py-5 rounded-2xl font-black shadow-xl shadow-brand-blue/20 active:scale-95 transition-transform disabled:opacity-50 mt-4 uppercase tracking-widest text-xs"
+          className={`w-full py-4 rounded-2xl font-black shadow-xl active:scale-95 transition-transform disabled:opacity-50 mt-4 uppercase tracking-widest text-xs flex items-center justify-center gap-2 ${
+            isLogin
+              ? "bg-gradient-to-r from-brand-orange to-[#ff8a14] text-white shadow-brand-orange/30"
+              : "bg-brand-blue text-white shadow-brand-blue/20"
+          }`}
         >
-          {loading 
-            ? "PROCESSING..." 
-            : isLogin 
-              ? "SIGN IN" 
-              : "CREATE ACCOUNT"
+          {loading
+            ? isLogin ? "PROCESSING..." : signupStageLabel
+            : isLogin
+              ? <>SIGN IN <ArrowRight size={18} /></>
+              : signupStageLabel
           }
         </button>
+
+        {isLogin && biometricEnabled && (
+          <button
+            type="button"
+            onClick={handleBiometricLogin}
+            disabled={loading || biometricBusy}
+            className="mt-3 flex min-h-[2.6rem] w-full items-center justify-center gap-2 rounded-2xl border-2 border-brand-orange/40 bg-white/80 px-5 py-2.5 text-[11px] font-black uppercase tracking-[0.12em] text-brand-orange shadow-lg shadow-brand-orange/10 transition-all hover:bg-brand-orange/5 active:scale-95 disabled:opacity-50"
+          >
+            <Fingerprint size={18} />
+            {biometricBusy ? "AUTHENTICATING..." : "SIGN IN WITH BIOMETRICS"}
+          </button>
+        )}
+
+        {isLogin && (
+          <>
+            <div className="flex items-center gap-3 my-4">
+              <span className="h-px flex-1 bg-gray-200" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Or continue with</span>
+              <span className="h-px flex-1 bg-gray-200" />
+            </div>
+
+            <div className="space-y-2.5">
+              <button
+                type="button"
+                onClick={() => handleSocialLogin('google')}
+                disabled={loading || socialBusy !== null}
+                className="flex w-full items-center justify-center gap-3 rounded-2xl border border-gray-200 bg-white px-5 py-3 text-sm font-bold text-brand-blue shadow-sm transition-all hover:bg-gray-50 active:scale-95 disabled:opacity-50"
+              >
+                <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">
+                  <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/>
+                  <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"/>
+                  <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/>
+                  <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571.001-.001 6.19 5.238 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/>
+                </svg>
+                {socialBusy === 'google' ? 'Connecting...' : 'Continue with Google'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSocialLogin('apple')}
+                disabled={loading || socialBusy !== null}
+                className="flex w-full items-center justify-center gap-3 rounded-2xl border border-gray-200 bg-white px-5 py-3 text-sm font-bold text-brand-blue shadow-sm transition-all hover:bg-gray-50 active:scale-95 disabled:opacity-50"
+              >
+                <svg width="18" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M16.365 1.43c0 1.14-.42 2.2-1.26 3.02-.86.86-1.98 1.52-3.1 1.42-.14-1.1.44-2.26 1.22-3.02.84-.84 2.08-1.46 3.14-1.42zM20.5 17.1c-.5 1.16-.74 1.68-1.38 2.7-.9 1.42-2.16 3.2-3.74 3.2-1.4 0-1.76-.92-3.66-.9-1.9.02-2.3.92-3.7.9-1.58-.02-2.78-1.62-3.68-3.04C1.7 15.9 1.3 11.3 3.1 8.9c.9-1.22 2.32-1.98 3.66-1.98 1.36 0 2.22.92 3.66.92 1.4 0 2.26-.92 3.9-.92 1.2 0 2.46.66 3.36 1.78-2.96 1.62-2.48 5.84.82 7.4z"/>
+                </svg>
+                {socialBusy === 'apple' ? 'Connecting...' : 'Continue with Apple'}
+              </button>
+            </div>
+          </>
+        )}
       </form>
 
       {isLogin && (
-        <div className="cmg-auth-new-user-cta">
-          <p>New user?</p>
+        <p className="cmg-auth-create-link mt-3 text-center text-sm text-gray-500">
+          New to Christian Match Ghana?{" "}
           <button
             type="button"
-            onClick={() => setIsLogin(false)}
+            onClick={openSignup}
             title="Create a new account"
-            className="cmg-auth-new-user-button"
+            className="font-bold text-brand-orange transition-colors hover:text-brand-blue"
           >
-            CREATE ACCOUNT
+            Create account
           </button>
-        </div>
-      )}
-
-      {isLogin && biometricAvailable && biometricEnabled && (
-        <button
-          type="button"
-          onClick={handleBiometricLogin}
-          disabled={loading || biometricBusy}
-          className="mt-4 flex min-h-[3.25rem] w-full max-w-sm items-center justify-center gap-2 rounded-2xl border-2 border-brand-orange/40 bg-white/80 px-5 py-3 text-xs font-black uppercase tracking-[0.12em] text-brand-orange shadow-lg shadow-brand-orange/10 transition-all hover:bg-brand-orange/5 active:scale-95 disabled:opacity-50"
-        >
-          <Fingerprint size={20} />
-          {biometricBusy ? "AUTHENTICATING..." : "SIGN IN WITH BIOMETRICS"}
-        </button>
+        </p>
       )}
 
       {!isLogin && (
@@ -1773,7 +2356,7 @@ const AuthView = ({
         </button>
       )}
 
-      <div className="cmg-auth-legal-copy mt-8 max-w-xs mx-auto">
+      <div className="cmg-auth-legal-copy mt-3 max-w-xs mx-auto">
          <p className="text-[9px] text-gray-300 font-medium leading-relaxed">
             By continuing, you agree to our Terms of Service honoring God in your interactions.
          </p>
@@ -1786,55 +2369,128 @@ const AuthView = ({
 const OnboardingView = ({
   onComplete,
   onCancel,
+  userId,
+  initialName = "",
+  initialPhone = "",
+  initialDraft,
 }: {
   onComplete: (profile: any) => void;
   onCancel: () => void;
+  userId?: string;
+  initialName?: string;
+  initialPhone?: string;
+  initialDraft?: Record<string, any> | null;
 }) => {
+  const draftStorageKey = userId ? `cmg_onboarding_draft_${userId}` : "";
   const [step, setStep] = useState(1);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [croppingType, setCroppingType] = useState<
-    "profile" | "cover" | "gallery" | null
-  >(null);
-  const [croppingImage, setCroppingImage] = useState<string | null>(null);
-  const [formData, setFormData] = useState({
-    name: "",
-    age: "",
-    location: "",
-    denomination: "",
-    churchName: "",
-    bio: "",
-    intentions: "",
-    photos: [] as string[],
+  const [validationMessage, setValidationMessage] = useState("");
+  const [optionalPin, setOptionalPin] = useState("");
+  const [optionalPinConfirm, setOptionalPinConfirm] = useState("");
+  const [draftStatus, setDraftStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const hydratedDraftRef = useRef(false);
+  const [formData, setFormData] = useState(() => {
+    let localDraft: Record<string, any> = {};
+    try {
+      if (draftStorageKey) {
+        const stored = localStorage.getItem(draftStorageKey);
+        if (stored) localDraft = JSON.parse(stored);
+      }
+    } catch (error) {
+      console.warn("Unable to load onboarding draft:", error);
+    }
+    return {
+      name: initialName,
+      phone: initialPhone,
+      age: "",
+      location: "",
+      denomination: "",
+      churchName: "",
+      bio: "",
+      intentions: "",
+      ...(initialDraft || {}),
+      ...localDraft,
+      // Photos are deliberately not part of registration/onboarding drafts.
+      photos: [] as string[],
+    };
   });
 
-  const next = () => {
-    if (step < 4) setStep(step + 1);
-    else {
-      if (formData.photos.length < 2) {
-        alert("Please upload at least a profile and cover photo to continue.");
-        return;
+  const persistOnboardingDraft = async (draft: typeof formData) => {
+    const draftToSave = { ...draft, photos: [] };
+    let localSaved = false;
+    try {
+      if (draftStorageKey) {
+        localStorage.setItem(draftStorageKey, JSON.stringify(draftToSave));
+        localSaved = true;
       }
-      // Ensure numerical data is converted from string to number before completion
-      onComplete({
-        ...formData,
-        age: parseInt(formData.age || "0", 10),
-      });
+    } catch (error) {
+      console.warn("Unable to save onboarding draft locally:", error);
     }
+
+    if (userId) {
+      try {
+        const { updateUserDocument } = await import('./services/userService');
+        await updateUserDocument(userId, { profileDraft: draftToSave });
+        setDraftStatus("saved");
+        return;
+      } catch (error) {
+        console.warn("Unable to sync onboarding draft:", error);
+      }
+    }
+
+    setDraftStatus(localSaved ? "saved" : "error");
   };
 
-  const handlePhotoSelect = (type: "profile" | "cover" | "gallery") => {
-    setCroppingType(type);
-    fileInputRef.current?.click();
+  useEffect(() => {
+    if (!hydratedDraftRef.current) {
+      hydratedDraftRef.current = true;
+      return;
+    }
+    setDraftStatus("saving");
+    const timer = window.setTimeout(() => {
+      void persistOnboardingDraft(formData);
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [formData, userId, draftStorageKey]);
+
+  const validateStep = () => {
+    const missing: string[] = [];
+    if (!formData.name.trim()) missing.push("full name");
+    if (!isValidTelephoneNumber(formData.phone)) missing.push("valid telephone number");
+    if (!formData.age || Number(formData.age) < 18) missing.push("age (18 or older)");
+    if (!formData.location.trim()) missing.push("city or location");
+    if (optionalPin && !/^\d{4,6}$/.test(optionalPin)) missing.push("a valid 4–6 digit PIN");
+    if (optionalPin && optionalPin !== optionalPinConfirm) missing.push("matching PIN confirmation");
+
+    if (step === 2) {
+      if (!formData.denomination) missing.push("denomination");
+      if (!formData.churchName.trim()) missing.push("church name");
+      if (!formData.intentions) missing.push("relationship goal");
+      if (!formData.bio.trim()) missing.push("brief bio");
+    }
+
+    if (missing.length > 0) {
+      setValidationMessage(`Please complete: ${missing.join(", ")}.`);
+      return false;
+    }
+
+    setValidationMessage("");
+    return true;
   };
 
-  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => setCroppingImage(reader.result as string);
-      reader.readAsDataURL(file);
+  const next = () => {
+    if (!validateStep()) return;
+    if (step < 2) {
+      setStep(step + 1);
+      return;
     }
-    e.target.value = "";
+
+    onComplete({
+      ...formData,
+      age: parseInt(formData.age, 10),
+      // Photos are intentionally optional here and can be added later in Edit Profile.
+      photos: [],
+      optionalPin: optionalPin || undefined,
+    });
   };
 
   const denominations = [
@@ -1850,42 +2506,24 @@ const OnboardingView = ({
   ];
   const steps = [
     { id: 1, label: "Identity" },
-    { id: 2, label: "Faith" },
-    { id: 3, label: "Life" },
-    { id: 4, label: "Media" },
+    { id: 2, label: "Faith & Goals" },
   ];
 
   return (
     <div className="cmg-onboarding-panel h-full flex flex-col bg-transparent overflow-hidden relative">
-      {croppingImage && (
-        <ImageCropper
-          imageSrc={croppingImage}
-          aspectRatio={
-            croppingType === "cover"
-              ? 1.77
-              : croppingType === "profile"
-              ? 1
-              : 0.75
-          }
-          onCancel={() => {
-            setCroppingImage(null);
-            setCroppingType(null);
-          }}
-          onCrop={(img) => {
-            const newPhotos = [...formData.photos];
-            if (croppingType === "profile") newPhotos[0] = img;
-            else if (croppingType === "cover") newPhotos[1] = img;
-            else newPhotos.push(img);
-            setFormData({ ...formData, photos: newPhotos });
-            setCroppingImage(null);
-            setCroppingType(null);
-          }}
-        />
-      )}
 
       {/* Compact brand mark above the four-step wizard. */}
       <div className="flex justify-center pt-4 pb-1 shrink-0">
         <Logo size={170} className="drop-shadow-lg" />
+      </div>
+      <div aria-live="polite" className="min-h-4 px-6 text-center text-[10px] font-bold text-gray-400">
+        {draftStatus === "saving" && "Saving draft…"}
+        {draftStatus === "saved" && "Draft saved"}
+        {draftStatus === "error" && (
+          <button type="button" onClick={() => void persistOnboardingDraft(formData)} className="text-red-500 underline">
+            Unable to save — Retry
+          </button>
+        )}
       </div>
 
       {/* Wizard Progress Header */}
@@ -1916,10 +2554,10 @@ const OnboardingView = ({
             aria-label="Onboarding progress"
             aria-valuemin={0}
             aria-valuemax={100}
-            aria-valuenow={Math.round(((step - 1) / 3) * 100)}
+            aria-valuenow={Math.round(((step - 1) / 1) * 100)}
             className="h-full bg-brand-orange transition-all duration-500 rounded-full progress-bar-fill"
             style={{
-              ["--progress-width" as any]: `${((step - 1) / 3) * 100}%`,
+              ["--progress-width" as any]: `${((step - 1) / 1) * 100}%`,
             }}
           ></div>
         </div>
@@ -1933,7 +2571,7 @@ const OnboardingView = ({
                 Tell us about yourself
               </h2>
               <p className="text-gray-400 text-sm font-medium">
-                Let's start your journey to a Godly union.
+                Fields marked <span className="font-black text-brand-orange">*</span> are required. You can add photos and other details later in Edit Profile.
               </p>
             </div>
             <div className="space-y-1">
@@ -1941,16 +2579,28 @@ const OnboardingView = ({
                 htmlFor="name"
                 className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2"
               >
-                Display Name
+                Display Name <span className="text-brand-orange">*</span>
               </label>
               <input
                 id="name"
                 className="w-full p-4 bg-gray-50 rounded-2xl text-gray-900 font-bold outline-none focus:ring-2 focus:ring-brand-orange/20"
                 placeholder="Grace Amoah"
                 value={formData.name}
+                required
                 onChange={(e) =>
                   setFormData({ ...formData, name: e.target.value })
                 }
+              />
+            </div>
+            <div className="space-y-1">
+              <label htmlFor="onboarding-phone" className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2">
+                Telephone Number <span className="text-brand-orange">*</span>
+              </label>
+              <PhoneInput
+                id="onboarding-phone"
+                value={formData.phone}
+                onChange={(phoneValue) => setFormData({ ...formData, phone: phoneValue })}
+                required
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -1959,11 +2609,13 @@ const OnboardingView = ({
                   htmlFor="age"
                   className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2"
                 >
-                  Age
+                  Age <span className="text-brand-orange">*</span>
                 </label>
                 <input
                   id="age"
                   type="number"
+                  min="18"
+                  required
                   className="w-full p-4 bg-gray-50 rounded-2xl text-gray-900 font-bold outline-none"
                   placeholder="25"
                   value={formData.age}
@@ -1977,10 +2629,11 @@ const OnboardingView = ({
                   htmlFor="location"
                   className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2"
                 >
-                  Location
+                  Location <span className="text-brand-orange">*</span>
                 </label>
                 <input
                   id="location"
+                  required
                   className="w-full p-4 bg-gray-50 rounded-2xl text-gray-900 font-bold outline-none"
                   placeholder="Accra"
                   value={formData.location}
@@ -1988,6 +2641,14 @@ const OnboardingView = ({
                     setFormData({ ...formData, location: e.target.value })
                   }
                 />
+              </div>
+            </div>
+            <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50 p-4">
+              <p className="text-[10px] font-black uppercase tracking-widest text-brand-blue">Optional quick login PIN</p>
+              <p className="mt-1 text-xs text-gray-500">Set a separate 4–6 digit PIN for faster sign-in. You can add or change it later in Profile settings.</p>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <input type="password" inputMode="numeric" maxLength={6} pattern="[0-9]{4,6}" placeholder="4–6 digits" value={optionalPin} onChange={(event) => setOptionalPin(event.target.value.replace(/\D/g, '').slice(0, 6))} className="w-full rounded-xl border border-blue-100 bg-white p-3 text-sm" />
+                <input type="password" inputMode="numeric" maxLength={6} pattern="[0-9]{4,6}" placeholder="Confirm PIN" value={optionalPinConfirm} onChange={(event) => setOptionalPinConfirm(event.target.value.replace(/\D/g, '').slice(0, 6))} className="w-full rounded-xl border border-blue-100 bg-white p-3 text-sm" />
               </div>
             </div>
           </div>
@@ -2008,11 +2669,12 @@ const OnboardingView = ({
                 htmlFor="denomination"
                 className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2"
               >
-                Denomination
+                Denomination <span className="text-brand-orange">*</span>
               </label>
               <select
                 id="denomination"
                 aria-label="Denomination"
+                required
                 className="w-full p-4 bg-gray-50 rounded-2xl text-gray-900 font-bold outline-none appearance-none"
                 value={formData.denomination}
                 onChange={(e) =>
@@ -2032,10 +2694,11 @@ const OnboardingView = ({
                 htmlFor="churchName"
                 className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2"
               >
-                Church Name
+                Church Name <span className="text-brand-orange">*</span>
               </label>
               <input
                 id="churchName"
+                required
                 className="w-full p-4 bg-gray-50 rounded-2xl text-gray-900 font-bold outline-none"
                 placeholder="ICGC Christ Temple"
                 value={formData.churchName}
@@ -2047,7 +2710,7 @@ const OnboardingView = ({
           </div>
         )}
 
-        {step === 3 && (
+        {step === 2 && (
           <div className="space-y-6 animate-in slide-in-from-right duration-500">
             <div>
               <h2 className="text-3xl font-black text-brand-blue mb-2 tracking-tighter">
@@ -2062,11 +2725,12 @@ const OnboardingView = ({
                 htmlFor="intentions"
                 className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2"
               >
-                Relationship Goal
+                Relationship Goal <span className="text-brand-orange">*</span>
               </label>
               <select
                 id="intentions"
                 aria-label="Relationship goal"
+                required
                 className="w-full p-4 bg-gray-50 rounded-2xl text-gray-900 font-bold outline-none"
                 value={formData.intentions}
                 onChange={(e) =>
@@ -2084,10 +2748,11 @@ const OnboardingView = ({
                 htmlFor="bio"
                 className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2"
               >
-                Brief Bio
+                Brief Bio <span className="text-brand-orange">*</span>
               </label>
               <textarea
                 id="bio"
+                required
                 className="w-full p-4 bg-gray-50 rounded-2xl h-32 text-gray-900 font-medium outline-none"
                 placeholder="Tell us about your journey with Christ..."
                 value={formData.bio}
@@ -2099,98 +2764,10 @@ const OnboardingView = ({
           </div>
         )}
 
-        {step === 4 && (
-          <div className="space-y-4 animate-in slide-in-from-right duration-500">
-            <div className="text-center">
-              <h2 className="text-2xl font-black text-brand-blue mb-1 uppercase tracking-tighter">
-                Visualize your grace
-              </h2>
-              <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest">
-                Profile & Cover are required
-              </p>
-            </div>
-
-            <div className="relative">
-              <div
-                onClick={() => handlePhotoSelect("cover")}
-                className="h-32 bg-gray-100 rounded-3xl overflow-hidden group border-2 border-dashed border-gray-200 hover:border-brand-orange transition-all cursor-pointer"
-              >
-                {formData.photos[1] ? (
-                  <img
-                    src={formData.photos[1]}
-                    className="w-full h-full object-cover"
-                    alt="Cover photo"
-                  />
-                ) : (
-                  <div className="h-full flex flex-col items-center justify-center text-gray-300">
-                    <ImageIcon size={28} />
-                    <span className="text-[8px] font-black uppercase mt-2">
-                      Add Cover Photo
-                    </span>
-                  </div>
-                )}
-              </div>
-              <div className="absolute -bottom-8 left-1/2 -translate-x-1/2">
-                <div
-                  onClick={() => handlePhotoSelect("profile")}
-                  className="w-24 h-24 rounded-full bg-white p-1.5 shadow-2xl group cursor-pointer hover:scale-105 transition-transform"
-                >
-                  <div className="w-full h-full rounded-full bg-gray-100 overflow-hidden flex items-center justify-center text-gray-300">
-                    {formData.photos[0] ? (
-                      <img
-                        src={formData.photos[0]}
-                        className="w-full h-full object-cover"
-                        alt="Profile photo"
-                      />
-                    ) : (
-                      <UserIcon size={32} />
-                    )}
-                  </div>
-                  <div className="absolute bottom-1 right-1 bg-brand-orange text-white p-2 rounded-full shadow-lg border-2 border-white">
-                    <Camera size={14} />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="pt-8 grid grid-cols-3 gap-2">
-              {formData.photos.slice(2).map((p, i) => (
-                <div
-                  key={i}
-                  className="aspect-[3/4] relative rounded-2xl overflow-hidden shadow-sm"
-                >
-                  <img
-                    src={p}
-                    className="w-full h-full object-cover"
-                    alt={`Gallery photo ${i + 1}`}
-                  />
-                  <button
-                    title="Remove photo"
-                    onClick={() =>
-                      setFormData({
-                        ...formData,
-                        photos: formData.photos.filter(
-                          (_, idx) => idx !== i + 2
-                        ),
-                      })
-                    }
-                    className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full"
-                  >
-                    <X size={10} />
-                  </button>
-                </div>
-              ))}
-              {formData.photos.length < 6 && (
-                <button
-                  title="Add photo"
-                  onClick={() => handlePhotoSelect("gallery")}
-                  className="aspect-[3/4] bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl flex items-center justify-center text-gray-400 hover:text-brand-orange hover:border-brand-orange transition-all"
-                >
-                  <PlusCircle size={24} />
-                </button>
-              )}
-            </div>
-          </div>
+        {validationMessage && (
+          <p role="alert" className="mt-3 rounded-xl bg-red-50 px-4 py-3 text-center text-xs font-bold text-red-600">
+            {validationMessage}
+          </p>
         )}
         <div className="mt-6 mb-4 flex gap-4">
           {step > 1 && (
@@ -2205,18 +2782,10 @@ const OnboardingView = ({
             onClick={next}
             className="flex-1 bg-brand-orange text-white py-4 rounded-2xl font-black text-[12px] uppercase tracking-[0.2em] shadow-xl shadow-brand-orange/20 active:scale-95 transition-all"
           >
-            {step === 4 ? "Finish Setup" : "Continue"}
+            {step === 2 ? "Finish Setup" : "Continue"}
           </button>
         </div>
       </div>
-      <input
-        type="file"
-        ref={fileInputRef}
-        aria-label="Upload image"
-        className="hidden"
-        accept="image/*"
-        onChange={onFileChange}
-      />
     </div>
   );
 };
@@ -2232,21 +2801,58 @@ export const EditProfileView = ({
   onSave: (u: User) => void;
   onNotify: (msg: string, type: "success" | "error") => void;
 }) => {
-  const [formData, setFormData] = React.useState<any>({
+  const editDraftStorageKey = `cmg_edit_profile_draft_${user.id}`;
+  const loadLocalDraft = () => {
+    try {
+      const stored = localStorage.getItem(editDraftStorageKey);
+      return stored ? JSON.parse(stored) : {};
+    } catch (error) {
+      console.warn("Unable to load Edit Profile draft:", error);
+      return {};
+    }
+  };
+  const [formData, setFormData] = React.useState<any>(() => ({
     ...user,
     ...(user as any).raw_user_meta_data,
-  });
-  // Keep previously-saved details (e.g. from onboarding) populated here without
-  // discarding any in-progress edits the user has already made on this screen.
-  React.useEffect(() => {
-    setFormData((prev: any) => ({
-      ...user,
-      ...(user as any).raw_user_meta_data,
-      ...prev,
-    }));
-  }, [user]);
+    ...((user as any).profileDraft || {}),
+    ...loadLocalDraft(),
+  }));
   const [loading, setLoading] = React.useState(false);
+  const [draftStatus, setDraftStatus] = React.useState<"idle" | "saving" | "saved" | "error">("idle");
+  const hydratedDraftRef = React.useRef(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const persistEditDraft = async (draft: any) => {
+    const { profileDraft: _ignoredProfileDraft, ...draftToSave } = draft;
+    let localSaved = false;
+    try {
+      localStorage.setItem(editDraftStorageKey, JSON.stringify(draft));
+      localSaved = true;
+    } catch (error) {
+      console.warn("Unable to save Edit Profile draft locally:", error);
+    }
+
+    try {
+      const { updateUserDocument } = await import('./services/userService');
+      await updateUserDocument(user.id, { profileDraft: draft });
+      setDraftStatus("saved");
+    } catch (error) {
+      console.warn("Unable to sync Edit Profile draft:", error);
+      setDraftStatus(localSaved ? "saved" : "error");
+    }
+  };
+
+  React.useEffect(() => {
+    if (!hydratedDraftRef.current) {
+      hydratedDraftRef.current = true;
+      return;
+    }
+    setDraftStatus("saving");
+    const timer = window.setTimeout(() => {
+      void persistEditDraft(formData);
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [formData, user.id]);
 
   const triggerFileInput = (type: "profile" | "cover" | "gallery") => {
     if (fileInputRef.current) {
@@ -2350,7 +2956,6 @@ export const EditProfileView = ({
         }
         return { ...prev, photos: newPhotos };
       });
-      
       onNotify("Photo uploaded successfully", "success");
     } catch (error: any) {
       console.error("❌ Error uploading image:", error);
@@ -2361,13 +2966,64 @@ export const EditProfileView = ({
     }
   };
 
+  const uploadAutomaticPhoto = async (file: File, type: "profile" | "cover" | "gallery") => {
+    try {
+      setLoading(true);
+      const { uploadProfilePhoto, uploadCoverPhoto, uploadGalleryPhoto } = await import('./services/fileStorageService');
+      const { auth } = await import('./firebase');
+      const userId = auth.currentUser?.uid || user.id || (user as any).uid;
+      if (!userId) throw new Error("Unable to resolve User ID. Please sign out and sign in again.");
+
+      // Automatic mode preserves the complete image; it only resizes/compresses it.
+      const compressedDataUrl = await compressImage(file);
+      const arr = compressedDataUrl.split(',');
+      const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+      const binary = atob(arr[1]);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+      const blob = new Blob([bytes], { type: mime });
+
+      const fileMetadata = type === "profile"
+        ? await uploadProfilePhoto(userId, blob)
+        : type === "cover"
+        ? await uploadCoverPhoto(userId, blob)
+        : await uploadGalleryPhoto(userId, blob);
+
+      setFormData((prev: any) => {
+        const newPhotos = [...(prev.photos || [])];
+        if (type === "profile") newPhotos[0] = fileMetadata.downloadURL;
+        else if (type === "cover") newPhotos[1] = fileMetadata.downloadURL;
+        else newPhotos.push(fileMetadata.downloadURL);
+        return { ...prev, photos: newPhotos };
+      });
+      onNotify("Photo uploaded successfully", "success");
+    } catch (error: any) {
+      console.error("❌ Error uploading image:", error);
+      onNotify("Upload failed: " + error.message, "error");
+    } finally {
+      setLoading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const openManualAdjustment = (type: "profile" | "cover" | "gallery") => {
+    const index = type === "profile" ? 0 : type === "cover" ? 1 : -1;
+    const image = index >= 0 ? formData.photos?.[index] : "";
+    if (!image) {
+      triggerFileInput(type);
+      return;
+    }
+    setCroppingType(type);
+    setCroppingImage(image);
+  };
+
   const REQUIRED_FIELD_LABELS: Record<string, string> = {
     name: 'Full Name', phone: 'Phone Number', dob: 'Date of Birth', country: 'Country',
     location: 'City / Location', gender: 'Gender', maritalStatus: 'Marital Status',
     hasChildren: 'Has Children', wantChildren: 'Want Children', height: 'Height',
     bodyType: 'Body Type', complexion: 'Complexion', languages: 'Languages',
     smoking: 'Smoking', alcohol: 'Alcohol', education: 'Education', occupation: 'Occupation',
-    incomeRange: 'Income Range', intentions: 'Intentions', intendToMarry: 'Intend to Marry',
+    incomeRange: 'Income Range', intentions: 'Intentions',
     willingToRelocate: 'Willing to Relocate', preferredAgeMin: 'Preferred Min Age',
     preferredAgeMax: 'Preferred Max Age', preferredLocation: 'Preferred Location',
     preferredDenomination: 'Preferred Denomination', preferredEthnicGroup: 'Preferred Ethnic Group',
@@ -2381,7 +3037,7 @@ export const EditProfileView = ({
       'name', 'phone', 'dob', 'country', 'location', 'gender', 'maritalStatus', 
       'hasChildren', 'wantChildren', 'height', 'bodyType', 'complexion', 
       'languages', 'smoking', 'alcohol', 'education', 'occupation', 
-      'incomeRange', 'intentions', 'intendToMarry', 'willingToRelocate',
+      'incomeRange', 'intentions', 'willingToRelocate',
       'preferredAgeMin', 'preferredAgeMax', 'preferredLocation', 'preferredDenomination',
       'preferredEthnicGroup', 'dealBreakers', 'healthCondition', 'lifestyleInfo',
       'denomination', 'churchAttendance', 'church', 'bio'
@@ -2408,6 +3064,10 @@ export const EditProfileView = ({
         missing.push(REQUIRED_FIELD_LABELS[field] || field);
       }
     });
+
+    if (formData.dob && !isAdultDateOfBirth(formData.dob)) {
+      missing.push('Date of Birth (must be 18 or older)');
+    }
 
     return missing;
   };
@@ -2499,11 +3159,14 @@ export const EditProfileView = ({
         // Sensitive Information
         healthCondition: formData.healthCondition,
         lifestyleInfo: formData.lifestyleInfo,
+        profileDraft: null,
       };
 
       // Save to Firestore
       console.log('💾 Saving profile updates to Firestore...');
       await updateUserDocument(user.id, updates);
+      localStorage.removeItem(editDraftStorageKey);
+      setDraftStatus("saved");
       console.log('✅ Profile saved to Firestore successfully!');
       
       // Update local user state
@@ -2549,20 +3212,30 @@ export const EditProfileView = ({
         <h2 className="text-2xl font-black text-brand-blue uppercase tracking-tighter">
           Edit Profile
         </h2>
+        <div aria-live="polite" className="min-h-4 text-[10px] font-bold text-gray-400">
+          {draftStatus === "saving" && "Saving draft…"}
+          {draftStatus === "saved" && "Saved"}
+          {draftStatus === "error" && (
+            <button type="button" onClick={() => void persistEditDraft(formData)} className="text-red-500 underline">
+              Unable to save — Retry
+            </button>
+          )}
+        </div>
       </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 pt-4 pb-52 hide-scrollbar space-y-8 relative z-10">
         {/* Photos Management */}
         <div>
-          <div className="flex justify-between items-end mb-3">
-            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
-              Media
-            </h3>
-            <span className="text-[10px] text-gray-400 font-bold">
-              {formData.photos?.filter((p: string) => p?.length > 0).length ||
-                0}
-              /6
+          <div className="flex items-end justify-between mb-3">
+            <div>
+              <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Media</h3>
+              <p className="mt-1 text-[11px] leading-relaxed text-gray-500">
+                Uploads keep the full image automatically. Use Adjust only if you want to fine-tune the frame.
+              </p>
+            </div>
+            <span className="shrink-0 text-[10px] text-gray-400 font-bold">
+              {formData.photos?.filter((p: string) => p?.length > 0).length || 0}/6
             </span>
           </div>
 
@@ -2578,8 +3251,8 @@ export const EditProfileView = ({
                   <>
                     <img
                       src={formData.photos[1]}
-                      className="w-full h-full object-cover"
-                      alt="Cover"
+                      className="w-full h-full object-contain bg-gray-100"
+                      alt="Cover photo preview"
                     />
                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-bold text-xs uppercase tracking-widest">
                       Change Cover
@@ -2606,6 +3279,24 @@ export const EditProfileView = ({
                   </div>
                 )}
               </div>
+              <div className="mt-2 flex justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => triggerFileInput("cover")}
+                  className="rounded-full bg-white px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-brand-orange shadow-sm border border-orange-100"
+                >
+                  {formData.photos?.[1] ? "Replace cover" : "Upload cover"}
+                </button>
+                {formData.photos?.[1] && (
+                  <button
+                    type="button"
+                    onClick={() => openManualAdjustment("cover")}
+                    className="rounded-full bg-white px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-gray-500 shadow-sm border border-gray-200"
+                  >
+                    Adjust
+                  </button>
+                )}
+              </div>
 
               {/* Profile Photo (Index 0) */}
               <div className="absolute -bottom-10 left-1/2 -translate-x-1/2">
@@ -2618,8 +3309,8 @@ export const EditProfileView = ({
                       <>
                         <img
                           src={formData.photos[0]}
-                          className="w-full h-full object-cover"
-                          alt="Profile"
+                          className="w-full h-full object-contain bg-gray-100"
+                          alt="Profile photo preview"
                         />
                         <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
                           <Camera size={20} />
@@ -2649,10 +3340,26 @@ export const EditProfileView = ({
                     </div>
                   )}
                 </div>
+                <div className="mt-2 flex justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => triggerFileInput("profile")}
+                    className="rounded-full bg-white px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-brand-orange shadow-sm border border-orange-100"
+                  >
+                    {formData.photos?.[0] ? "Replace" : "Upload profile"}
+                  </button>
+                  {formData.photos?.[0] && (
+                    <button
+                      type="button"
+                      onClick={() => openManualAdjustment("profile")}
+                      className="rounded-full bg-white px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-gray-500 shadow-sm border border-gray-200"
+                    >
+                      Adjust
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
-
-            {/* Gallery Grid (Index 2+) */}
             <div className="pt-12">
               <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">
                 Gallery
@@ -2665,8 +3372,8 @@ export const EditProfileView = ({
                   >
                     <img
                       src={p}
-                      className="w-full h-full object-cover"
-                      alt="Gallery"
+                      className="w-full h-full object-contain bg-gray-100"
+                      alt={`Gallery photo ${i + 1} preview`}
                     />
                     <button
                       onClick={() =>
@@ -2707,10 +3414,7 @@ export const EditProfileView = ({
                 | "gallery";
               const file = e.target.files?.[0];
               if (file) {
-                setCroppingType(type);
-                const reader = new FileReader();
-                reader.onloadend = () => setCroppingImage(reader.result as string);
-                reader.readAsDataURL(file);
+                void uploadAutomaticPhoto(file, type);
               }
               e.target.value = "";
             }}
@@ -2729,29 +3433,27 @@ export const EditProfileView = ({
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             className="w-full p-4 bg-gray-50 rounded-2xl"
           />
-          <input
-            type="text"
-            placeholder="Phone Number"
+          <PhoneInput
+            id="edit-phone"
             value={formData.phone || ""}
-            onChange={(e) =>
-              setFormData({ ...formData, phone: e.target.value })
-            }
-            className="w-full p-4 bg-gray-50 rounded-2xl"
+            onChange={(phoneValue) => setFormData({ ...formData, phone: phoneValue })}
           />
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-[10px] uppercase font-bold text-gray-400 ml-2">
-                Date of Birth
+                Date of Birth <span className="text-brand-orange">*</span>
               </label>
               <input
                 type="date"
+                max={getAdultDateLimit()}
                 value={formData.dob || ""}
                 onChange={(e) =>
                   setFormData({ ...formData, dob: e.target.value })
                 }
                 className="w-full p-4 bg-gray-50 rounded-2xl"
               />
+              <p className="ml-2 text-[10px] text-gray-400">You must be 18 or older.</p>
             </div>
             <div>
               <label className="text-[10px] uppercase font-bold text-gray-400 ml-2">
@@ -3055,31 +3757,18 @@ export const EditProfileView = ({
               </option>
             ))}
           </select>
-          <div className="grid grid-cols-2 gap-4">
-            <select
-              value={formData.intendToMarry || ""}
-              onChange={(e) =>
-                setFormData({ ...formData, intendToMarry: e.target.value })
-              }
-              className="w-full p-4 bg-gray-50 rounded-2xl"
-            >
-              <option value="">Intend to Marry?</option>
-              <option>Yes</option>
-              <option>No</option>
-            </select>
-            <select
-              value={formData.willingToRelocate || ""}
-              onChange={(e) =>
-                setFormData({ ...formData, willingToRelocate: e.target.value })
-              }
-              className="w-full p-4 bg-gray-50 rounded-2xl"
-            >
-              <option value="">Willing to Relocate?</option>
-              <option>Yes</option>
-              <option>No</option>
-              <option>Maybe</option>
-            </select>
-          </div>
+          <select
+            value={formData.willingToRelocate || ""}
+            onChange={(e) =>
+              setFormData({ ...formData, willingToRelocate: e.target.value })
+            }
+            className="w-full p-4 bg-gray-50 rounded-2xl"
+          >
+            <option value="">Willing to Relocate?</option>
+            <option>Yes</option>
+            <option>No</option>
+            <option>Maybe</option>
+          </select>
         </div>
 
         {/* Partner Preferences */}
@@ -3245,22 +3934,285 @@ export const EditProfileView = ({
   );
 };
 
+const SettingsView = ({
+  user,
+  onBack,
+  onSave,
+}: {
+  user: User;
+  onBack: () => void;
+  onSave: (user: User) => void;
+}) => {
+  const canUseSms = isValidTelephoneNumber(user.phone || "");
+  const [preferences, setPreferences] = useState<NotificationPreferences>({
+    ...DEFAULT_NOTIFICATION_PREFERENCES,
+    ...(user.notificationPreferences || {}),
+    securityEmails: true,
+  });
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [pinBusy, setPinBusy] = useState(false);
+  const [pinMessage, setPinMessage] = useState('');
+
+  const updatePreference = async (key: keyof NotificationPreferences, value: boolean) => {
+    if (key === "securityEmails") return;
+    if (key === "sms" && value && !canUseSms) return;
+
+    const next = { ...preferences, [key]: value, securityEmails: true };
+    setPreferences(next);
+    setSaveState("saving");
+    try {
+      const { updateUserDocument } = await import('./services/userService');
+      await updateUserDocument(user.id, { notificationPreferences: next });
+      onSave({ ...user, notificationPreferences: next });
+      setSaveState("saved");
+    } catch (error) {
+
+      console.error('Unable to save notification preferences:', error);
+      setPreferences(preferences);
+      setSaveState("error");
+    }
+  };
+
+  const managePin = async () => {
+    const newPin = window.prompt('Enter a new 4–6 digit PIN (leave blank to cancel):')?.trim() || '';
+    if (!newPin) return;
+    if (!/^\d{4,6}$/.test(newPin)) { setPinMessage('PIN must contain 4–6 digits.'); return; }
+    const currentCredential = user.hasPin ? window.prompt('Enter your current PIN:')?.trim() || '' : undefined;
+    if (user.hasPin && !currentCredential) return;
+    setPinBusy(true);
+    setPinMessage('');
+    try {
+      const { setUserPin } = await import('./services/pinAuthService');
+      await setUserPin(newPin, currentCredential);
+      onSave({ ...user, hasPin: true });
+      setPinMessage(user.hasPin ? 'PIN changed successfully.' : 'PIN enabled successfully.');
+    } catch (error: any) {
+      setPinMessage(error?.message || 'Unable to update your PIN.');
+    } finally {
+      setPinBusy(false);
+    }
+  };
+
+  const channelRows: Array<{ key: keyof NotificationPreferences; title: string; description: string; disabled?: boolean }> = [
+    { key: "inApp", title: "In-app notifications", description: "Show alerts inside Christian Match Ghana." },
+    { key: "push", title: "Push notifications", description: "Receive alerts on this browser, PWA, or mobile app." },
+    { key: "email", title: "Email notifications", description: "Receive non-security updates by email." },
+    { key: "sms", title: "SMS notifications", description: canUseSms ? "Allow SMS alerts after an SMS gateway is configured." : "Add a valid telephone number before enabling SMS.", disabled: !canUseSms },
+  ];
+  const eventRows: Array<{ key: keyof NotificationPreferences; title: string }> = [
+    { key: "newChatMessages", title: "New chat messages" },
+    { key: "connectionRequests", title: "Connection requests" },
+    { key: "verificationReminders", title: "Verification reminders" },
+  ];
+
+  const Toggle = ({ row }: { row: { key: keyof NotificationPreferences; title: string; description?: string; disabled?: boolean } }) => (
+    <label className={`flex items-center justify-between gap-4 rounded-2xl border border-gray-100 bg-white p-4 ${row.disabled ? "opacity-60" : "cursor-pointer"}`}>
+      <span className="min-w-0">
+        <span className="block text-sm font-bold text-gray-800">{row.title}</span>
+        {row.description && <span className="mt-1 block text-[11px] leading-relaxed text-gray-500">{row.description}</span>}
+      </span>
+      <input
+        type="checkbox"
+        checked={Boolean(preferences[row.key])}
+        disabled={row.disabled || row.key === "securityEmails"}
+        onChange={(event) => void updatePreference(row.key, event.target.checked)}
+        className="h-5 w-5 shrink-0 rounded accent-brand-orange"
+      />
+    </label>
+  );
+
+  return (
+    <div className="h-full overflow-y-auto bg-transparent px-5 pb-32 pt-5 hide-scrollbar">
+      <div className="mb-6 flex items-center gap-3">
+        <button type="button" onClick={onBack} aria-label="Back" title="Back" className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-brand-blue shadow border border-gray-100">
+          <ArrowLeft size={20} />
+        </button>
+        <div>
+          <h1 className="font-serif text-2xl font-black text-brand-blue">Notification settings</h1>
+          <p className="text-xs text-gray-500">Choose how Christian Match Ghana contacts you.</p>
+        </div>
+      </div>
+
+      <div aria-live="polite" className="mb-4 text-center text-[10px] font-bold text-gray-400">
+        {saveState === "saving" && "Saving…"}
+        {saveState === "saved" && "Preferences saved"}
+        {saveState === "error" && <span className="text-red-500">Unable to save preferences. Try again.</span>}
+      </div>
+
+      <section className="space-y-3">
+        <h2 className="px-1 text-[10px] font-black uppercase tracking-widest text-gray-400">Notification channels</h2>
+        {channelRows.map((row) => <Toggle key={row.key} row={row} />)}
+      </section>
+
+      <section className="mt-7 space-y-3">
+        <h2 className="px-1 text-[10px] font-black uppercase tracking-widest text-gray-400">What should notify me?</h2>
+        {eventRows.map((row) => <Toggle key={row.key} row={row} />)}
+      </section>
+
+      <section className="mt-7 space-y-3">
+        <h2 className="px-1 text-[10px] font-black uppercase tracking-widest text-gray-400">Security</h2>
+        <label className="flex items-center justify-between gap-4 rounded-2xl border border-blue-100 bg-blue-50 p-4">
+          <span>
+            <span className="block text-sm font-bold text-brand-blue">Account and security emails</span>
+            <span className="mt-1 block text-[11px] leading-relaxed text-gray-600">Password resets, verification, and security messages are always enabled.</span>
+          </span>
+          <input type="checkbox" checked readOnly disabled className="h-5 w-5 shrink-0 rounded accent-brand-orange" />
+        </label>
+        <div className="flex items-center justify-between gap-4 rounded-2xl border border-gray-100 bg-white p-4">
+          <span>
+            <span className="block text-sm font-bold text-gray-800">Quick login PIN</span>
+            <span className="mt-1 block text-[11px] leading-relaxed text-gray-500">{user.hasPin ? 'A PIN is enabled for faster sign-in.' : 'Optional 4–6 digit sign-in PIN.'}</span>
+            {pinMessage && <span className="mt-1 block text-[11px] font-bold text-brand-orange">{pinMessage}</span>}
+          </span>
+          <button type="button" disabled={pinBusy} onClick={() => void managePin()} className="shrink-0 rounded-xl bg-brand-orange px-3 py-2 text-xs font-black text-white disabled:opacity-50">{pinBusy ? 'Saving…' : user.hasPin ? 'Change PIN' : 'Set PIN'}</button>
+        </div>
+      </section>
+    </div>
+  );
+};
+
+const SupportView = ({
+  user,
+  onBack,
+}: {
+  user: User;
+  onBack: () => void;
+}) => {
+  const [category, setCategory] = useState<import('./services/supportService').SupportCategory>('Other');
+  const [subject, setSubject] = useState('');
+  const [description, setDescription] = useState('');
+  const [preferredContact, setPreferredContact] = useState<import('./services/supportService').SupportContactPreference>('Either');
+  const [submitting, setSubmitting] = useState(false);
+  const [ticketReference, setTicketReference] = useState<string | null>(null);
+  const [error, setError] = useState('');
+
+  const submitTicket = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!subject.trim() || !description.trim()) {
+      setError('Please enter a subject and describe the issue.');
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+    try {
+      const { createSupportTicket } = await import('./services/supportService');
+      const ticket = await createSupportTicket({
+        userId: user.id,
+        userName: user.name,
+        email: user.email,
+        phone: user.phone,
+        category,
+        subject: subject.trim(),
+        description: description.trim(),
+        preferredContact,
+      });
+      setTicketReference(ticket.reference);
+    } catch (submitError: any) {
+      console.error('Unable to create support ticket:', submitError);
+      setError('We could not submit your ticket. Please try again or contact support directly.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (ticketReference) {
+    return (
+      <div className="h-full overflow-y-auto bg-transparent px-6 pb-32 pt-6 hide-scrollbar">
+        <div className="rounded-3xl bg-white p-7 text-center shadow-sm border border-green-100">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-50 text-green-600">
+            <CheckCircle size={30} />
+          </div>
+          <h1 className="font-serif text-2xl font-black text-brand-blue">Ticket submitted</h1>
+          <p className="mt-3 text-sm leading-relaxed text-gray-600">Our support team has received your report. Keep this reference for follow-up:</p>
+          <p className="mt-4 rounded-xl bg-brand-surface px-4 py-3 text-lg font-black tracking-widest text-brand-orange">{ticketReference}</p>
+          <button type="button" onClick={onBack} className="mt-6 w-full rounded-2xl bg-brand-blue py-3.5 text-xs font-black uppercase tracking-widest text-white">Back to profile</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full overflow-y-auto bg-transparent px-5 pb-32 pt-5 hide-scrollbar">
+      <div className="mb-5 flex items-center gap-3">
+        <button type="button" onClick={onBack} title="Back" aria-label="Back" className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-brand-blue shadow border border-gray-100">
+          <ArrowLeft size={20} />
+        </button>
+        <div>
+          <h1 className="font-serif text-2xl font-black text-brand-blue">Contact support</h1>
+          <p className="text-xs text-gray-500">Tell us what went wrong and we will help.</p>
+        </div>
+      </div>
+
+      <div className="mb-5 grid grid-cols-2 gap-3">
+        <a href="mailto:info@christianmatchghana.com" className="rounded-2xl border border-orange-100 bg-white p-4 text-center shadow-sm">
+          <Mail className="mx-auto mb-2 text-brand-orange" size={21} />
+          <span className="block text-[10px] font-black uppercase tracking-wide text-gray-700">Email us</span>
+          <span className="mt-1 block break-all text-[10px] text-brand-orange">info@christianmatchghana.com</span>
+        </a>
+        <a href="https://wa.me/233256023816" target="_blank" rel="noreferrer" className="rounded-2xl border border-green-100 bg-white p-4 text-center shadow-sm">
+          <MessageCircle className="mx-auto mb-2 text-green-600" size={21} />
+          <span className="block text-[10px] font-black uppercase tracking-wide text-gray-700">Phone / WhatsApp</span>
+          <span className="mt-1 block text-[10px] text-green-600">+233 25 602 3816</span>
+        </a>
+      </div>
+
+      <form onSubmit={submitTicket} className="space-y-4 rounded-3xl bg-white p-5 shadow-sm border border-gray-100">
+        <h2 className="text-sm font-black uppercase tracking-widest text-gray-400">Submit a ticket</h2>
+        <div>
+          <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-gray-400">Issue category</label>
+          <select value={category} onChange={(event) => setCategory(event.target.value as typeof category)} className="w-full rounded-2xl bg-gray-50 p-3.5 text-sm font-bold text-gray-800 outline-none">
+            {['Account access', 'Email verification', 'Password reset', 'Profile', 'Messages', 'Payments', 'Other'].map((item) => <option key={item}>{item}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-gray-400">Subject</label>
+          <input value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="What do you need help with?" className="w-full rounded-2xl bg-gray-50 p-3.5 text-sm font-bold text-gray-800 outline-none" required />
+        </div>
+        <div>
+          <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-gray-400">Description</label>
+          <textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Please include useful details, error messages, and what you expected to happen." className="h-36 w-full resize-none rounded-2xl bg-gray-50 p-3.5 text-sm font-medium text-gray-800 outline-none" required />
+        </div>
+        <div>
+          <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-gray-400">Preferred response</label>
+          <select value={preferredContact} onChange={(event) => setPreferredContact(event.target.value as typeof preferredContact)} className="w-full rounded-2xl bg-gray-50 p-3.5 text-sm font-bold text-gray-800 outline-none">
+            <option>Email</option>
+            <option>Phone/WhatsApp</option>
+            <option>Either</option>
+          </select>
+        </div>
+        {error && <p role="alert" className="rounded-xl bg-red-50 px-3 py-2 text-xs font-bold text-red-600">{error}</p>}
+        <button type="submit" disabled={submitting} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand-orange py-3.5 text-xs font-black uppercase tracking-widest text-white shadow-lg disabled:opacity-50">
+          <Send size={16} /> {submitting ? 'Submitting…' : 'Submit ticket'}
+        </button>
+      </form>
+    </div>
+  );
+};
+
 const ProfileView = ({
   user,
   onEdit,
+  onBack,
   onLogout,
   onDeleteAccount,
   onOpenPayment,
   onOpenCommunity,
+  onOpenSettings,
+  onOpenSupport,
 }: {
   user: User;
   onEdit: () => void;
+  onBack: () => void;
   onLogout: () => void;
   onDeleteAccount: () => void;
   onOpenPayment?: () => void;
   onOpenCommunity?: () => void;
+  onOpenSettings?: () => void;
+  onOpenSupport?: () => void;
 }) => {
   const strength = calculateProfileStrength(user);
+  const firstName = (user.name || '').trim().split(/\s+/)[0] || 'there';
+  const initials = (user.name || '').trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase() || 'CM';
   const [showSettings, setShowSettings] = React.useState(false);
   const [isDarkMode, setIsDarkMode] = React.useState(false);
 
@@ -3274,8 +4226,7 @@ const ProfileView = ({
   };
 
   const handleReport = () => {
-    // In a real app, open a modal or navigation
-    alert("Report submitted! We will review this issue shortly.");
+    if (onOpenSupport) onOpenSupport();
   };
 
   return (
@@ -3301,6 +4252,20 @@ const ProfileView = ({
             >
               <Edit2 size={16} /> Edit Profile
             </button>
+            {onOpenSettings && (
+              <>
+                <div className="h-px bg-gray-100 my-1"></div>
+                <button
+                  onClick={() => {
+                    setShowSettings(false);
+                    onOpenSettings();
+                  }}
+                  className="w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-50 text-gray-700 font-bold text-sm"
+                >
+                  <Bell size={16} /> Notification settings
+                </button>
+              </>
+            )}
             {onOpenCommunity && (
               <>
                 <div className="h-px bg-gray-100 my-1"></div>
@@ -3360,74 +4325,80 @@ const ProfileView = ({
         </>
       )}
 
-      {/* Fixed header: centered brand logo with merged settings + logout actions. */}
-      <div className="shrink-0 relative z-30 px-5 pt-5 pb-2">
-        <div className="relative flex items-center justify-center">
-          <Logo size={64} className="drop-shadow-lg rounded-full" />
-          <div className="absolute right-0 flex gap-2">
+      {/* Fixed professional header: rounded branded cover card with an overlapping
+          avatar. Top padding respects the device status-bar safe area so the
+          controls never sit under the phone clock/notch. */}
+      <div className="shrink-0 px-4 cmg-safe-top">
+        <div className="relative">
+          {/* Harmonized controls overlay the cover card. */}
+          <div className="absolute left-4 right-4 top-4 z-40 flex items-center justify-between">
             <button
-              title="Settings"
-              aria-label="Settings"
-              onClick={() => setShowSettings(!showSettings)}
-              className="p-2.5 bg-white/90 text-brand-blue rounded-full border border-gray-100 shadow-lg active:scale-90 transition-transform hover:bg-white"
+              type="button"
+              title="Back"
+              aria-label="Back"
+              onClick={onBack}
+              className="cmg-main-icon-button"
             >
-              <Settings size={18} />
+              <ArrowLeft size={20} />
             </button>
-            <button
-              title="Log out"
-              aria-label="Log out"
-              onClick={onLogout}
-              className="p-2.5 bg-white/90 text-brand-blue rounded-full border border-gray-100 shadow-lg active:scale-90 transition-transform hover:bg-white"
-            >
-              <LogOut size={18} />
-            </button>
+            <div className="flex gap-2">
+              <button
+                title="Settings"
+                aria-label="Settings"
+                onClick={() => setShowSettings(!showSettings)}
+                className="cmg-main-icon-button"
+              >
+                <Settings size={19} />
+              </button>
+              <button
+                title="Log out"
+                aria-label="Log out"
+                onClick={onLogout}
+                className="cmg-main-icon-button"
+              >
+                <LogOut size={19} />
+              </button>
+            </div>
+          </div>
+
+          <div className="cmg-profile-banner relative h-40 w-full overflow-hidden rounded-[2rem] shadow-[0_18px_44px_rgba(9,40,71,0.22)]"></div>
+        </div>
+
+        {/* Avatar overlapping the cover card. */}
+        <div className="flex justify-center -mt-14">
+          <div className="cmg-profile-avatar flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border-4 border-white shadow-[0_15px_40px_rgba(9,40,71,0.25)] z-20">
+            {user.photos?.[0] ? (
+              <img src={user.photos[0]} className="h-full w-full object-cover" alt="Profile" />
+            ) : (
+              <span className="text-3xl font-black tracking-tight text-white">{initials}</span>
+            )}
           </div>
         </div>
       </div>
 
       {/* Scrollable body */}
       <div className="flex-1 overflow-y-auto pb-40 hide-scrollbar relative z-10">
-      {/* Cover photo card with overlapping profile photo, within the cream body. */}
-      <div className="px-6 pt-4">
-        <div className="relative rounded-3xl overflow-hidden h-40 bg-brand-blue shadow-lg">
-          <img
-            src={user.photos?.[1] || user.photos?.[0] || 'https://images.unsplash.com/photo-1506748686214-e9df14d4d9d0?w=800&h=600&fit=crop'}
-            className="w-full h-full object-cover opacity-90"
-            alt="Cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
-        </div>
-        <div className="flex justify-center -mt-14">
-          <div className="border-4 border-white rounded-full overflow-hidden w-28 h-28 shadow-[0_15px_40px_rgba(0,0,0,0.25)] bg-white z-20">
-            <img
-              src={user.photos?.[0] || 'https://images.unsplash.com/photo-1511367461989-f85a21fda167?w=400&h=400&fit=crop'}
-              className="w-full h-full object-cover"
-              alt="Profile"
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="pt-4 p-8 space-y-8 pb-32">
-        {/* Identity Title */}
-        <div className="text-center relative">
-          <h1 className="text-3xl font-black text-gray-900 flex items-center justify-center gap-3 tracking-tighter">
-            {user.name}
+        {/* Intuitive welcome */}
+        <div className="flex flex-col items-center px-6 pt-4">
+          <p className="text-[11px] font-black uppercase tracking-[0.3em] text-brand-orange">Welcome back</p>
+          <h1 className="mt-1 flex items-center gap-2 text-2xl font-black tracking-tight text-gray-900">
+            {firstName}
+            <span className="text-xl" aria-hidden>👋</span>
             {user.isVerified && (
-              <div className="text-blue-500 bg-blue-50 p-1 rounded-full">
-                <CheckCircle size={18} />
-              </div>
+              <span className="text-blue-500 bg-blue-50 p-1 rounded-full"><CheckCircle size={15} /></span>
             )}
           </h1>
-          <p className="text-gray-400 font-bold flex items-center justify-center gap-2 uppercase tracking-widest text-[10px] mt-2 italic">
-            <MapPin size={14} className="text-brand-orange" /> {user.location}
+          <p className="mt-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-gray-400">
+            <MapPin size={13} className="text-brand-orange" /> {user.location}
           </p>
           {strength.percentage < 100 && (
-            <div className="absolute -top-1 right-0 bg-brand-orange/10 text-brand-orange px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-widest flex items-center gap-1">
-              <Award size={10} /> {strength.percentage}% Built
+            <div className="mt-3 inline-flex items-center gap-1 rounded-full bg-brand-orange/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-brand-orange">
+              <Award size={11} /> {strength.percentage}% Profile built
             </div>
           )}
         </div>
+
+      <div className="pt-6 p-8 space-y-8 pb-32">
 
         {/* Profile Completeness Indicator (Gamified) */}
         {strength.percentage < 100 ? (
@@ -3798,7 +4769,7 @@ const ProfileView = ({
               </div>
               <div>
                 <div className="text-[11px] text-gray-500 font-black">
-                  Intend to Marry?
+                  Marriage intention
                 </div>
                 <div className="text-sm font-bold text-gray-900">
                   {(user as any).intendToMarry || "-"}
@@ -3971,38 +4942,37 @@ const MessageThreadView = ({
   const [isSending, setIsSending] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
-  const [isPartnerOnline, setIsPartnerOnline] = useState(false);
+  const [partnerPresence, setPartnerPresence] = useState<PresenceInfo>({ isOnline: false, lastSeen: null });
 
   const [partnerProfile, setPartnerProfile] = useState<User | null>(null);
 
-  // Subscribe to partner's online presence and profile status
+  // Subscribe to the partner's realtime connection-backed presence.
   useEffect(() => {
     if (!thread.partnerId) return;
-
     let unsubscribe: (() => void) | undefined;
+    try {
+      unsubscribe = subscribeToPresence(thread.partnerId, setPartnerPresence);
+    } catch (error) {
+      console.error('Error listening to partner presence:', error);
+    }
+    return () => unsubscribe?.();
+  }, [thread.partnerId]);
 
-    const listenToPartnerStatus = async () => {
+  useEffect(() => {
+    if (!thread.partnerId) return;
+    let unsubscribe: (() => void) | undefined;
+    void (async () => {
       try {
         const { doc, onSnapshot } = await import('firebase/firestore');
         const { db } = await import('./firebase');
-        const partnerRef = doc(db, 'users', thread.partnerId);
-        unsubscribe = onSnapshot(partnerRef, (docSnap) => {
-          if (docSnap.exists()) {
-            const data = docSnap.data() as User;
-            setIsPartnerOnline(!!data.isOnline);
-            setPartnerProfile(data);
-          }
+        unsubscribe = onSnapshot(doc(db, 'users', thread.partnerId), (snapshot) => {
+          if (snapshot.exists()) setPartnerProfile(snapshot.data() as User);
         });
-      } catch (err) {
-        console.error('Error listening to partner online status:', err);
+      } catch (error) {
+        console.error('Error loading partner profile:', error);
       }
-    };
-
-    listenToPartnerStatus();
-
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
+    })();
+    return () => unsubscribe?.();
   }, [thread.partnerId]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -4280,8 +5250,8 @@ const MessageThreadView = ({
             <h3 className="font-bold text-sm text-gray-900">
               {thread.partnerName || `Partner ${thread.partnerId}`}
             </h3>
-            <p className={`text-[9px] font-black uppercase tracking-widest ${isPartnerOnline ? 'text-green-500' : 'text-gray-400'}`}>
-              {isPartnerOnline ? 'Active now' : 'Offline'}
+            <p className={`text-[9px] font-black uppercase tracking-widest ${partnerPresence.isOnline ? 'text-green-500' : 'text-gray-400'}`}>
+              {formatPresenceLabel(partnerPresence)}
             </p>
           </div>
         </div>
@@ -5236,34 +6206,16 @@ const ChatListItem = ({
   chat: ChatThread;
   onChatSelect: (id: string) => void;
 }) => {
-  const [isOnline, setIsOnline] = useState(false);
+  const [presence, setPresence] = useState<PresenceInfo>({ isOnline: false, lastSeen: null });
 
   useEffect(() => {
     if (!chat.partnerId) return;
-
-    let unsubscribe: (() => void) | undefined;
-
-    const listenToPartnerStatus = async () => {
-      try {
-        const { doc, onSnapshot } = await import('firebase/firestore');
-        const { db } = await import('./firebase');
-        const partnerRef = doc(db, 'users', chat.partnerId);
-        unsubscribe = onSnapshot(partnerRef, (docSnap) => {
-          if (docSnap.exists()) {
-            const data = docSnap.data();
-            setIsOnline(!!data.isOnline);
-          }
-        });
-      } catch (err) {
-        console.error('Error listening to partner online status in list:', err);
-      }
-    };
-
-    listenToPartnerStatus();
-
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
+    try {
+      return subscribeToPresence(chat.partnerId, setPresence);
+    } catch (error) {
+      console.error('Error listening to partner presence in list:', error);
+      return undefined;
+    }
   }, [chat.partnerId]);
 
   return (
@@ -5277,7 +6229,7 @@ const ChatListItem = ({
           className="w-full h-full object-cover"
           alt={chat.partnerName || 'Partner'}
         />
-        {isOnline && (
+        {presence.isOnline && (
           <div className="absolute bottom-1 right-1 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-white"></div>
         )}
       </div>
@@ -5286,6 +6238,9 @@ const ChatListItem = ({
           <h3 className="font-bold text-gray-900 text-sm">
             {chat.partnerName || `Partner ${chat.partnerId}`}
           </h3>
+          <p className={`text-[9px] font-bold ${presence.isOnline ? 'text-green-500' : 'text-gray-400'}`}>
+            {formatPresenceLabel(presence)}
+          </p>
           <span className="text-[10px] text-gray-400 font-black uppercase tracking-widest">
             {chat.timestamp}
           </span>
@@ -5979,6 +6934,76 @@ export const isSubscriptionActive = (user: User | null | undefined): boolean => 
   }
 };
 
+const ForcedPasswordChangeView: React.FC<{
+  user: User;
+  onComplete: (user: User) => void;
+  onLogout: () => void;
+}> = ({ user, onComplete, onLogout }) => {
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError('');
+    if (newPassword.length < 12) {
+      setError('Use at least 12 characters for your new password.');
+      return;
+    }
+    if (!/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/\d/.test(newPassword) || !/[^A-Za-z0-9]/.test(newPassword)) {
+      setError('Use uppercase, lowercase, a number, and a special character.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError('The passwords do not match.');
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const { auth, db } = await import('./firebase');
+      const { updatePassword } = await import('firebase/auth');
+      const { doc, updateDoc, serverTimestamp } = await import('firebase/firestore');
+      if (!auth.currentUser) throw new Error('Your session has expired. Please sign in again.');
+      await updatePassword(auth.currentUser, newPassword);
+      await updateDoc(doc(db, 'users', user.id), {
+        mustChangePassword: false,
+        updatedAt: serverTimestamp(),
+      });
+      const { httpsCallable } = await import('firebase/functions');
+      const { functions } = await import('./firebase');
+      await httpsCallable(functions, 'completeAdminPasswordChange')();
+      onComplete({ ...user, mustChangePassword: false });
+    } catch (changeError: any) {
+      setError(changeError?.message || 'Unable to change your password. Please sign in again and retry.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="cmg-stage min-h-screen flex items-center justify-center p-4">
+      <section className="w-full max-w-md rounded-[2rem] bg-white p-8 shadow-2xl">
+        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-orange/10 text-brand-orange">
+          <Lock size={30} />
+        </div>
+        <p className="text-center text-[10px] font-black uppercase tracking-[0.25em] text-brand-orange">Security required</p>
+        <h1 className="mt-2 text-center text-2xl font-black text-gray-900">Create your new password</h1>
+        <p className="mt-3 text-center text-sm leading-6 text-gray-500">Your temporary password must be replaced before you can access Christian Match Ghana.</p>
+        <form onSubmit={submit} className="mt-7 space-y-4">
+          <label className="block text-sm font-bold text-gray-700">New password<input type="password" autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} className="mt-2 w-full rounded-xl border border-gray-200 p-3 outline-none focus:border-brand-orange" required /></label>
+          <label className="block text-sm font-bold text-gray-700">Confirm new password<input type="password" autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} className="mt-2 w-full rounded-xl border border-gray-200 p-3 outline-none focus:border-brand-orange" required /></label>
+          <p className="text-xs text-gray-500">Minimum 12 characters with uppercase, lowercase, number, and special character.</p>
+          {error && <p role="alert" className="rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{error}</p>}
+          <button type="submit" disabled={busy} className="w-full rounded-xl bg-brand-orange py-3 font-black text-white shadow-lg shadow-brand-orange/20 disabled:opacity-50">{busy ? 'Updating…' : 'Set new password'}</button>
+          <button type="button" onClick={onLogout} className="w-full rounded-xl py-2 text-sm font-bold text-gray-500">Sign out</button>
+        </form>
+      </section>
+    </div>
+  );
+};
+
 const App = () => {
   const [user, setUser] = useState<User | null>(null);
   const [currentView, setCurrentView] = useState<ViewState>("AUTH");
@@ -6165,14 +7190,20 @@ const App = () => {
   // Setup Push Notifications
   useEffect(() => {
     if (!user?.id) return;
+    const preferences = {
+      ...DEFAULT_NOTIFICATION_PREFERENCES,
+      ...(user.notificationPreferences || {}),
+      securityEmails: true as const,
+    };
+    if (!preferences.push) return;
     
     const initPush = async () => {
       try {
         const { setupPushNotifications } = await import('./services/notificationService');
         await setupPushNotifications(user.id, (payload) => {
-           // Handle foreground notifications
-           const title = payload.notification?.title || payload.title || "New Notification";
-           showNotify(title, "success");
+          if (!preferences.inApp) return;
+          const title = payload.notification?.title || payload.title || "New Notification";
+          showNotify(title, "success");
         });
       } catch (e) {
         console.error("Failed to initialize push notifications", e);
@@ -6180,7 +7211,7 @@ const App = () => {
     };
     
     initPush();
-  }, [user?.id]);
+  }, [user?.id, user?.notificationPreferences?.push, user?.notificationPreferences?.inApp]);
 
   // Fetch all users for Browse view
   useEffect(() => {
@@ -6359,7 +7390,9 @@ const App = () => {
             const viewParam = params.get('view');
             const chatIdParam = params.get('chatId');
             
-            if (parsedUser.age === 0) {
+            if (parsedUser.mustChangePassword) {
+              setCurrentView("CHANGE_PASSWORD");
+            } else if (parsedUser.age === 0) {
               setCurrentView("ONBOARDING");
             } else if (viewParam === 'CHAT') {
               setCurrentView('CHAT');
@@ -6377,7 +7410,9 @@ const App = () => {
             if (freshUser) {
               freshUser.id = userId;
               setUser(freshUser);
-              if (freshUser.age === 0) {
+              if (freshUser.mustChangePassword) {
+                setCurrentView("CHANGE_PASSWORD");
+              } else if (freshUser.age === 0) {
                 setCurrentView("ONBOARDING");
               }
             }
@@ -6406,45 +7441,26 @@ const App = () => {
     }
   }, [user]);
 
-  // Presence system: set user online status in Firestore
+  // Realtime Database presence is authoritative for online state. Its
+  // onDisconnect handler covers tab closure, PWA suspension, and network loss;
+  // visibility/network events and heartbeats cover active-session changes.
   useEffect(() => {
     if (!user?.id) return;
-
-    let active = true;
-
-    const setOnlineStatus = async (online: boolean) => {
-      try {
-        const { updateUserDocument } = await import('./services/userService');
-        if (active) {
-          await updateUserDocument(user.id, { isOnline: online });
-        }
-      } catch (error) {
-        console.error(`Error setting presence to ${online}:`, error);
-      }
-    };
-
-    setOnlineStatus(true);
-
-    const handleUnload = async () => {
-      try {
-        const { doc, updateDoc } = await import('firebase/firestore');
-        const { db } = await import('./firebase');
-        const userRef = doc(db, 'users', user.id);
-        await updateDoc(userRef, { isOnline: false });
-      } catch (error) {
-        console.error('Error setting offline status on unload:', error);
-      }
-    };
-
-    window.addEventListener('beforeunload', handleUnload);
-
-    return () => {
-      active = false;
-      window.removeEventListener('beforeunload', handleUnload);
-      setOnlineStatus(false);
-    };
+    return startUserPresence(user.id);
   }, [user?.id]);
 
+
+  if (currentView === "CHANGE_PASSWORD" && user)
+    return (
+      <ForcedPasswordChangeView
+        user={user}
+        onComplete={(updatedUser) => {
+          setUser(updatedUser);
+          setCurrentView(updatedUser.age === 0 ? "ONBOARDING" : "PROFILE");
+        }}
+        onLogout={handleLogout}
+      />
+    );
 
   if (currentView === "AUTH")
     return (
@@ -6482,6 +7498,10 @@ const App = () => {
               initialMode={authMode}
               onLogin={(u) => {
                 setUser(u as User);
+                if (u.mustChangePassword) {
+                  setCurrentView("CHANGE_PASSWORD");
+                  return;
+                }
                 const params = new URLSearchParams(window.location.search);
                 const viewParam = params.get('view');
                 const chatIdParam = params.get('chatId');
@@ -6528,6 +7548,10 @@ const App = () => {
             </button>
           </div>
           <OnboardingView
+            userId={user?.id}
+            initialName={user?.name || ""}
+            initialPhone={user?.phone || ""}
+            initialDraft={(user as any)?.profileDraft}
             onCancel={handleLogout}
             onComplete={async (data) => {
               if (user?.id) {
@@ -6577,10 +7601,16 @@ const App = () => {
                     }
                   }
 
-                  const payload = { ...data, photos: uploadedPhotos };
+                  const { optionalPin, ...profileData } = data;
+                  const payload = { ...profileData, photos: uploadedPhotos, profileDraft: null };
                   const { updateUserDocument } = await import('./services/userService');
                   await updateUserDocument(uid, payload);
-                  setUser((prev) => ({ ...prev!, ...payload }));
+                  if (optionalPin) {
+                    const { setUserPin } = await import('./services/pinAuthService');
+                    await setUserPin(optionalPin);
+                  }
+                  localStorage.removeItem(`cmg_onboarding_draft_${uid}`);
+                  setUser((prev) => ({ ...prev!, ...payload, ...(optionalPin ? { hasPin: true } : {}) }));
                 } catch (e) {
                   console.error("Failed to save onboarding data:", e);
                   showNotify("Failed to save onboarding details", "error");
@@ -6815,16 +7845,32 @@ const App = () => {
           }}
         />
       )}
+      {currentView === "SETTINGS" && user && (
+        <SettingsView
+          user={user}
+          onBack={() => setCurrentView("PROFILE")}
+          onSave={setUser}
+        />
+      )}
+      {currentView === "SUPPORT" && user && (
+        <SupportView
+          user={user}
+          onBack={() => setCurrentView("PROFILE")}
+        />
+      )}
       {currentView === "PROFILE" && user && (
         <ProfileView
           user={user}
           onEdit={() => setCurrentView("EDIT_PROFILE")}
+          onBack={() => setCurrentView("BROWSE")}
           onLogout={handleLogout}
           onDeleteAccount={() => {
             setShowDeleteAccountModal(true);
           }}
           onOpenPayment={() => setShowPaymentModal(true)}
           onOpenCommunity={() => setCurrentView("COMMUNITY")}
+          onOpenSettings={() => setCurrentView("SETTINGS")}
+          onOpenSupport={() => setCurrentView("SUPPORT")}
         />
       )}
       {currentView === "EDIT_PROFILE" && user && (

@@ -5,8 +5,12 @@ const { getAuth } = require("firebase-admin/auth");
 const { getMessaging } = require("firebase-admin/messaging");
 const { getStorage } = require("firebase-admin/storage");
 const crypto = require("crypto");
+const { promisify } = require("util");
+const scryptAsync = promisify(crypto.scrypt);
 const nodemailer = require("nodemailer");
+const { sendSmsNotification } = require("./smsService");
 const path = require("path");
+const { PERMISSIONS, DEFAULT_GROUPS, permissionsFromGroups } = require("./rbac");
 
 admin.initializeApp();
 
@@ -14,6 +18,297 @@ const db = getFirestore();
 const auth = getAuth();
 const messaging = getMessaging();
 const storage = getStorage();
+
+const LEGACY_SUPER_ADMIN_EMAILS = new Set([
+  'christianmatchghanaltd@gmail.com',
+  'admin@example.com',
+]);
+const PIN_PATTERN = /^\d{4,6}$/;
+
+async function hashUserPin(pin) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const derived = await scryptAsync(pin, salt, 64);
+  return `scrypt$${salt}$${Buffer.from(derived).toString('hex')}`;
+}
+
+async function verifyUserPin(pin, encoded) {
+  if (typeof encoded !== 'string' || !encoded.startsWith('scrypt$')) return false;
+  const [, salt, expectedHex] = encoded.split('$');
+  if (!salt || !expectedHex) return false;
+  const derived = await scryptAsync(pin, salt, 64);
+  const expected = Buffer.from(expectedHex, 'hex');
+  const actual = Buffer.from(derived);
+  return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
+}
+
+function isLegacySuperAdmin(context) {
+  return Boolean(context.auth?.token?.email && LEGACY_SUPER_ADMIN_EMAILS.has(context.auth.token.email));
+}
+
+async function getAdminAccess(uid) {
+  const snapshot = await db.collection('adminUsers').doc(uid).get();
+  return snapshot.exists ? snapshot.data() : null;
+}
+
+async function requireAdminPermission(context, permission) {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Authentication required.');
+  if (isLegacySuperAdmin(context)) return { isSuperAdmin: true, permissions: PERMISSIONS };
+  const access = await getAdminAccess(context.auth.uid);
+  if (!access || (!access.isSuperAdmin && !(access.permissions || []).includes(permission))) {
+    throw new functions.https.HttpsError('permission-denied', 'You do not have permission for this action.');
+  }
+  return access;
+}
+
+exports.setUserPin = functions.https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Authentication required.');
+  const newPin = String(data?.newPin || '').trim();
+  const currentCredential = data?.currentCredential == null ? '' : String(data.currentCredential).trim();
+  if (!PIN_PATTERN.test(newPin)) throw new functions.https.HttpsError('invalid-argument', 'PIN must contain 4 to 6 digits.');
+  const userRef = db.collection('users').doc(context.auth.uid);
+  const userSnapshot = await userRef.get();
+  const userData = userSnapshot.exists ? userSnapshot.data() : {};
+  if (userData.pinHash && !currentCredential) throw new functions.https.HttpsError('invalid-argument', 'Enter your current PIN to change it.');
+  if (userData.pinHash && !(await verifyUserPin(currentCredential, userData.pinHash))) throw new functions.https.HttpsError('permission-denied', 'Current PIN is incorrect.');
+  await userRef.set({ pinHash: await hashUserPin(newPin), hasPin: true, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  await db.collection('adminAuditLogs').add({ actorId: context.auth.uid, actorEmail: context.auth.token.email || null, action: userData.pinHash ? 'user.pin.changed' : 'user.pin.created', targetId: context.auth.uid, details: { operation: userData.pinHash ? 'change' : 'create' }, createdAt: FieldValue.serverTimestamp() });
+  return { hasPin: true };
+});
+
+exports.loginWithPin = functions.https.onCall(async (data, context) => {
+  const identifier = String(data?.identifier || '').trim().toLowerCase();
+  const pin = String(data?.pin || '').trim();
+  if (!identifier || !PIN_PATTERN.test(pin)) throw new functions.https.HttpsError('invalid-argument', 'Enter a valid email/username and a 4–6 digit PIN.');
+  let uid = null;
+  if (identifier.includes('@')) {
+    const record = await auth.getUserByEmail(identifier).catch(() => null);
+    uid = record?.uid || null;
+  } else {
+    const adminSnapshot = await db.collection('adminUsers').where('loginName', '==', identifier).limit(1).get();
+    uid = adminSnapshot.empty ? null : adminSnapshot.docs[0].data().userId;
+  }
+  if (!uid) throw new functions.https.HttpsError('unauthenticated', 'Invalid login credentials.');
+  const [authRecord, userSnapshot] = await Promise.all([auth.getUser(uid), db.collection('users').doc(uid).get()]);
+  const userData = userSnapshot.exists ? userSnapshot.data() : {};
+  if (!authRecord.emailVerified || userData.isBlocked === true || userData.status === 'Blocked') throw new functions.https.HttpsError('permission-denied', 'This account cannot sign in.');
+  if (!(await verifyUserPin(pin, userData.pinHash))) throw new functions.https.HttpsError('unauthenticated', 'Invalid login credentials.');
+  return { token: await auth.createCustomToken(uid, { pinLogin: true }) };
+});
+
+exports.resolveLoginIdentifier = functions.https.onCall(async (data, context) => {
+  const identifier = String(data?.identifier || '').trim().toLowerCase();
+  if (!identifier || identifier.includes('@')) {
+    throw new functions.https.HttpsError('invalid-argument', 'A username is required.');
+  }
+  if (!/^[a-z0-9][a-z0-9._-]{2,31}$/.test(identifier)) {
+    throw new functions.https.HttpsError('invalid-argument', 'Invalid username format.');
+  }
+  const snapshot = await db.collection('adminUsers').where('loginName', '==', identifier).limit(1).get();
+  if (snapshot.empty) {
+    throw new functions.https.HttpsError('not-found', 'Invalid login credentials.');
+  }
+  const email = snapshot.docs[0].data().email;
+  if (typeof email !== 'string' || !email) {
+    throw new functions.https.HttpsError('failed-precondition', 'This account has no valid login identity.');
+  }
+  return { email };
+});
+
+exports.completeAdminPasswordChange = functions.https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Authentication required.');
+  const access = await getAdminAccess(context.auth.uid);
+  if (!access) throw new functions.https.HttpsError('permission-denied', 'Administrator access is required.');
+  if (access.mustChangePassword !== true) return { updated: false };
+  const now = FieldValue.serverTimestamp();
+  const batch = db.batch();
+  batch.update(db.collection('adminUsers').doc(context.auth.uid), { mustChangePassword: false, updatedAt: now });
+  batch.set(db.collection('users').doc(context.auth.uid), { mustChangePassword: false, updatedAt: now }, { merge: true });
+  batch.set(db.collection('adminAuditLogs').doc(), {
+    actorId: context.auth.uid,
+    actorEmail: context.auth.token.email || null,
+    action: 'admin.password.first_login_changed',
+    targetId: context.auth.uid,
+    details: {},
+    createdAt: now,
+  });
+  await batch.commit();
+  return { updated: true };
+});
+
+async function recordAdminAudit(context, action, targetId, details = {}) {
+  await db.collection('adminAuditLogs').add({
+    actorId: context.auth.uid,
+    actorEmail: context.auth.token.email || null,
+    action,
+    targetId: targetId || null,
+    details,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+}
+
+async function ensureDefaultGroups() {
+  const batch = db.batch();
+  for (const group of DEFAULT_GROUPS) {
+    const ref = db.collection('adminGroups').doc(group.id);
+    const snapshot = await ref.get();
+    if (!snapshot.exists) batch.set(ref, { ...group, system: true, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+  }
+  await batch.commit();
+}
+
+exports.adminListAccessControl = functions.https.onCall(async (data, context) => {
+  await requireAdminPermission(context, 'groups.manage');
+  await ensureDefaultGroups();
+  const [groupsSnapshot, usersSnapshot] = await Promise.all([
+    db.collection('adminGroups').orderBy('name').get(),
+    db.collection('adminUsers').get(),
+  ]);
+  return {
+    permissions: PERMISSIONS,
+    groups: groupsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
+    users: usersSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
+  };
+});
+
+exports.adminUpsertGroup = functions.https.onCall(async (data, context) => {
+  const access = await requireAdminPermission(context, 'groups.manage');
+  const groupId = String(data?.groupId || '').trim();
+  const name = String(data?.name || '').trim();
+  const description = String(data?.description || '').trim();
+  const permissions = Array.isArray(data?.permissions) ? data.permissions.filter((item) => PERMISSIONS.includes(item)) : [];
+  if (!name || permissions.length === 0) throw new functions.https.HttpsError('invalid-argument', 'Group name and permissions are required.');
+  if (!access.isSuperAdmin && permissions.some((permission) => !(access.permissions || []).includes(permission))) {
+    throw new functions.https.HttpsError('permission-denied', 'You cannot grant permissions you do not possess.');
+  }
+  if (name === 'Super Admin' && !access.isSuperAdmin) throw new functions.https.HttpsError('permission-denied', 'Only Super Admin can modify the Super Admin group.');
+  const id = groupId || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  if (id === 'super-admins' && !access.isSuperAdmin) throw new functions.https.HttpsError('permission-denied', 'Only Super Admin can modify the Super Admin group.');
+  await db.collection('adminGroups').doc(id).set({ id, name, description, permissions, system: id === 'super-admins', updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  await recordAdminAudit(context, groupId ? 'admin.group.updated' : 'admin.group.created', id, { name, permissions });
+  return { id, name, description, permissions };
+});
+
+exports.adminAssignUserGroups = functions.https.onCall(async (data, context) => {
+  const access = await requireAdminPermission(context, 'groups.manage');
+  const targetUserId = String(data?.userId || '').trim();
+  const groupIds = Array.isArray(data?.groupIds) ? data.groupIds.map(String) : [];
+  if (!targetUserId) throw new functions.https.HttpsError('invalid-argument', 'A user ID is required.');
+  if (groupIds.includes('super-admins') && !access.isSuperAdmin) throw new functions.https.HttpsError('permission-denied', 'Only Super Admin can grant Super Admin access.');
+  const groupsSnapshot = await db.collection('adminGroups').get();
+  const groups = groupsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  const validIds = new Set(groups.map((group) => group.id));
+  if (groupIds.some((groupId) => !validIds.has(groupId))) throw new functions.https.HttpsError('invalid-argument', 'One or more groups do not exist.');
+
+  const targetRef = db.collection('adminUsers').doc(targetUserId);
+  const targetSnapshot = await targetRef.get();
+  const target = targetSnapshot.exists ? targetSnapshot.data() : {};
+  if (target.isSuperAdmin && !groupIds.includes('super-admins')) {
+    throw new functions.https.HttpsError('failed-precondition', 'The Super Admin role cannot be removed through this operation.');
+  }
+  if (groupIds.includes('super-admins') && access.isSuperAdmin !== true) {
+    throw new functions.https.HttpsError('permission-denied', 'Only Super Admin can grant Super Admin access.');
+  }
+
+  const permissions = permissionsFromGroups(groups, groupIds);
+  if (!access.isSuperAdmin && permissions.some((permission) => !(access.permissions || []).includes(permission))) {
+    throw new functions.https.HttpsError('permission-denied', 'You cannot assign a group that grants permissions you do not possess.');
+  }
+  await targetRef.set({ userId: targetUserId, groupIds, permissions, isSuperAdmin: groupIds.includes('super-admins'), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  await recordAdminAudit(context, 'admin.user.groups.updated', targetUserId, { groupIds, permissions });
+  return { userId: targetUserId, groupIds, permissions, isSuperAdmin: groupIds.includes('super-admins') };
+});
+
+exports.adminCreateAdministrator = functions.https.onCall(async (data, context) => {
+  const access = await requireAdminPermission(context, 'permissions.manage');
+  if (access.isSuperAdmin !== true) {
+    throw new functions.https.HttpsError('permission-denied', 'Only a Super Admin can create administrators.');
+  }
+
+  const email = String(data?.email || '').trim().toLowerCase();
+  const loginName = String(data?.loginName || '').trim().toLowerCase();
+  const displayName = String(data?.displayName || '').trim();
+  const password = String(data?.password || '');
+  if (!/^\S+@\S+\.\S+$/.test(email) || !/^[a-z0-9][a-z0-9._-]{2,31}$/.test(loginName) || !displayName || password.length < 12) {
+    throw new functions.https.HttpsError('invalid-argument', 'A valid username, email, display name, and password of at least 12 characters are required.');
+  }
+
+  let createdUser = null;
+  try {
+    const existingAlias = await db.collection('adminUsers').where('loginName', '==', loginName).limit(1).get();
+    if (!existingAlias.empty) throw new functions.https.HttpsError('already-exists', 'That administrator username is already in use.');
+    createdUser = await auth.createUser({ email, password, displayName, emailVerified: true, disabled: false });
+    await ensureDefaultGroups();
+    const superAdminGroup = await db.collection('adminGroups').doc('super-admins').get();
+    const permissions = superAdminGroup.exists && Array.isArray(superAdminGroup.data().permissions)
+      ? superAdminGroup.data().permissions
+      : PERMISSIONS;
+    const now = FieldValue.serverTimestamp();
+    const batch = db.batch();
+    batch.set(db.collection('adminUsers').doc(createdUser.uid), {
+      userId: createdUser.uid,
+      email,
+      loginName,
+      displayName,
+      groupIds: ['super-admins'],
+      permissions,
+      isSuperAdmin: true,
+      mustChangePassword: true,
+      createdBy: context.auth.uid,
+      createdAt: now,
+      updatedAt: now,
+    });
+    batch.set(db.collection('users').doc(createdUser.uid), {
+      id: createdUser.uid,
+      email,
+      name: displayName,
+      role: 'Admin',
+      status: 'Active',
+      isVerified: true,
+      verificationStatus: 'verified',
+      isContactVerified: false,
+      isPremium: false,
+      subscriptionStatus: 'expired',
+      subscriptionStartDate: null,
+      subscriptionEndDate: null,
+      mustChangePassword: true,
+      age: 0,
+      gender: '',
+      country: 'Ghana',
+      location: '',
+      bio: '',
+      photos: [],
+      denomination: '',
+      termsAccepted: true,
+      termsAcceptedAt: new Date().toISOString(),
+      createdAt: now,
+      updatedAt: now,
+    }, { merge: true });
+    batch.set(db.collection('adminAuditLogs').doc(), {
+      actorId: context.auth.uid,
+      actorEmail: context.auth.token.email || null,
+      action: 'admin.user.created',
+      targetId: createdUser.uid,
+      details: { email, displayName, groupIds: ['super-admins'], mustChangePassword: true, isPremium: false },
+      createdAt: now,
+    });
+    await batch.commit();
+    return { userId: createdUser.uid, loginName, email, displayName, isSuperAdmin: true, mustChangePassword: true, isPremium: false };
+  } catch (error) {
+    if (createdUser) await auth.deleteUser(createdUser.uid).catch(() => undefined);
+    if (error instanceof functions.https.HttpsError) throw error;
+    if (error?.code === 'auth/email-already-exists') {
+      throw new functions.https.HttpsError('already-exists', 'An account with this email already exists.');
+    }
+    console.error('Unable to create administrator:', error);
+    throw new functions.https.HttpsError('internal', 'Unable to create administrator securely.');
+  }
+});
+
+exports.adminListAuditLogs = functions.https.onCall(async (data, context) => {
+  await requireAdminPermission(context, 'audit.view');
+  const snapshot = await db.collection('adminAuditLogs').orderBy('createdAt', 'desc').limit(100).get();
+  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+});
 
 // ----------------------------------------------------------------------------
 // PAYSTACK WEBHOOK HANDLER
@@ -185,6 +480,12 @@ exports.onMessageSent = functions.firestore
       }
 
       const userData = userDoc.data();
+      const notificationPreferences = {
+        push: userData.notificationPreferences?.push !== false,
+        email: userData.notificationPreferences?.email !== false,
+        sms: userData.notificationPreferences?.sms === true && userData.smsNotificationsEnabled === true,
+        newChatMessages: userData.notificationPreferences?.newChatMessages !== false,
+      };
       const senderName = (chatData.participantDetails && chatData.participantDetails[senderId]?.name) || 'Someone';
       const receiverName = userData.name || 'User';
 
@@ -196,7 +497,7 @@ exports.onMessageSent = functions.firestore
       if (fcmToken) tokens.push(fcmToken);
       if (webFcmToken) tokens.push(webFcmToken);
 
-      if (tokens.length > 0) {
+      if (notificationPreferences.push && notificationPreferences.newChatMessages && tokens.length > 0) {
         const payload = {
           notification: {
             title: `New message from ${senderName}`,
@@ -223,7 +524,7 @@ exports.onMessageSent = functions.firestore
 
       // 2. Send Email Notification if email is available
       const email = userData.email;
-      if (email) {
+      if (notificationPreferences.email && notificationPreferences.newChatMessages && email) {
         const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
         const smtpPort = parseInt(process.env.SMTP_PORT || '465');
         const smtpSecure = process.env.SMTP_SECURE === 'true' || smtpPort === 465;
@@ -360,6 +661,14 @@ exports.onMessageSent = functions.firestore
         }
       } else {
         console.warn(`No email found for receiver ${receiverId}`);
+      }
+
+      // SMS is intentionally opt-in and deferred until an SMS gateway adapter is supplied.
+      if (notificationPreferences.sms && notificationPreferences.newChatMessages && userData.phone) {
+        await sendSmsNotification({
+          to: userData.phone,
+          message: `New message from ${senderName} on Christian Match Ghana: ${message.text || 'Open the app to reply.'}`,
+        });
       }
 
       return null;

@@ -5,7 +5,7 @@
  */
 
 // ViewState governs the main navigation routing within the single-page application
-export type ViewState = 'AUTH' | 'ONBOARDING' | 'BROWSE' | 'COMMUNITY' | 'CHAT' | 'PROFILE' | 'SETTINGS' | 'LIKES' | 'EDIT_PROFILE' | 'VERIFICATION' | 'CHURCH_DETAILS' | 'MATCHES' | 'FRIENDS' | 'CALL';
+export type ViewState = 'AUTH' | 'ONBOARDING' | 'CHANGE_PASSWORD' | 'BROWSE' | 'COMMUNITY' | 'CHAT' | 'PROFILE' | 'SETTINGS' | 'SUPPORT' | 'LIKES' | 'EDIT_PROFILE' | 'VERIFICATION' | 'CHURCH_DETAILS' | 'MATCHES' | 'FRIENDS' | 'CALL';
 
 // FaithMoment represents a temporary photo or video update (Story feature)
 export interface FaithMoment {
@@ -100,14 +100,43 @@ export interface User {
   // Blocked users - stores IDs of users blocked by this user
   blockedUsers?: string[];
 
+  // Administrative onboarding/security
+  mustChangePassword?: boolean;
+  hasPin?: boolean;
+
   // System Metadata
   phone?: string;
+  smsNotificationsEnabled?: boolean;
+  notificationPreferences?: NotificationPreferences;
   createdAt?: any;
   updatedAt?: any;
+  profileDraft?: Record<string, any> | null;
   isBlocked?: boolean; // Admin blocked status
   isOnline?: boolean;
 }
 
+
+export interface NotificationPreferences {
+  inApp: boolean;
+  push: boolean;
+  email: boolean;
+  sms: boolean;
+  newChatMessages: boolean;
+  connectionRequests: boolean;
+  verificationReminders: boolean;
+  securityEmails: boolean;
+}
+
+export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
+  inApp: true,
+  push: true,
+  email: true,
+  sms: false,
+  newChatMessages: true,
+  connectionRequests: true,
+  verificationReminders: true,
+  securityEmails: true,
+};
 // Friendship handles the social graph between users
 export interface Friendship {
   id: string;

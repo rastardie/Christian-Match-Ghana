@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from './firebase';
+import { auth, db } from './firebase';
+import { doc, getDoc } from 'firebase/firestore';
 import MainApp from './MainApp'; // Imports the original App component (default export)
 import AdminDashboard from './components/admin/AdminDashboard';
 import AdminLogin from './components/admin/AdminLogin';
@@ -11,13 +12,19 @@ const ProtectedAdminRoute = ({ children }: { children: React.ReactNode }) => {
   const [authStatus, setAuthStatus] = useState<'loading' | 'authenticated' | 'unauthorized' | 'unauthenticated'>('loading');
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        // PERMISSION CHECK: Only allow specific email or admin role
-        // For now, hardcoding the single admin email as requested
-        if (user.email === 'christianmatchghanaltd@gmail.com') {
-          setAuthStatus('authenticated');
-        } else {
+        try {
+          const accessSnapshot = await getDoc(doc(db, 'adminUsers', user.uid));
+          const access = accessSnapshot.exists() ? accessSnapshot.data() : null;
+          const isLegacySuperAdmin = user.email === 'christianmatchghanaltd@gmail.com' || user.email === 'admin@example.com';
+          if (isLegacySuperAdmin || access?.isSuperAdmin === true || Array.isArray(access?.permissions) && access.permissions.length > 0) {
+            setAuthStatus('authenticated');
+          } else {
+            setAuthStatus('unauthorized');
+          }
+        } catch (error) {
+          console.error('Unable to resolve admin access:', error);
           setAuthStatus('unauthorized');
         }
       } else {

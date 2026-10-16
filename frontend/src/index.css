@@ -104,6 +104,70 @@ body {
   background: var(--cmg-cream);
 }
 
+.cmg-main-icon-button {
+  display: inline-flex;
+  width: 2.75rem;
+  height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(9, 40, 71, 0.08);
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--cmg-navy);
+  box-shadow: 0 8px 20px rgba(9, 40, 71, 0.14);
+  transition: transform 160ms ease, background-color 160ms ease;
+}
+
+.cmg-main-icon-button:hover { background: #ffffff; }
+.cmg-main-icon-button:active { transform: scale(0.9); }
+.cmg-main-header {
+  padding-bottom: 0.5rem;
+}
+
+.cmg-main-header__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  min-height: 3.5rem;
+  align-items: center;
+}
+
+.cmg-main-header__side {
+  display: flex;
+  align-items: center;
+}
+
+.cmg-main-header__side--right {
+  justify-content: flex-end;
+}
+
+.cmg-main-header__logo {
+  display: block;
+  width: 4rem;
+  height: 4rem;
+  object-fit: contain;
+}
+
+/* Respect the device status-bar / notch safe area at the top of app headers. */
+.cmg-safe-top {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 0.9rem);
+}
+
+/* Absolute-positioned control offset below the status-bar safe area. */
+.cmg-safe-top-abs {
+  top: calc(env(safe-area-inset-top, 0px) + 1.25rem);
+}
+
+/* Branded profile cover: clean, deep navy card — always looks intentional. */
+.cmg-profile-banner {
+  background:
+    radial-gradient(circle at 78% 12%, rgba(27, 75, 118, 0.55), transparent 60%),
+    linear-gradient(160deg, #0d2744 0%, #0a1b30 60%, #091526 100%);
+}
+
+.cmg-profile-avatar {
+  background: linear-gradient(135deg, #092847 0%, #1b4b76 100%);
+}
+
 .cmg-auth-card,
 .cmg-auth-panel,
 .cmg-onboarding-panel {
@@ -193,9 +257,12 @@ body {
 .cmg-auth-panel textarea,
 .cmg-onboarding-panel input,
 .cmg-onboarding-panel select,
-.cmg-onboarding-panel textarea {
-  padding-top: 0.85rem;
-  padding-bottom: 0.85rem;
+.cmg-onboarding-panel textarea,
+.cmg-edit-profile input,
+.cmg-edit-profile select,
+.cmg-edit-profile textarea {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
 }
 
 .cmg-auth-panel h1,
@@ -216,6 +283,9 @@ body {
 
 .cmg-onboarding-panel button.bg-brand-orange {
   background: linear-gradient(100deg, var(--cmg-orange), #ff8a14);
+  min-height: 2.3rem;
+  padding-top: 0.45rem;
+  padding-bottom: 0.45rem;
 }
 
 @media (min-width: 640px) {
@@ -233,19 +303,18 @@ body {
 }
 
 .cmg-bottom-nav {
-  background: rgba(255, 255, 255, 0.94) !important;
-  border-top-color: rgba(9, 40, 71, 0.08) !important;
-  box-shadow: 0 -12px 32px rgba(9, 40, 71, 0.07);
+  background: rgba(255, 255, 255, 0.96) !important;
+  border-top: 1px solid rgba(9, 40, 71, 0.07) !important;
+  box-shadow: 0 -14px 34px rgba(9, 40, 71, 0.08);
   backdrop-filter: blur(18px);
+  /* Compact height; the home-indicator clearance is added only when the device
+     actually reports a safe-area inset, so normal screens stay slim. */
+  padding-top: 0.5rem;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.65rem);
 }
 
-.cmg-bottom-nav button {
-  min-width: 3.25rem;
-}
-
-.cmg-bottom-nav button[title="Browse"] {
-  background: linear-gradient(135deg, var(--cmg-orange), #ff8b16) !important;
-  border: 4px solid var(--cmg-cream);
+.cmg-bottom-nav span {
+  font-weight: 800;
 }
 
 .cmg-messages-tab {
@@ -280,9 +349,7 @@ body {
 .cmg-auth-panel .cmg-auth-brand img {
   display: block;
   margin: 0 auto 1.55rem;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 12px 30px rgba(9, 40, 71, 0.13);
+  background: transparent;
 }
 
 .cmg-auth-panel .cmg-auth-brand h2 {
@@ -293,6 +360,14 @@ body {
   font-weight: 800;
   line-height: 0.98;
   letter-spacing: -0.06em;
+}
+
+.cmg-verify-heading {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(2rem, 8vw, 2.75rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.05em;
 }
 
 .cmg-auth-panel .cmg-auth-brand p {
@@ -310,8 +385,10 @@ body {
 }
 
 .cmg-auth-panel form > button[type="submit"] {
-  min-height: 3.55rem;
+  min-height: 2.3rem;
   margin-top: 0.7rem;
+  padding-top: 0.45rem;
+  padding-bottom: 0.45rem;
   border-radius: 1rem;
   box-shadow: 0 12px 22px rgba(9, 40, 71, 0.2);
 }
@@ -490,6 +567,24 @@ body {
   content: none;
 }
 
+/* Main app pages use a clean cream canvas: no corner swoosh, bottom wave, or heart overlay. */
+.cmg-view-surface,
+.cmg-view-surface[data-view="BROWSE"],
+.cmg-view-surface[data-view="FRIENDS"],
+.cmg-view-surface[data-view="CHAT"],
+.cmg-view-surface[data-view="PROFILE"],
+.cmg-view-surface[data-view="COMMUNITY"],
+.cmg-view-surface[data-view="EDIT_PROFILE"] {
+  background-image: none !important;
+  background-color: var(--cmg-cream);
+}
+
+.cmg-nav-bottom-ribbon,
+.cmg-profile-bottom-ribbon,
+.cmg-edit-bottom-ribbon {
+  display: none !important;
+}
+
 /* The panel remains a transparent content layer; its old pseudo layers are disabled. */
 .cmg-auth-panel::before,
 .cmg-auth-panel::after,
@@ -520,11 +615,11 @@ body {
 .cmg-onboarding-panel input,
 .cmg-onboarding-panel select,
 .cmg-onboarding-panel textarea {
-  font-size: 1.15rem;
+  font-size: 0.92rem;
 }
 .cmg-onboarding-panel input::placeholder,
 .cmg-onboarding-panel textarea::placeholder {
-  font-size: 1.15rem;
+  font-size: 0.92rem;
 }
 
 /* Faint themed (pink) fill on every form field across the auth and onboarding
@@ -573,7 +668,14 @@ body {
 }
 
 .cmg-auth-login-panel {
-  justify-content: center;
+  justify-content: flex-start;
+  padding-top: 1.5rem;
+  padding-bottom: 1rem;
+}
+
+/* Tighten the login form's vertical rhythm so the page fits without scrolling. */
+.cmg-auth-login-panel form > * + * {
+  margin-top: 0.55rem;
 }
 
 .cmg-auth-signup-panel {
@@ -648,20 +750,30 @@ body {
 }
 
 .cmg-auth-panel form > button[type="submit"] {
-  min-height: 3.4rem;
+  min-height: 2.3rem;
   font-weight: 900;
   letter-spacing: 0.12em;
 }
 
 .cmg-auth-panel form > button[type="submit"] {
-  min-height: 3.6rem;
+  min-height: 2.3rem;
   font-size: 0.95rem;
   font-weight: 900;
   letter-spacing: 0.14em;
 }
 
 .cmg-auth-login-panel .cmg-auth-brand {
-  margin-bottom: 1.75rem;
+  margin-top: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+/* Tighter, slightly smaller welcome heading with the subtext pulled in close. */
+.cmg-auth-login-panel .cmg-auth-brand h2 {
+  font-size: clamp(1.85rem, 7.4vw, 2.5rem);
+}
+
+.cmg-auth-login-panel .cmg-auth-brand p {
+  margin-top: 0.35rem;
 }
 
 .cmg-auth-login-panel .cmg-auth-brand img {
@@ -709,21 +821,25 @@ body {
   transform: scale(0.98);
 }
 
-/* Login supporting text is intentionally larger and easier to scan on mobile. */
+/* Login supporting text sits close to the heading and is sized for easy scanning. */
 .cmg-auth-login-panel .cmg-auth-brand p {
-  font-size: 1.08rem;
+  font-size: 0.95rem;
 }
 
 .cmg-auth-login-panel form label[class*="text-[9px]"] {
   font-size: 0.65rem;
 }
 
-.cmg-auth-login-panel form input {
-  font-size: 1.15rem;
+/* Reduce login input font and box height ~20%. Uses a double-class selector so it
+   beats the shared .cmg-auth-panel form input typography rule regardless of order. */
+.cmg-auth-panel.cmg-auth-login-panel form input {
+  font-size: 0.92rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
 }
 
 .cmg-auth-login-panel .cmg-forgot-link {
-  font-size: 0.65rem;
+  font-size: 0.8rem;
 }
 
 .cmg-auth-signup-panel .cmg-auth-brand {
@@ -761,7 +877,7 @@ body {
   );
 }
 
-/* Shared CMG form typography: apply the readable signup treatment across form pages. */
+/* Shared CMG form typography: compact field text applied across all form pages. */
 .cmg-auth-panel form input,
 .cmg-auth-panel form select,
 .cmg-auth-panel form textarea,
@@ -771,7 +887,7 @@ body {
 .cmg-edit-profile input,
 .cmg-edit-profile select,
 .cmg-edit-profile textarea {
-  font-size: 1.21rem;
+  font-size: 0.92rem;
   font-weight: 700;
 }
 
@@ -810,6 +926,16 @@ body {
   font-weight: 700;
 }
 
+/* Login primary action uses the brand orange gradient (overrides the shared navy submit). */
+.cmg-auth-login-panel form > button[type="submit"] {
+  background: linear-gradient(100deg, var(--cmg-orange), #ff8a14);
+  box-shadow: 0 14px 28px rgba(255, 91, 22, 0.3);
+  /* Reduce the button height ~20% below the shared 3.55rem min-height. */
+  min-height: 2.3rem;
+  padding-top: 0.45rem;
+  padding-bottom: 0.45rem;
+}
+
 /* Public landing: full-bleed clean CMG photo with real overlaid text and actions. */
 .cmg-landing-shell {
   position: relative;
@@ -836,10 +962,73 @@ body {
   background-size: cover;
 }
 
+/* Promo video fills the same stage as the carousel photos and is tappable. */
+.cmg-landing-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  cursor: pointer;
+  opacity: 1;
+  transition: opacity 2.8s ease;
+}
+
+/* Fade the promo out over its final seconds to crossfade into the next photo. */
+.cmg-landing-video.is-fading {
+  opacity: 0;
+}
+
+/* "Tap to play" guide centred over the promo. */
+.cmg-landing-tap-hint {
+  position: absolute;
+  left: 50%;
+  top: 44%;
+  z-index: 3;
+  transform: translate(-50%, -50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.7rem 1.25rem 0.7rem 0.8rem;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(9, 40, 71, 0.55);
+  backdrop-filter: blur(6px);
+  color: #fff;
+  font-family: "CMG Roboto", Arial, sans-serif;
+  font-size: 0.9rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  animation: cmg-tap-pulse 2.4s ease-in-out infinite;
+}
+
+.cmg-landing-tap-hint__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  background: var(--cmg-orange);
+  color: #fff;
+}
+
+@keyframes cmg-tap-pulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); }
+  50% { transform: translate(-50%, -50%) scale(1.05); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cmg-landing-tap-hint { animation: none; }
+  .cmg-landing-video { transition: none; }
+}
+
 .cmg-landing-scrim {
   position: absolute;
   inset: 0;
   z-index: 1;
+  pointer-events: none;
   background: linear-gradient(
     to bottom,
     rgba(9, 40, 71, 0.12) 0%,
@@ -856,9 +1045,7 @@ body {
   left: 50%;
   z-index: 3;
   transform: translateX(-50%);
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 10px 24px rgba(9, 40, 71, 0.22);
+  background: transparent;
 }
 
 .cmg-landing-panel {
