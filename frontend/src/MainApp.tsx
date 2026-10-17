@@ -7739,7 +7739,7 @@ const App = () => {
               title="Log out"
               aria-label="Log out"
               onClick={handleLogout}
-              className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full bg-brand-blue/70 backdrop-blur-sm text-white shadow-lg transition-transform active:scale-90 hover:bg-brand-blue/85"
+              className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full border border-gray-100 bg-white/40 backdrop-blur-sm text-brand-blue shadow-lg transition-transform active:scale-90 hover:bg-white/60"
             >
               <LogOut size={19} />
             </button>
