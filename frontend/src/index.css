@@ -1996,3 +1996,11 @@ textarea::placeholder {
   transform: translateY(-100%);
   pointer-events: none;
 }
+
+/* Keep shared operational controls at the same top offset as ProfileView's
+   banner controls (safe-area padding plus top-4), rather than centering them
+   beside the large standardized logo. */
+.cmg-main-header__grid > .cmg-main-header__side {
+  align-self: start;
+  padding-top: 1rem;
+}
