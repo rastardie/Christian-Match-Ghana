@@ -147,7 +147,7 @@ const NavButton = ({ active, onClick, icon, label }: { active: boolean, onClick:
     </span>
     <span
       className={`text-[10px] tracking-tight transition-colors ${
-        active ? 'font-black text-brand-orange' : 'font-bold text-gray-400 group-hover:text-gray-600'
+        active ? 'font-black text-brand-orange' : 'font-black text-gray-400 group-hover:text-gray-600'
       }`}
     >
       {label}
