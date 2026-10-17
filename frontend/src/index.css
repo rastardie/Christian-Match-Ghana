@@ -1552,3 +1552,16 @@ textarea::placeholder {
 .cmg-main-header {
   transition: opacity 350ms ease, transform 350ms ease;
 }
+
+/* Keep signup content above the animated ribbon; the scroll mask controls the
+   fade, so the ribbon never covers the Terms text or Create Account action. */
+.cmg-auth-signup-panel .cmg-auth-signup-shell,
+.cmg-auth-signup-panel .cmg-auth-legal-copy,
+.cmg-auth-signup-panel .cmg-account-switch-link {
+  position: relative;
+  z-index: 2;
+}
+
+.cmg-auth-panel .cmg-scroll-ribbon {
+  z-index: 0 !important;
+}
