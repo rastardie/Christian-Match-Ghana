@@ -32,6 +32,12 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
     userScrollIntentRef.current = true;
   };
 
+  const revealOperationalChrome = (event?: React.SyntheticEvent) => {
+    event?.stopPropagation();
+    userScrollIntentRef.current = false;
+    setRibbonScrolling(false);
+  };
+
   const handleMainScroll = (event: React.UIEvent<HTMLElement>) => {
     const scrollingTarget = event.target as HTMLElement;
     const distanceFromBottom = scrollingTarget.scrollHeight - scrollingTarget.clientHeight - scrollingTarget.scrollTop;
@@ -117,7 +123,11 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
             Height is driven by .cmg-bottom-nav padding (safe-area aware) so it stays
             compact on normal screens and clears the home indicator on notched phones. */}
         {shouldShowNav && (
-          <nav className="cmg-bottom-nav flex items-center justify-around px-3 z-50 shrink-0">
+          <nav
+            onPointerDown={revealOperationalChrome}
+            onClick={revealOperationalChrome}
+            className="cmg-bottom-nav flex items-center justify-around px-3 z-50 shrink-0"
+          >
             <NavButton
               active={currentView === 'BROWSE'}
               onClick={() => onChangeView('BROWSE')}
