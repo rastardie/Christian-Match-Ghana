@@ -106,8 +106,8 @@ body {
 
 .cmg-main-icon-button {
   display: inline-flex;
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 1.925rem;
+  height: 1.925rem;
   align-items: center;
   justify-content: center;
   border: 1px solid rgba(9, 40, 71, 0.08);
@@ -2003,4 +2003,9 @@ textarea::placeholder {
 .cmg-main-header__grid > .cmg-main-header__side {
   align-self: start;
   padding-top: 1rem;
+}
+
+.cmg-main-icon-button svg {
+  width: 70%;
+  height: 70%;
 }
