@@ -1351,3 +1351,25 @@ textarea::placeholder {
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }
+
+/* Group each Edit Profile category like a professional form card: the heading
+   anchors the bordered group and the child controls remain visually together. */
+.cmg-edit-category {
+  border: 1px solid rgba(9, 40, 71, 0.14);
+  border-radius: 1.5rem;
+  background: rgba(255, 255, 255, 0.24);
+  padding: 1rem;
+  box-shadow: 0 8px 22px rgba(9, 40, 71, 0.04);
+}
+
+.cmg-edit-category > h3 {
+  margin: -1rem -1rem 0;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid rgba(9, 40, 71, 0.1);
+  border-radius: 1.5rem 1.5rem 0 0;
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.cmg-edit-media {
+  padding-top: 1rem;
+}

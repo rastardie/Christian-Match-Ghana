@@ -3315,7 +3315,7 @@ export const EditProfileView = ({
         </div>
 
         {/* Photos Management */}
-        <div>
+        <div className="cmg-edit-category cmg-edit-media">
           <div className="flex items-end justify-between mb-3">
             <div>
               <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Media</h3>
@@ -3511,7 +3511,7 @@ export const EditProfileView = ({
         </div>
 
         {/* Basic Info */}
-        <div className="space-y-4">
+        <div className="cmg-edit-category space-y-4">
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
             A. Basic Details
           </h3>
@@ -3618,7 +3618,7 @@ export const EditProfileView = ({
         </div>
 
         {/* Faith */}
-        <div className="space-y-4">
+        <div className="cmg-edit-category space-y-4">
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
             Faith Profile
           </h3>
@@ -3677,7 +3677,7 @@ export const EditProfileView = ({
         </div>
 
         {/* Personal & Lifestyle */}
-        <div className="space-y-4">
+        <div className="cmg-edit-category space-y-4">
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
             B. Personal & Lifestyle
           </h3>
@@ -3805,7 +3805,7 @@ export const EditProfileView = ({
         </div>
 
         {/* Education & Work */}
-        <div className="space-y-4">
+        <div className="cmg-edit-category space-y-4">
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
             C. Education & Work
           </h3>
@@ -3853,7 +3853,7 @@ export const EditProfileView = ({
         </div>
 
         {/* Relationship Intentions */}
-        <div className="space-y-4">
+        <div className="cmg-edit-category space-y-4">
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
             D. Relationship Intentions
           </h3>
@@ -3892,7 +3892,7 @@ export const EditProfileView = ({
         </div>
 
         {/* Partner Preferences */}
-        <div className="space-y-4">
+        <div className="cmg-edit-category space-y-4">
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
             Partner Preferences
           </h3>
@@ -4010,7 +4010,7 @@ export const EditProfileView = ({
         </div>
 
         {/* Sensitive Info */}
-        <div className="space-y-4">
+        <div className="cmg-edit-category space-y-4">
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
             Sensitive Information (Private)
           </h3>
