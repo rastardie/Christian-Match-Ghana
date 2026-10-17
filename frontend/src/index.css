@@ -1979,3 +1979,19 @@ textarea::placeholder {
   opacity: 0.3;
   transform: translateY(-50%);
 }
+
+/* Profile has a dedicated nested scroll body. Move its cover/banner/avatar
+   header away with the shared operational chrome so the body gains that space
+   instead of scrolling beneath a fixed profile banner. */
+.cmg-profile-page > .shrink-0 {
+  max-height: 20rem;
+  overflow: hidden;
+  transition: max-height 350ms ease, opacity 350ms ease, transform 350ms ease, padding 350ms ease;
+}
+
+.cmg-app-frame.is-ribbon-scrolling[data-view="PROFILE"] .cmg-profile-page > .shrink-0 {
+  max-height: 0;
+  opacity: 0.3;
+  transform: translateY(-100%);
+  pointer-events: none;
+}

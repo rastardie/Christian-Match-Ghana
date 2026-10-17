@@ -4392,7 +4392,7 @@ const ProfileView = ({
 
   return (
     <div
-      className={`h-full flex flex-col bg-transparent relative overflow-hidden ${
+      className={`cmg-profile-page h-full flex flex-col bg-transparent relative overflow-hidden ${
         isDarkMode ? "dark:bg-gray-900" : ""
       }`}
     >
