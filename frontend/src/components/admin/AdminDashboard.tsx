@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../../firebase';
 import { getDashboardStats, getAdminUsers, getAdminPrayers, getAdminReports, deleteUser, toggleBlockUser, getAdminConnections, getAdminPayments, getAnalyticsData, AnalyticsData, adminCreateUser } from '../../services/adminService';
-import { LayoutDashboard, Users, Shield, Activity, LogOut, MessageSquare, Heart, Trash2, Search, CheckCircle, XCircle, Link as LinkIcon, CreditCard, DollarSign, Calendar, MoreHorizontal, ChevronDown, RefreshCw, ClipboardList, Settings } from 'lucide-react';
+import { LayoutDashboard, Users, Shield, Activity, LogOut, MessageSquare, Heart, Trash2, Search, CheckCircle, XCircle, Link as LinkIcon, CreditCard, DollarSign, Calendar, MoreHorizontal, ChevronDown, RefreshCw, ClipboardList, Settings, Menu } from 'lucide-react';
 import { EditProfileView } from '../../MainApp';
 import { updateUserDocument } from '../../services/userService';
 import AdminAccessControl from './AdminAccessControl';
@@ -11,6 +11,7 @@ import AdminAccessControl from './AdminAccessControl';
 import { getCurrentAdminAccess } from '../../services/adminRbacService';
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({
     people: true,
     operations: true,
@@ -27,6 +28,10 @@ const AdminDashboard = () => {
   }, []);
 
   const can = (permission: string) => permissions.has(permission) || permissions.has('permissions.manage');
+  const selectTab = (tab: string) => {
+    setActiveTab(tab);
+    setMobileMenuOpen(false);
+  };
 
   const handleSignOut = async () => {
     try {
@@ -64,8 +69,16 @@ const AdminDashboard = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 flex font-sans">
-      {/* Sidebar */}
-      <aside className="w-64 bg-slate-900 text-white flex flex-col shrink-0 transition-all duration-300">
+      {mobileMenuOpen && (
+        <button
+          type="button"
+          aria-label="Close Admin menu"
+          onClick={() => setMobileMenuOpen(false)}
+          className="fixed inset-0 z-30 bg-slate-950/60 lg:hidden"
+        />
+      )}
+      {/* Responsive Admin drawer: persistent sidebar on desktop, slide-out menu on mobile. */}
+      <aside className={`fixed inset-y-0 left-0 z-40 flex w-72 flex-col bg-slate-900 text-white shadow-2xl transition-transform duration-300 lg:static lg:z-auto lg:w-64 lg:translate-x-0 lg:shadow-none ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="p-6 border-b border-slate-800">
           <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
             <span className="text-brand-orange text-2xl">⚡</span> 
@@ -78,7 +91,7 @@ const AdminDashboard = () => {
             icon={<LayoutDashboard size={20} />}
             label="CMG Admin"
             active={activeTab === 'overview'}
-            onClick={() => setActiveTab('overview')}
+            onClick={() => selectTab('overview')}
           />
 
           {[
@@ -136,7 +149,7 @@ const AdminDashboard = () => {
                       icon={item.icon}
                       label={item.label}
                       active={activeTab === item.key}
-                      onClick={() => setActiveTab(item.key)}
+                      onClick={() => selectTab(item.key)}
                     />
                   ))}
                 </div>
@@ -158,8 +171,18 @@ const AdminDashboard = () => {
 
       {/* Main Content */}
       <main className="flex-1 overflow-auto bg-gray-50">
-        <header className="bg-white shadow-sm p-6 flex justify-between items-center sticky top-0 z-10">
-          <h2 className="text-2xl font-bold text-gray-800 capitalize">{activeTab.replace('-', ' ')}</h2>
+        <header className="bg-white shadow-sm p-4 sm:p-6 flex justify-between items-center sticky top-0 z-10">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              aria-label="Open Admin menu"
+              onClick={() => setMobileMenuOpen(true)}
+              className="rounded-xl p-2 text-slate-600 transition hover:bg-slate-100 lg:hidden"
+            >
+              <Menu size={22} />
+            </button>
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-800 capitalize">{activeTab.replace('-', ' ')}</h2>
+          </div>
           <div className="flex items-center gap-4">
             <button
               type="button"
