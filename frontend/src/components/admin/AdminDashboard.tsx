@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../../firebase';
 import { getDashboardStats, getAdminUsers, getAdminPrayers, getAdminReports, deleteUser, toggleBlockUser, getAdminConnections, getAdminPayments, getAnalyticsData, AnalyticsData, adminCreateUser } from '../../services/adminService';
-import { LayoutDashboard, Users, Shield, Activity, LogOut, MessageSquare, Heart, Trash2, Search, CheckCircle, XCircle, Link as LinkIcon, CreditCard, DollarSign, Calendar, MoreHorizontal } from 'lucide-react';
+import { LayoutDashboard, Users, Shield, Activity, LogOut, MessageSquare, Heart, Trash2, Search, CheckCircle, XCircle, Link as LinkIcon, CreditCard, DollarSign, Calendar, MoreHorizontal, ChevronDown, RefreshCw, ClipboardList, Settings } from 'lucide-react';
 import { EditProfileView } from '../../MainApp';
 import { updateUserDocument } from '../../services/userService';
 import AdminAccessControl from './AdminAccessControl';
@@ -11,6 +11,12 @@ import AdminAccessControl from './AdminAccessControl';
 import { getCurrentAdminAccess } from '../../services/adminRbacService';
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
+  const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({
+    people: true,
+    operations: true,
+    billing: false,
+    system: true,
+  });
   const [permissions, setPermissions] = useState<Set<string>>(new Set());
   const navigate = useNavigate();
 
@@ -67,61 +73,76 @@ const AdminDashboard = () => {
           </h1>
         </div>
         
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          <NavItem 
-            icon={<LayoutDashboard size={20} />} 
-            label="Overview" 
-            active={activeTab === 'overview'} 
+        <nav className="flex-1 p-4 space-y-3 overflow-y-auto">
+          <NavItem
+            icon={<LayoutDashboard size={20} />}
+            label="CMG Admin"
+            active={activeTab === 'overview'}
             onClick={() => setActiveTab('overview')}
           />
-          <NavItem 
-            icon={<Users size={20} />} 
-            label="Users" 
-            active={activeTab === 'users'} 
-            onClick={() => setActiveTab('users')}
-          />
-          <NavItem 
-            icon={<LinkIcon size={20} />} 
-            label="Connections" 
-            active={activeTab === 'connections'} 
-            onClick={() => setActiveTab('connections')}
-          />
-           <NavItem 
-            icon={<CreditCard size={20} />} 
-            label="Payments" 
-            active={activeTab === 'payments'} 
-            onClick={() => setActiveTab('payments')}
-          />
-          <NavItem 
-            icon={<MessageSquare size={20} />} 
-            label="Prayer Wall" 
-            active={activeTab === 'prayers'} 
-            onClick={() => setActiveTab('prayers')}
-          />
-          <NavItem 
-            icon={<Shield size={20} />} 
-            label="Moderation" 
-            active={activeTab === 'moderation'} 
-            onClick={() => setActiveTab('moderation')}
-          />
-          <NavItem
-            icon={<Activity size={20} />}
-            label="Analytics"
-            active={activeTab === 'analytics'}
-            onClick={() => setActiveTab('analytics')}
-          />
-          <NavItem
-            icon={<Shield size={20} />}
-            label="Access Control"
-            active={activeTab === 'access-control'}
-            onClick={() => setActiveTab('access-control')}
-          />
-          <NavItem
-            icon={<Activity size={20} />}
-            label="Audit Logs"
-            active={activeTab === 'audit-logs'}
-            onClick={() => setActiveTab('audit-logs')}
-          />
+
+          {[
+            {
+              key: 'people',
+              label: 'People',
+              icon: <Users size={18} />,
+              items: [
+                { key: 'users', label: 'Users', icon: <Users size={17} /> },
+                { key: 'connections', label: 'Connections', icon: <LinkIcon size={17} /> },
+                { key: 'prayers', label: 'Prayer Wall', icon: <MessageSquare size={17} /> },
+              ],
+            },
+            {
+              key: 'operations',
+              label: 'Operations',
+              icon: <Activity size={18} />,
+              items: [
+                { key: 'moderation', label: 'Moderation', icon: <Shield size={17} /> },
+                { key: 'analytics', label: 'Analytics', icon: <Activity size={17} /> },
+              ],
+            },
+            {
+              key: 'billing',
+              label: 'Billing',
+              icon: <CreditCard size={18} />,
+              items: [
+                { key: 'payments', label: 'Payments', icon: <CreditCard size={17} /> },
+              ],
+            },
+            {
+              key: 'system',
+              label: 'System',
+              icon: <Settings size={18} />,
+              items: [
+                { key: 'access-control', label: 'Access Control', icon: <Shield size={17} /> },
+                { key: 'audit-logs', label: 'Audit Logs', icon: <ClipboardList size={17} /> },
+              ],
+            },
+          ].map((group) => (
+            <div key={group.key}>
+              <button
+                type="button"
+                onClick={() => setOpenMenus((current) => ({ ...current, [group.key]: !current[group.key] }))}
+                className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs font-black uppercase tracking-widest text-slate-400 hover:bg-slate-800 hover:text-white"
+              >
+                <span className="flex items-center gap-2">{group.icon}{group.label}</span>
+                <ChevronDown size={15} className={`transition-transform ${openMenus[group.key] ? 'rotate-180' : ''}`} />
+              </button>
+              {openMenus[group.key] && (
+                <div className="mt-1 space-y-1 border-l border-slate-700 pl-2">
+                  {group.items.map((item) => (
+                    <NavItem
+                      key={item.key}
+                      icon={item.icon}
+                      label={item.label}
+                      active={activeTab === item.key}
+                      onClick={() => setActiveTab(item.key)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
         </nav>
 
         <div className="p-4 border-t border-slate-800">
@@ -140,6 +161,15 @@ const AdminDashboard = () => {
         <header className="bg-white shadow-sm p-6 flex justify-between items-center sticky top-0 z-10">
           <h2 className="text-2xl font-bold text-gray-800 capitalize">{activeTab.replace('-', ' ')}</h2>
           <div className="flex items-center gap-4">
+            <button
+              type="button"
+              title="Refresh Admin"
+              aria-label="Refresh Admin"
+              onClick={() => window.location.reload()}
+              className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+            >
+              <RefreshCw size={18} />
+            </button>
             <div className="text-sm text-gray-500 hidden md:block">
               Welcome, Administrator
             </div>
