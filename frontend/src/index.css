@@ -1371,6 +1371,7 @@ textarea::placeholder {
   background: rgba(255, 255, 255, 0.3);
   font-size: 0.75rem;
   font-weight: 900;
+  -webkit-text-stroke: 0.2px currentColor;
   line-height: 1.25;
   letter-spacing: 0.08em;
 }
