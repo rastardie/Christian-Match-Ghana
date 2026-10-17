@@ -1388,3 +1388,14 @@ textarea::placeholder {
 .cmg-edit-category > .cmg-edit-field-label + div {
   margin-top: 0.25rem !important;
 }
+
+/* Stronger, slightly larger dropdown chevrons for Edit Profile selects. */
+.cmg-edit-profile select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230a2a4b' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  background-size: 1.3rem 1.3rem;
+  padding-right: 3rem !important;
+}
