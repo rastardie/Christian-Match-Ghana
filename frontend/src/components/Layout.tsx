@@ -34,6 +34,14 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
 
   const handleMainScroll = (event: React.UIEvent<HTMLElement>) => {
     const scrollingTarget = event.target as HTMLElement;
+    const distanceFromBottom = scrollingTarget.scrollHeight - scrollingTarget.clientHeight - scrollingTarget.scrollTop;
+
+    // Keep the navigation/ribbons available at the end of the page.
+    if (distanceFromBottom <= 4) {
+      setRibbonScrolling(false);
+      return;
+    }
+
     // Ignore initial layout/browser-restoration scroll events. Only a genuine
     // user gesture may move the operational chrome away.
     if (userScrollIntentRef.current && scrollingTarget.scrollTop > 2) {
