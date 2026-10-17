@@ -1968,7 +1968,7 @@ const AuthView = ({
   }
 
   return (
-    <div className={`cmg-auth-panel ${isLogin ? "cmg-auth-login-panel" : "cmg-auth-signup-panel"} ${!isLogin && signupScrolled ? "is-scrolled" : ""} flex h-full flex-col bg-transparent p-8 justify-start items-center text-center overflow-hidden`}>
+    <div className={`cmg-auth-panel ${isLogin ? "cmg-auth-login-panel" : "cmg-auth-signup-panel"} ${!isLogin && signupScrolled ? "is-scrolled" : ""} ${!isLogin && signupRibbonScrolling ? "is-ribbon-scrolling" : ""} flex h-full flex-col bg-transparent p-8 justify-start items-center text-center overflow-hidden`}>
       {/* Terms & Conditions Modal */}
       {showTermsModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-2 sm:p-4">
@@ -2458,6 +2458,9 @@ const AuthView = ({
          </p>
       </div>
       {!isLogin && (
+        <div className="cmg-scroll-top-ribbon cmg-scroll-top-ribbon--sunrise" aria-hidden="true" />
+      )}
+      {!isLogin && (
         <div className={`cmg-scroll-ribbon cmg-scroll-ribbon--sunrise ${signupRibbonScrolling ? "is-scrolling" : ""}`} aria-hidden="true" />
       )}
     </div>
@@ -2612,9 +2615,9 @@ const OnboardingView = ({
   ];
 
   return (
-    <div className="cmg-onboarding-panel h-full flex flex-col bg-transparent overflow-hidden relative">
+    <div className={`cmg-onboarding-panel h-full flex flex-col bg-transparent overflow-hidden relative ${onboardingRibbonScrolling ? "is-ribbon-scrolling" : ""}`}>
 
-      {/* Compact brand mark above the four-step wizard. */}
+      <div className="cmg-scroll-top-ribbon cmg-scroll-top-ribbon--leaf" aria-hidden="true" />
       <div className={`cmg-onboarding-logo flex justify-center pt-4 pb-1 shrink-0 ${onboardingScrolled ? "is-scrolled" : ""}`}>
         <Logo size={160} className="drop-shadow-lg" />
       </div>
@@ -3302,11 +3305,11 @@ export const EditProfileView = ({
   };
 
   return (
-    <div className="cmg-edit-profile h-full flex flex-col bg-transparent relative overflow-hidden">
+    <div className={`cmg-edit-profile h-full flex flex-col bg-transparent relative overflow-hidden ${editRibbonScrolling ? "is-ribbon-scrolling" : ""}`}>
       {/* Frozen header: top ribbon, controls, logo and title stay visible while scrolling. */}
       <div className="cmg-edit-profile-header shrink-0 relative z-20">
       {/* Floating controls over the top ribbon, matching the signup page. */}
-      <div className="absolute inset-x-4 top-5 z-40 flex items-center justify-between pointer-events-none">
+      <div className="cmg-edit-top-controls absolute inset-x-4 top-5 z-40 flex items-center justify-between pointer-events-none">
         <button
           onClick={onCancel}
           title="Back"
@@ -7687,7 +7690,7 @@ const App = () => {
               title="Back to landing page"
               aria-label="Back to landing page"
               onClick={() => setShowLanding(true)}
-              className="absolute left-4 top-4 z-[200] flex h-10 w-10 items-center justify-center rounded-full border border-gray-100 bg-white/40 backdrop-blur-sm text-brand-blue shadow-lg transition-transform active:scale-90 hover:bg-white/60"
+              className="cmg-auth-back-button absolute left-4 top-4 z-[200] flex h-10 w-10 items-center justify-center rounded-full border border-gray-100 bg-white/40 backdrop-blur-sm text-brand-blue shadow-lg transition-transform active:scale-90 hover:bg-white/60"
             >
               <ArrowLeft size={21} />
             </button>
@@ -7731,7 +7734,7 @@ const App = () => {
     return (
       <div className="cmg-stage min-h-screen flex items-center justify-center">
         <div className="cmg-auth-card cmg-theme-leaf w-full max-w-md h-[100dvh] sm:h-[90vh] relative">
-          <div className="absolute top-4 left-4 right-4 z-[200] flex items-center justify-between pointer-events-none">
+          <div className="cmg-onboarding-top-controls absolute top-4 left-4 right-4 z-[200] flex items-center justify-between pointer-events-none">
             <button
               type="button"
               title="Back"

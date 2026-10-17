@@ -1403,11 +1403,7 @@ textarea::placeholder {
 /* Scroll-aware logo/ribbon treatment shared by signup and onboarding. */
 .cmg-auth-card.cmg-theme-sunrise,
 .cmg-auth-card.cmg-theme-leaf {
-  background-image: url("../brand-reference/wallpapers/cmg-bg-sunrise-top.png") !important;
-}
-
-.cmg-auth-card.cmg-theme-leaf {
-  background-image: url("../brand-reference/wallpapers/cmg-bg-leaf-top.png") !important;
+  background-image: none !important;
 }
 
 .cmg-auth-signup-panel .cmg-auth-brand,
@@ -1460,5 +1456,49 @@ textarea::placeholder {
 }
 
 .cmg-edit-bottom-ribbon {
+  transition: transform 350ms ease, opacity 350ms ease;
+}
+
+.cmg-auth-panel .cmg-scroll-top-ribbon,
+.cmg-onboarding-panel .cmg-scroll-top-ribbon {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  z-index: 0;
+  height: 10rem;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  background-position: top center;
+  background-size: 100% auto;
+  opacity: 1;
+  transform: translateY(0);
+  transition: transform 350ms ease, opacity 350ms ease;
+}
+
+.cmg-scroll-top-ribbon--sunrise {
+  background-image: url("../brand-reference/wallpapers/cmg-bg-sunrise-top.png");
+}
+
+.cmg-scroll-top-ribbon--leaf {
+  background-image: url("../brand-reference/wallpapers/cmg-bg-leaf-top.png");
+}
+
+.cmg-auth-panel.is-ribbon-scrolling .cmg-scroll-top-ribbon,
+.cmg-onboarding-panel.is-ribbon-scrolling .cmg-scroll-top-ribbon,
+.cmg-edit-profile.is-ribbon-scrolling::before {
+  opacity: 0.3;
+  transform: translateY(-50%);
+}
+
+.cmg-auth-card:has(.cmg-auth-panel.is-ribbon-scrolling) .cmg-auth-back-button,
+.cmg-auth-card:has(.cmg-onboarding-panel.is-ribbon-scrolling) .cmg-onboarding-top-controls,
+.cmg-edit-profile.is-ribbon-scrolling .cmg-edit-top-controls {
+  opacity: 0.3;
+  transform: translateY(-1rem);
+  pointer-events: none;
+  transition: opacity 350ms ease, transform 350ms ease;
+}
+
+.cmg-edit-profile::before {
   transition: transform 350ms ease, opacity 350ms ease;
 }
