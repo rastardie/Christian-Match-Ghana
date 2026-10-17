@@ -1575,7 +1575,7 @@ textarea::placeholder {
   height: 10rem;
   z-index: 0;
   pointer-events: none;
-  background: url("../brand-reference/wallpapers/cmg-bg-sunrise-top.png") no-repeat top center / 100% auto;
+  background: url("../brand-reference/wallpapers/cmg-bg-leaf-top.png") no-repeat top center / 100% auto;
   opacity: 1;
   transform: translateY(0);
   transition: transform 350ms ease, opacity 350ms ease;
@@ -1606,8 +1606,7 @@ textarea::placeholder {
   transform: translateY(50%);
 }
 
-/* Sunrise artwork has a smaller visible curve than the Leaf artwork at the same
-   box size; scale its rendered top ribbon to the Edit Profile visual size. */
+/* Signup and Edit Profile use identical top-ribbon artwork and sizing. */
 .cmg-auth-signup-panel::before {
-  background-size: 100% 120%;
+  background-size: 100% auto;
 }
