@@ -1605,3 +1605,9 @@ textarea::placeholder {
   opacity: 0.3;
   transform: translateY(50%);
 }
+
+/* Sunrise artwork has a smaller visible curve than the Leaf artwork at the same
+   box size; scale its rendered top ribbon to the Edit Profile visual size. */
+.cmg-auth-signup-panel::before {
+  background-size: 100% 120%;
+}
