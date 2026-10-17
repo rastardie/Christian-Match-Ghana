@@ -1502,3 +1502,53 @@ textarea::placeholder {
 .cmg-edit-profile::before {
   transition: transform 350ms ease, opacity 350ms ease;
 }
+
+/* Shared ribbon-page scroll treatment for the main app views. */
+.cmg-app-frame[data-view="BROWSE"],
+.cmg-app-frame[data-view="FRIENDS"],
+.cmg-app-frame[data-view="CHAT"],
+.cmg-app-frame[data-view="COMMUNITY"],
+.cmg-app-frame[data-view="PROFILE"] {
+  background-repeat: no-repeat;
+  background-position: top center;
+  background-size: 100% auto;
+}
+
+.cmg-app-frame[data-view="BROWSE"] {
+  background-image: url("../brand-reference/wallpapers/cmg-bg-community-top.png") !important;
+}
+.cmg-app-frame[data-view="FRIENDS"] {
+  background-image: url("../brand-reference/wallpapers/cmg-bg-heart-top.png") !important;
+}
+.cmg-app-frame[data-view="CHAT"] {
+  background-image: url("../brand-reference/wallpapers/cmg-bg-waves-top.png") !important;
+}
+.cmg-app-frame[data-view="COMMUNITY"] {
+  background-image: url("../brand-reference/wallpapers/cmg-bg-cross-top.png") !important;
+}
+.cmg-app-frame[data-view="PROFILE"] {
+  background-image: url("../brand-reference/wallpapers/cmg-bg-rings-top.png") !important;
+}
+
+.cmg-nav-bottom-ribbon,
+.cmg-profile-bottom-ribbon {
+  display: block !important;
+  transition: transform 350ms ease, opacity 350ms ease;
+}
+
+.cmg-app-frame.is-ribbon-scrolling .cmg-nav-bottom-ribbon,
+.cmg-app-frame.is-ribbon-scrolling .cmg-profile-bottom-ribbon {
+  opacity: 0.3;
+  transform: translateY(50%);
+}
+
+.cmg-app-frame.is-ribbon-scrolling .cmg-main-header {
+  opacity: 0.3;
+  transform: translateY(-1rem);
+  pointer-events: none;
+  transition: opacity 350ms ease, transform 350ms ease;
+}
+
+.cmg-main-header {
+  transition: opacity 350ms ease, transform 350ms ease;
+}

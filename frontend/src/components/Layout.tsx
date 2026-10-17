@@ -5,7 +5,7 @@
  * Responsibilities: View routing trigger, Responsive constraints, Conditional Nav visibility.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { ViewState } from '../types';
 import { Compass, MessageCircle, User, Heart, LogOut, ArrowLeft } from 'lucide-react';
 import Logo from './Logo';
@@ -23,12 +23,23 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, onBack, onLogout, hideNav }) => {
   // Navigation is hidden during auth, onboarding, and specific deep-view states (like active calls)
   const shouldShowNav = !hideNav && !['AUTH', 'ONBOARDING', 'EDIT_PROFILE'].includes(currentView);
+  const [ribbonScrolling, setRibbonScrolling] = useState(false);
+  const ribbonTimerRef = useRef<number | undefined>(undefined);
 
+  const handleMainScroll = (event: React.UIEvent<HTMLElement>) => {
+    const scrolling = event.currentTarget.scrollTop > 2;
+    setRibbonScrolling(scrolling);
+    window.clearTimeout(ribbonTimerRef.current);
+    if (scrolling) {
+      ribbonTimerRef.current = window.setTimeout(() => setRibbonScrolling(false), 5000);
+    }
+  };
+
+  const frameClassName = `cmg-app-frame cmg-view-surface w-full max-w-md h-[100dvh] flex flex-col relative shadow-2xl overflow-hidden sm:rounded-[2rem] sm:h-[92vh] sm:my-6 sm:border sm:border-white/70 ${ribbonScrolling ? 'is-ribbon-scrolling' : ''}`;
 
   return (
     <div className="cmg-app-backdrop flex justify-center min-h-screen font-sans">
-      <div data-view={currentView} className="cmg-app-frame cmg-view-surface w-full max-w-md h-[100dvh] flex flex-col relative shadow-2xl overflow-hidden sm:rounded-[2rem] sm:h-[92vh] sm:my-6 sm:border sm:border-white/70">
-        
+      <div data-view={currentView} className={frameClassName}>
         {/* Shared top bar: balanced left action, centered logo, and right action. */}
         {shouldShowNav && currentView !== 'PROFILE' && (
           <header className="cmg-main-header shrink-0 relative z-30 px-5 cmg-safe-top">
@@ -66,7 +77,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
 
         {/* Scrollable view area with a base ribbon overlay that content scrolls beneath. */}
         <div className="flex-1 relative overflow-hidden">
-          <main className="h-full overflow-y-auto bg-transparent hide-scrollbar relative">
+          <main onScroll={handleMainScroll} className="h-full overflow-y-auto bg-transparent hide-scrollbar relative">
             {children}
           </main>
           {shouldShowNav && currentView !== 'PROFILE' && (
