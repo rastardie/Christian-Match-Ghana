@@ -69,6 +69,7 @@ const AdminLogin = () => {
           mustChangePassword: false,
         }));
         localStorage.removeItem('cmg_current_view');
+        sessionStorage.setItem('cmg_preserve_session_on_reload', 'true');
         navigate('/');
         return;
       }

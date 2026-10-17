@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
-const LandingPage = ({
-  onGetStarted,
+const AdminDashboard = React.lazy(() => import('./components/admin/AdminDashboard'));
+
+const LandingPage = ({  onGetStarted,
   onSignIn,
 }: {
   onGetStarted: () => void;
@@ -7859,7 +7860,7 @@ const App = () => {
       onNotifications={() => setCurrentView("SETTINGS")}
       onRefresh={refreshCurrentPage}
       isSystemAdmin={user?.isSystemAdmin === true}
-      onAdmin={() => window.location.assign('/admin')}
+      onAdmin={() => setCurrentView("ADMIN")}
       onChangeView={(v) => {
         if (user && !user.isSystemAdmin && !isProfileFullyComplete(user) && !profileReminderDeferred && v !== "EDIT_PROFILE") {
           setShowIncompleteProfileModal(true);
@@ -7915,6 +7916,12 @@ const App = () => {
         userCountry={user?.country || "Ghana"}
         email={user?.email}
       />
+
+      {currentView === "ADMIN" && user?.isSystemAdmin === true && (
+        <React.Suspense fallback={<div className="flex h-full items-center justify-center text-brand-blue font-black">Loading Admin…</div>}>
+          <AdminDashboard />
+        </React.Suspense>
+      )}
 
       {currentView === "BROWSE" && (
         <BrowseView

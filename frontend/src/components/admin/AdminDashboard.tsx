@@ -68,7 +68,7 @@ const AdminDashboard = () => {
   };
 
   const groupActive = (group: string) => {
-    if (group === 'people') return ['users', 'connections', 'prayers'].includes(activeTab);
+    if (group === 'people') return ['users', 'connections', 'prayers', 'access-control'].includes(activeTab);
     if (group === 'operations') return ['moderation', 'analytics'].includes(activeTab);
     if (group === 'billing') return activeTab === 'payments';
     return ['access-control', 'audit-logs'].includes(activeTab);
@@ -112,9 +112,15 @@ const AdminDashboard = () => {
               </button>
             ))}
           </div>
+          {groupActive('people') && (
+            <div className="mx-auto mt-2 flex max-w-6xl justify-center gap-2">
+              <button type="button" onClick={() => selectTab('users')} className={`rounded-full border px-5 py-1.5 text-sm font-black transition ${activeTab === 'users' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white/90 text-slate-700 hover:bg-slate-100'}`}>Users</button>
+              <button type="button" onClick={() => selectTab('access-control')} className={`rounded-full border px-5 py-1.5 text-sm font-black transition ${activeTab === 'access-control' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white/90 text-slate-700 hover:bg-slate-100'}`}>Groups</button>
+            </div>
+          )}
           <div className="mx-auto mt-2 flex max-w-6xl flex-wrap justify-center gap-2">
             {[
-              ['overview', 'CMG Admin', <LayoutDashboard size={16} />],
+              ['overview', 'Dashboard', <LayoutDashboard size={16} />],
               ['moderation', 'Reports', <ClipboardList size={16} />],
               ['audit-logs', 'Audit', <Shield size={16} />],
             ].map(([key, label, icon]) => (

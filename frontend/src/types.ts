@@ -5,7 +5,7 @@
  */
 
 // ViewState governs the main navigation routing within the single-page application
-export type ViewState = 'AUTH' | 'ONBOARDING' | 'CHANGE_PASSWORD' | 'BROWSE' | 'COMMUNITY' | 'CHAT' | 'PROFILE' | 'SETTINGS' | 'SUPPORT' | 'LIKES' | 'EDIT_PROFILE' | 'VERIFICATION' | 'CHURCH_DETAILS' | 'MATCHES' | 'FRIENDS' | 'CALL';
+export type ViewState = 'AUTH' | 'ONBOARDING' | 'CHANGE_PASSWORD' | 'BROWSE' | 'COMMUNITY' | 'CHAT' | 'PROFILE' | 'SETTINGS' | 'SUPPORT' | 'LIKES' | 'EDIT_PROFILE' | 'VERIFICATION' | 'CHURCH_DETAILS' | 'MATCHES' | 'FRIENDS' | 'CALL' | 'ADMIN';
 
 // FaithMoment represents a temporary photo or video update (Story feature)
 export interface FaithMoment {
