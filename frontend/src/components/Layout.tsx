@@ -5,7 +5,7 @@
  * Responsibilities: View routing trigger, Responsive constraints, Conditional Nav visibility.
  */
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { ViewState } from '../types';
 import { Compass, MessageCircle, User, Heart, LogOut, ArrowLeft, ShieldCheck } from 'lucide-react';
 import Logo from './Logo';
@@ -26,19 +26,33 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
   // Navigation is hidden during auth, onboarding, and specific deep-view states (like active calls)
   const shouldShowNav = !hideNav && !['AUTH', 'ONBOARDING', 'EDIT_PROFILE'].includes(currentView);
   const [ribbonScrolling, setRibbonScrolling] = useState(false);
+  const userScrollIntentRef = useRef(false);
+
+  const armUserScroll = () => {
+    userScrollIntentRef.current = true;
+  };
 
   const handleMainScroll = (event: React.UIEvent<HTMLElement>) => {
     const scrollingTarget = event.target as HTMLElement;
-    // Capture whichever operational element is actually scrolling. This also
-    // covers views that introduce an inner scroll container later.
-    if (scrollingTarget.scrollTop > 2) setRibbonScrolling(true);
+    // Ignore initial layout/browser-restoration scroll events. Only a genuine
+    // user gesture may move the operational chrome away.
+    if (userScrollIntentRef.current && scrollingTarget.scrollTop > 2) {
+      setRibbonScrolling(true);
+    }
   };
 
   const frameClassName = `cmg-app-frame cmg-view-surface w-full max-w-md h-[100dvh] flex flex-col relative shadow-2xl overflow-hidden sm:rounded-[2rem] sm:h-[92vh] sm:my-6 sm:border sm:border-white/70 ${ribbonScrolling ? 'is-ribbon-scrolling' : ''}`;
 
   return (
     <div className="cmg-app-backdrop flex justify-center min-h-screen font-sans">
-      <div data-view={currentView} onScrollCapture={handleMainScroll} className={frameClassName}>
+      <div
+        data-view={currentView}
+        onScrollCapture={handleMainScroll}
+        onWheel={armUserScroll}
+        onTouchMove={armUserScroll}
+        onPointerDown={armUserScroll}
+        className={frameClassName}
+      >
         {/* Shared top bar: balanced left action, centered logo, and right action. */}
         {shouldShowNav && currentView !== 'PROFILE' && (
           <header className="cmg-main-header shrink-0 relative z-30 px-5 cmg-safe-top">
