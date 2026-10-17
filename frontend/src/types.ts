@@ -103,6 +103,7 @@ export interface User {
   // Administrative onboarding/security
   mustChangePassword?: boolean;
   hasPin?: boolean;
+  isSystemAdmin?: boolean;
 
   // System Metadata
   phone?: string;

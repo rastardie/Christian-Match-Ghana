@@ -610,6 +610,7 @@ const calculateProfileStrength = (user: User | null) => {
 
 export const isProfileFullyComplete = (user: User | null) => {
   if (!user) return false;
+  if (user.isSystemAdmin === true) return true;
   
   const requiredFields = [
     'name', 'phone', 'dob', 'country', 'location', 'gender', 'maritalStatus', 
@@ -7073,6 +7074,7 @@ const FriendsView = ({
 
 export const isSubscriptionActive = (user: User | null | undefined): boolean => {
   if (!user) return false;
+  if (user.isSystemAdmin === true) return true;
   if (!user.subscriptionEndDate) return false;
   try {
     let endDate: Date;
@@ -7210,7 +7212,7 @@ const App = () => {
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   useEffect(() => {
-    if (user && currentView !== "AUTH" && currentView !== "ONBOARDING") {
+    if (user && !user.isSystemAdmin && currentView !== "AUTH" && currentView !== "ONBOARDING") {
       if (!isProfileFullyComplete(user) && !profileReminderDeferred) {
         setShowIncompleteProfileModal(true);
       } else {
@@ -7574,7 +7576,7 @@ const App = () => {
             
             if (parsedUser.mustChangePassword) {
               setCurrentView("CHANGE_PASSWORD");
-            } else if (parsedUser.age === 0) {
+            } else if (parsedUser.age === 0 && parsedUser.isSystemAdmin !== true) {
               setCurrentView("ONBOARDING");
             } else if (viewParam === 'CHAT') {
               setCurrentView('CHAT');
@@ -7594,7 +7596,7 @@ const App = () => {
               setUser(freshUser);
               if (freshUser.mustChangePassword) {
                 setCurrentView("CHANGE_PASSWORD");
-              } else if (freshUser.age === 0) {
+              } else if (freshUser.age === 0 && freshUser.isSystemAdmin !== true) {
                 setCurrentView("ONBOARDING");
               }
             }
@@ -7689,7 +7691,7 @@ const App = () => {
                 const params = new URLSearchParams(window.location.search);
                 const viewParam = params.get('view');
                 const chatIdParam = params.get('chatId');
-                if (u.age === 0) {
+                if (u.age === 0 && u.isSystemAdmin !== true) {
                   setCurrentView("ONBOARDING");
                 } else if (viewParam === 'CHAT') {
                   setCurrentView("CHAT");
@@ -7823,7 +7825,7 @@ const App = () => {
       onBack={handleUiBack}
       onLogout={handleLogout}
       onChangeView={(v) => {
-        if (user && !isProfileFullyComplete(user) && !profileReminderDeferred && v !== "EDIT_PROFILE") {
+        if (user && !user.isSystemAdmin && !isProfileFullyComplete(user) && !profileReminderDeferred && v !== "EDIT_PROFILE") {
           setShowIncompleteProfileModal(true);
           return;
         }
