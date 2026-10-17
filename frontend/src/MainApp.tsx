@@ -3318,7 +3318,7 @@ export const EditProfileView = ({
         <div className="cmg-edit-category cmg-edit-media">
           <div className="flex items-end justify-between mb-3">
             <div>
-              <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Media</h3>
+              <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">A. Media</h3>
               <p className="mt-1 text-[11px] leading-relaxed text-gray-500">
                 Uploads keep the full image automatically. Use Adjust only if you want to fine-tune the frame.
               </p>
@@ -3513,7 +3513,7 @@ export const EditProfileView = ({
         {/* Basic Info */}
         <div className="cmg-edit-category space-y-4">
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
-            A. Basic Details
+            B. Basic Details
           </h3>
           <label className="cmg-edit-field-label">Full Name</label>
           <input
@@ -3620,7 +3620,7 @@ export const EditProfileView = ({
         {/* Faith */}
         <div className="cmg-edit-category space-y-4">
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
-            Faith Profile
+            C. Faith Profile
           </h3>
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -3679,7 +3679,7 @@ export const EditProfileView = ({
         {/* Personal & Lifestyle */}
         <div className="cmg-edit-category space-y-4">
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
-            B. Personal & Lifestyle
+            D. Personal & Lifestyle
           </h3>
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -3807,7 +3807,7 @@ export const EditProfileView = ({
         {/* Education & Work */}
         <div className="cmg-edit-category space-y-4">
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
-            C. Education & Work
+            E. Education & Work
           </h3>
           <label className="cmg-edit-field-label">Education Level</label>
           <select
@@ -3855,7 +3855,7 @@ export const EditProfileView = ({
         {/* Relationship Intentions */}
         <div className="cmg-edit-category space-y-4">
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
-            D. Relationship Intentions
+            F. Relationship Intentions
           </h3>
           <label className="cmg-edit-field-label">Relationship Intention</label>
           <select
@@ -3894,7 +3894,7 @@ export const EditProfileView = ({
         {/* Partner Preferences */}
         <div className="cmg-edit-category space-y-4">
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
-            Partner Preferences
+            G. Partner Preferences
           </h3>
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -4012,7 +4012,7 @@ export const EditProfileView = ({
         {/* Sensitive Info */}
         <div className="cmg-edit-category space-y-4">
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
-            Sensitive Information (Private)
+            H. Sensitive Information (Private)
           </h3>
           <label className="cmg-edit-field-label">Health Conditions (optional)</label>
           <textarea
