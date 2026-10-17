@@ -564,6 +564,9 @@ body {
 .cmg-nav-bottom-ribbon[data-view="COMMUNITY"] {
   background-image: url("../brand-reference/wallpapers/cmg-bg-cross-bottom.png");
 }
+.cmg-nav-bottom-ribbon[data-view="PROFILE"] {
+  background-image: url("../brand-reference/wallpapers/cmg-bg-rings-bottom.png");
+}
 
 .cmg-auth-card::before,
 .cmg-auth-card::after {
@@ -1874,10 +1877,10 @@ textarea::placeholder {
 
 .cmg-nav-bottom-ribbon,
 .cmg-profile-bottom-ribbon {
-  opacity: 0.6 !important;
+  opacity: 0.3 !important;
 }
 
 .cmg-app-frame.is-ribbon-scrolling .cmg-nav-bottom-ribbon,
 .cmg-app-frame.is-ribbon-scrolling .cmg-profile-bottom-ribbon {
-  opacity: 0.4 !important;
+  opacity: 0.2 !important;
 }

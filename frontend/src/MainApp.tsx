@@ -5066,12 +5066,6 @@ const ProfileView = ({
         </div>
       </div>
       </div>
-
-      {/* Base ribbon + heart overlay (reduced height to leave room for the nav). */}
-      <div
-        aria-hidden
-        className="cmg-profile-bottom-ribbon pointer-events-none absolute inset-x-0 bottom-0 z-20"
-      ></div>
     </div>
   );
 };

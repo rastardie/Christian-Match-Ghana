@@ -84,7 +84,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
 
         {/* Bottom colored ribbon spans to the very bottom of the frame so the
             translucent nav bar floats on top of it. */}
-        {shouldShowNav && currentView !== 'PROFILE' && (
+        {shouldShowNav && (
           <div
             aria-hidden
             data-view={currentView}
