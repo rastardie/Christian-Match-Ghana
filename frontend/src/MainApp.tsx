@@ -3585,7 +3585,7 @@ export const EditProfileView = ({
               onChange={(e) =>
                 setFormData({ ...formData, gender: e.target.value })
               }
-              className="w-full p-4 bg-gray-50 rounded-2xl"
+              className="mt-6 w-full p-4 bg-gray-50 rounded-2xl"
             >
               <option value="">Select Gender</option>
               <option value="Male">Male</option>
