@@ -1365,15 +1365,14 @@ textarea::placeholder {
 .cmg-edit-category > h3 {
   margin: -1rem -1rem 0;
   padding: 0.85rem 1rem;
-  border-bottom: 1px solid rgba(9, 40, 71, 0.16);
+  border-bottom: 1px solid rgba(9, 40, 71, 0.1);
   border-radius: 1.5rem 1.5rem 0 0;
-  color: #ffffff;
-  background: linear-gradient(100deg, var(--cmg-navy), #123e63);
-  font-size: 0.7rem;
+  color: #59677a;
+  background: rgba(255, 255, 255, 0.3);
+  font-size: 0.75rem;
   font-weight: 900;
   line-height: 1.25;
-  letter-spacing: 0.14em;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
+  letter-spacing: 0.08em;
 }
 
 .cmg-edit-media {
