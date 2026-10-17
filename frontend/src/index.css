@@ -1710,3 +1710,64 @@ textarea::placeholder {
   pointer-events: none;
   background: url("../brand-reference/wallpapers/cmg-bg-leaf-bottom.png") no-repeat bottom center / 100% 100%;
 }
+
+/* SINGLE SOURCE OF TRUTH: Login, Signup, and Edit Profile all render the same
+   leaf ribbon artwork through the same pseudo-layer geometry. */
+.cmg-auth-login-panel::before,
+.cmg-auth-signup-panel::before,
+.cmg-edit-profile::before {
+  content: "";
+  display: block !important;
+  position: absolute;
+  inset-block-start: 0;
+  height: var(--cmg-shared-top-ribbon-height, 10rem);
+  z-index: 0;
+  pointer-events: none;
+  background: url("../brand-reference/wallpapers/cmg-bg-leaf-top.png") no-repeat top center / 100% 100%;
+  opacity: 1;
+  transform: translateY(0);
+  transition: transform 350ms ease, opacity 350ms ease;
+}
+
+.cmg-auth-login-panel::after,
+.cmg-auth-signup-panel::after,
+.cmg-edit-profile::after {
+  content: "";
+  display: block !important;
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
+  height: var(--cmg-shared-bottom-ribbon-height, 11rem);
+  z-index: 0;
+  pointer-events: none;
+  background: url("../brand-reference/wallpapers/cmg-bg-leaf-bottom.png") no-repeat bottom center / 100% 100%;
+  opacity: 1;
+  transform: translateY(0);
+  transition: transform 350ms ease, opacity 350ms ease;
+}
+
+/* Auth panels have p-8; extend both pseudo-layers through that padding so their
+   rendered width matches the full Edit Profile card exactly. */
+.cmg-auth-login-panel::before,
+.cmg-auth-login-panel::after,
+.cmg-auth-signup-panel::before,
+.cmg-auth-signup-panel::after {
+  inset-inline: -2rem;
+}
+
+.cmg-auth-signup-panel.is-ribbon-scrolling::before,
+.cmg-edit-profile.is-ribbon-scrolling::before {
+  opacity: 0.3;
+  transform: translateY(-50%);
+}
+
+.cmg-auth-signup-panel.is-ribbon-scrolling::after,
+.cmg-edit-profile.is-ribbon-scrolling::after {
+  opacity: 0.3;
+  transform: translateY(50%);
+}
+
+/* Remove the old separate Edit Profile bottom-ribbon element. */
+.cmg-edit-profile .cmg-edit-bottom-ribbon {
+  display: none !important;
+}
