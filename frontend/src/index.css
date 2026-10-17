@@ -1399,3 +1399,66 @@ textarea::placeholder {
   background-size: 1.3rem 1.3rem;
   padding-right: 3rem !important;
 }
+
+/* Scroll-aware logo/ribbon treatment shared by signup and onboarding. */
+.cmg-auth-card.cmg-theme-sunrise,
+.cmg-auth-card.cmg-theme-leaf {
+  background-image: url("../brand-reference/wallpapers/cmg-bg-sunrise-top.png") !important;
+}
+
+.cmg-auth-card.cmg-theme-leaf {
+  background-image: url("../brand-reference/wallpapers/cmg-bg-leaf-top.png") !important;
+}
+
+.cmg-auth-signup-panel .cmg-auth-brand,
+.cmg-onboarding-logo,
+.cmg-edit-logo {
+  max-height: 12rem;
+  overflow: hidden;
+  transition: max-height 250ms ease, opacity 250ms ease, transform 250ms ease, padding 250ms ease;
+}
+
+.cmg-auth-signup-panel.is-scrolled .cmg-auth-brand,
+.cmg-onboarding-logo.is-scrolled,
+.cmg-edit-logo.is-scrolled {
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  opacity: 0;
+  transform: translateY(-1rem);
+  pointer-events: none;
+}
+
+.cmg-auth-panel .cmg-scroll-ribbon,
+.cmg-onboarding-panel .cmg-scroll-ribbon {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 0;
+  height: 11rem;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  background-position: bottom center;
+  background-size: 100% auto;
+  opacity: 1;
+  transform: translateY(0);
+  transition: transform 350ms ease, opacity 350ms ease;
+}
+
+.cmg-scroll-ribbon--sunrise {
+  background-image: url("../brand-reference/wallpapers/cmg-bg-sunrise-bottom.png");
+}
+
+.cmg-scroll-ribbon--leaf {
+  background-image: url("../brand-reference/wallpapers/cmg-bg-leaf-bottom.png");
+}
+
+.cmg-scroll-ribbon.is-scrolling,
+.cmg-edit-bottom-ribbon.is-scrolling {
+  opacity: 0.3;
+  transform: translateY(50%);
+}
+
+.cmg-edit-bottom-ribbon {
+  transition: transform 350ms ease, opacity 350ms ease;
+}

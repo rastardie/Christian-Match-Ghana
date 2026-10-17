@@ -1043,6 +1043,8 @@ const AuthView = ({
   const [biometricBusy, setBiometricBusy] = useState(false);
   const [keepSignedIn, setKeepSignedIn] = useState(false);
   const [signupScrolled, setSignupScrolled] = useState(false);
+  const [signupRibbonScrolling, setSignupRibbonScrolling] = useState(false);
+  const signupRibbonTimerRef = useRef<number | undefined>(undefined);
   const [socialBusy, setSocialBusy] = useState<null | 'google' | 'apple'>(null);
   const [isVerificationSent, setIsVerificationSent] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
@@ -1966,7 +1968,7 @@ const AuthView = ({
   }
 
   return (
-    <div className={`cmg-auth-panel ${isLogin ? "cmg-auth-login-panel" : "cmg-auth-signup-panel"} flex h-full flex-col bg-transparent p-8 justify-start items-center text-center overflow-hidden`}>
+    <div className={`cmg-auth-panel ${isLogin ? "cmg-auth-login-panel" : "cmg-auth-signup-panel"} ${!isLogin && signupScrolled ? "is-scrolled" : ""} flex h-full flex-col bg-transparent p-8 justify-start items-center text-center overflow-hidden`}>
       {/* Terms & Conditions Modal */}
       {showTermsModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-2 sm:p-4">
@@ -2105,7 +2107,15 @@ const AuthView = ({
 
       <div
         className={`cmg-auth-form-shell ${isLogin ? "cmg-auth-login-shell" : `cmg-auth-signup-shell ${signupScrolled ? "is-scrolled" : ""}`}`}
-        onScroll={isLogin ? undefined : (e) => setSignupScrolled(e.currentTarget.scrollTop > 2)}
+        onScroll={isLogin ? undefined : (event) => {
+          const scrolling = event.currentTarget.scrollTop > 2;
+          setSignupScrolled(scrolling);
+          setSignupRibbonScrolling(scrolling);
+          window.clearTimeout(signupRibbonTimerRef.current);
+          if (scrolling) {
+            signupRibbonTimerRef.current = window.setTimeout(() => setSignupRibbonScrolling(false), 5000);
+          }
+        }}
       >
         {!isLogin && (
           <div className="cmg-auth-signup-copy">
@@ -2447,7 +2457,10 @@ const AuthView = ({
             By continuing, you agree to our Terms of Service honoring God in your interactions.
          </p>
       </div>
-      </div>
+      {!isLogin && (
+        <div className={`cmg-scroll-ribbon cmg-scroll-ribbon--sunrise ${signupRibbonScrolling ? "is-scrolling" : ""}`} aria-hidden="true" />
+      )}
+    </div>
     </div>
   );
 };
@@ -2470,6 +2483,8 @@ const OnboardingView = ({
   const draftStorageKey = userId ? `cmg_onboarding_draft_${userId}` : "";
   const [step, setStep] = useState(1);
   const [onboardingScrolled, setOnboardingScrolled] = useState(false);
+  const [onboardingRibbonScrolling, setOnboardingRibbonScrolling] = useState(false);
+  const onboardingRibbonTimerRef = useRef<number | undefined>(undefined);
   const [validationMessage, setValidationMessage] = useState("");
   const [optionalPin, setOptionalPin] = useState("");
   const [optionalPinConfirm, setOptionalPinConfirm] = useState("");
@@ -2600,7 +2615,7 @@ const OnboardingView = ({
     <div className="cmg-onboarding-panel h-full flex flex-col bg-transparent overflow-hidden relative">
 
       {/* Compact brand mark above the four-step wizard. */}
-      <div className="flex justify-center pt-4 pb-1 shrink-0">
+      <div className={`cmg-onboarding-logo flex justify-center pt-4 pb-1 shrink-0 ${onboardingScrolled ? "is-scrolled" : ""}`}>
         <Logo size={160} className="drop-shadow-lg" />
       </div>
       <div aria-live="polite" className="min-h-4 px-6 text-center text-[10px] font-bold text-gray-400">
@@ -2652,7 +2667,15 @@ const OnboardingView = ({
 
       <div
         className={`cmg-onboarding-scroll flex-1 overflow-y-auto p-8 pt-5 hide-scrollbar ${onboardingScrolled ? "is-scrolled" : ""}`}
-        onScroll={(event) => setOnboardingScrolled(event.currentTarget.scrollTop > 2)}
+        onScroll={(event) => {
+          const scrolling = event.currentTarget.scrollTop > 2;
+          setOnboardingScrolled(scrolling);
+          setOnboardingRibbonScrolling(scrolling);
+          window.clearTimeout(onboardingRibbonTimerRef.current);
+          if (scrolling) {
+            onboardingRibbonTimerRef.current = window.setTimeout(() => setOnboardingRibbonScrolling(false), 5000);
+          }
+        }}
       >
         {step === 1 && (
           <div className="space-y-6 animate-in slide-in-from-right duration-500">
@@ -2879,6 +2902,7 @@ const OnboardingView = ({
           </button>
         </div>
       </div>
+      <div className={`cmg-scroll-ribbon cmg-scroll-ribbon--leaf ${onboardingRibbonScrolling ? "is-scrolling" : ""}`} aria-hidden="true" />
     </div>
   );
 };
@@ -2912,6 +2936,8 @@ export const EditProfileView = ({
   }));
   const [loading, setLoading] = React.useState(false);
   const [editScrolled, setEditScrolled] = React.useState(false);
+  const [editRibbonScrolling, setEditRibbonScrolling] = React.useState(false);
+  const editRibbonTimerRef = React.useRef<number | undefined>(undefined);
   const [draftStatus, setDraftStatus] = React.useState<"idle" | "saving" | "saved" | "error">("idle");
   const hydratedDraftRef = React.useRef(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -3292,14 +3318,22 @@ export const EditProfileView = ({
       </div>
 
       {/* App logo, consistent with the signup page. */}
-      <div className="flex justify-center pt-8 pb-1">
+      <div className={`cmg-edit-logo flex justify-center pt-8 pb-1 ${editScrolled ? "is-scrolled" : ""}`}>
         <Logo size={160} className="drop-shadow-lg" />
       </div>
       </div>
 
       <div
         className={`cmg-edit-scroll flex-1 overflow-y-auto px-6 pt-4 pb-52 hide-scrollbar space-y-8 relative z-10 ${editScrolled ? "is-scrolled" : ""}`}
-        onScroll={(event) => setEditScrolled(event.currentTarget.scrollTop > 2)}
+        onScroll={(event) => {
+          const scrolling = event.currentTarget.scrollTop > 2;
+          setEditScrolled(scrolling);
+          setEditRibbonScrolling(scrolling);
+          window.clearTimeout(editRibbonTimerRef.current);
+          if (scrolling) {
+            editRibbonTimerRef.current = window.setTimeout(() => setEditRibbonScrolling(false), 5000);
+          }
+        }}
       >
         <div className="cmg-edit-copy">
           <h2 className="cmg-edit-title">Edit Profile</h2>
@@ -4045,7 +4079,7 @@ export const EditProfileView = ({
       {/* Bottom ribbon + heart overlay: form content scrolls beneath this. */}
       <div
         aria-hidden
-        className="cmg-edit-bottom-ribbon pointer-events-none absolute inset-x-0 bottom-0 z-30"
+        className={`cmg-edit-bottom-ribbon ${editRibbonScrolling ? "is-scrolling" : ""} pointer-events-none absolute inset-x-0 bottom-0 z-30`}
       ></div>
       
       {croppingImage && (
