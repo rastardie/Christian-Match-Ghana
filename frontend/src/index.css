@@ -1685,3 +1685,28 @@ textarea::placeholder {
   width: 0;
   height: 0;
 }
+
+/* Welcome Back uses the same leaf top and bottom ribbon frame as Signup and Edit
+   Profile; the login content and authentication behavior remain unchanged. */
+.cmg-auth-login-panel::before {
+  content: "";
+  display: block !important;
+  position: absolute;
+  inset: 0 0 auto;
+  height: var(--cmg-shared-top-ribbon-height, 10rem);
+  z-index: 0;
+  pointer-events: none;
+  background: url("../brand-reference/wallpapers/cmg-bg-leaf-top.png") no-repeat top center / 100% 100%;
+}
+
+.cmg-auth-login-panel::after {
+  content: "";
+  display: block !important;
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: var(--cmg-shared-bottom-ribbon-height, 11rem);
+  z-index: 0;
+  pointer-events: none;
+  background: url("../brand-reference/wallpapers/cmg-bg-leaf-bottom.png") no-repeat bottom center / 100% 100%;
+}
