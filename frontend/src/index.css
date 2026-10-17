@@ -1771,3 +1771,54 @@ textarea::placeholder {
 .cmg-edit-profile .cmg-edit-bottom-ribbon {
   display: none !important;
 }
+
+/* Auth/onboarding use the exact Edit Profile benchmark ribbon geometry, without
+   modifying the Edit Profile benchmark implementation itself. */
+.cmg-benchmark-ribbon-top,
+.cmg-benchmark-ribbon-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  opacity: 1;
+  transform: translateY(0);
+  transition: transform 350ms ease, opacity 350ms ease;
+}
+
+.cmg-benchmark-ribbon-top {
+  top: 0;
+  height: 10rem;
+  background: url("../brand-reference/wallpapers/cmg-bg-leaf-top.png") no-repeat top center / 100% auto;
+}
+
+.cmg-benchmark-ribbon-bottom {
+  bottom: 0;
+  height: 11rem;
+  background: url("../brand-reference/wallpapers/cmg-bg-leaf-bottom.png") no-repeat bottom center / 100% auto;
+}
+
+.cmg-auth-card:has(.cmg-auth-panel.is-ribbon-scrolling) .cmg-benchmark-ribbon-top,
+.cmg-auth-card:has(.cmg-onboarding-panel.is-ribbon-scrolling) .cmg-benchmark-ribbon-top {
+  opacity: 0.3;
+  transform: translateY(-50%);
+}
+
+.cmg-auth-card:has(.cmg-auth-panel.is-ribbon-scrolling) .cmg-benchmark-ribbon-bottom,
+.cmg-auth-card:has(.cmg-onboarding-panel.is-ribbon-scrolling) .cmg-benchmark-ribbon-bottom {
+  opacity: 0.3;
+  transform: translateY(50%);
+}
+
+/* Remove only the older auth/onboarding ribbon layers; Edit Profile is untouched. */
+.cmg-auth-login-panel::before,
+.cmg-auth-login-panel::after,
+.cmg-auth-signup-panel::before,
+.cmg-auth-signup-panel::after,
+.cmg-auth-panel .cmg-scroll-top-ribbon,
+.cmg-auth-panel .cmg-scroll-ribbon,
+.cmg-onboarding-panel .cmg-scroll-top-ribbon,
+.cmg-onboarding-panel .cmg-scroll-ribbon {
+  display: none !important;
+}

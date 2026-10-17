@@ -7680,6 +7680,8 @@ const App = () => {
           />
         ) : (
           <div className="cmg-auth-card cmg-theme-leaf w-full max-w-md h-[100dvh] sm:h-[90vh] relative">
+            <div className="cmg-benchmark-ribbon-top" aria-hidden="true" />
+            <div className="cmg-benchmark-ribbon-bottom" aria-hidden="true" />
             <button
               type="button"
               title="Back to landing page"
@@ -7729,6 +7731,8 @@ const App = () => {
     return (
       <div className="cmg-stage min-h-screen flex items-center justify-center">
         <div className="cmg-auth-card cmg-theme-leaf w-full max-w-md h-[100dvh] sm:h-[90vh] relative">
+          <div className="cmg-benchmark-ribbon-top" aria-hidden="true" />
+          <div className="cmg-benchmark-ribbon-bottom" aria-hidden="true" />
           <div className="cmg-onboarding-top-controls absolute top-4 left-4 right-4 z-[200] flex items-center justify-between pointer-events-none">
             <button
               type="button"
