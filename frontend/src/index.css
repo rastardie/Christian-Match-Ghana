@@ -1339,3 +1339,14 @@ textarea::placeholder {
   letter-spacing: 0.08em;
   box-shadow: 0 12px 22px rgba(9, 40, 71, 0.2);
 }
+
+.cmg-edit-field-label {
+  display: block;
+  margin: 0 0 0.35rem 0.5rem;
+  color: #6b7686;
+  font-size: 0.625rem;
+  font-weight: 900;
+  line-height: 1.2;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}

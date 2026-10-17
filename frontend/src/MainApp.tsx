@@ -3515,6 +3515,7 @@ export const EditProfileView = ({
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
             A. Basic Details
           </h3>
+          <label className="cmg-edit-field-label">Full Name</label>
           <input
             type="text"
             placeholder="Full Name"
@@ -3522,6 +3523,7 @@ export const EditProfileView = ({
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             className="w-full p-4 bg-gray-50 rounded-2xl"
           />
+          <label className="cmg-edit-field-label">Telephone Number</label>
           <PhoneInput
             id="edit-phone"
             value={formData.phone || ""}
@@ -3580,20 +3582,24 @@ export const EditProfileView = ({
                 className="w-full p-4 bg-gray-50 rounded-2xl"
               />
             </div>
-            <select
-              value={formData.gender || ""}
-              onChange={(e) =>
-                setFormData({ ...formData, gender: e.target.value })
-              }
-              className="mt-6 w-full p-4 bg-gray-50 rounded-2xl"
-            >
-              <option value="">Select Gender</option>
-              <option value="Male">Male</option>
-              <option value="Female">Female</option>
-            </select>
+            <div>
+              <label className="cmg-edit-field-label">Gender</label>
+              <select
+                value={formData.gender || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, gender: e.target.value })
+                }
+                className="w-full p-4 bg-gray-50 rounded-2xl"
+              >
+                <option value="">Select Gender</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+              </select>
+            </div>
           </div>
           
-          <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="cmg-edit-field-label">Marital Status</label>
             <select
               value={formData.maritalStatus || ""}
               onChange={(e) =>
@@ -3617,34 +3623,41 @@ export const EditProfileView = ({
             Faith Profile
           </h3>
           <div className="grid grid-cols-2 gap-4">
-            <select
-              value={formData.denomination || ""}
-              onChange={(e) =>
-                setFormData({ ...formData, denomination: e.target.value })
-              }
-              className="w-full p-4 bg-gray-50 rounded-2xl"
-            >
-              <option value="">Denomination</option>
-              {DENOMINATIONS.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-            </select>
-            <select
-              value={formData.churchAttendance || ""}
-              onChange={(e) =>
-                setFormData({ ...formData, churchAttendance: e.target.value })
-              }
-              className="w-full p-4 bg-gray-50 rounded-2xl"
-            >
-              <option value="">Attendance</option>
-              <option>Weekly</option>
-              <option>Twice a week</option>
-              <option>Occasional</option>
-              <option>Online Only</option>
-            </select>
+            <div>
+              <label className="cmg-edit-field-label">Denomination</label>
+              <select
+                value={formData.denomination || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, denomination: e.target.value })
+                }
+                className="w-full p-4 bg-gray-50 rounded-2xl"
+              >
+                <option value="">Denomination</option>
+                {DENOMINATIONS.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="cmg-edit-field-label">Church Attendance</label>
+              <select
+                value={formData.churchAttendance || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, churchAttendance: e.target.value })
+                }
+                className="w-full p-4 bg-gray-50 rounded-2xl"
+              >
+                <option value="">Attendance</option>
+                <option>Weekly</option>
+                <option>Twice a week</option>
+                <option>Occasional</option>
+                <option>Online Only</option>
+              </select>
+            </div>
           </div>
+          <label className="cmg-edit-field-label">Home Church</label>
           <input
             type="text"
             placeholder="Home Church"
@@ -3654,6 +3667,7 @@ export const EditProfileView = ({
             }
             className="w-full p-4 bg-gray-50 rounded-2xl"
           />
+          <label className="cmg-edit-field-label">Faith Statement / Bio</label>
           <textarea
             placeholder="Your Faith Statement / Bio"
             value={formData.bio || ""}
@@ -3668,83 +3682,85 @@ export const EditProfileView = ({
             B. Personal & Lifestyle
           </h3>
           <div className="grid grid-cols-2 gap-4">
-            <select
-              value={formData.maritalStatus || ""}
-              onChange={(e) =>
-                setFormData({ ...formData, maritalStatus: e.target.value })
-              }
-              className="w-full p-4 bg-gray-50 rounded-2xl"
-            >
-              <option value="">Marital Status</option>
-              {MARITAL_STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-            <select
-              value={formData.hasChildren || ""}
-              onChange={(e) =>
-                setFormData({ ...formData, hasChildren: e.target.value })
-              }
-              className="w-full p-4 bg-gray-50 rounded-2xl"
-            >
-              <option value="">Have Children?</option>
-              <option>No</option>
-              <option>Yes</option>
-            </select>
+            <div>
+              <label className="cmg-edit-field-label">Have Children?</label>
+              <select
+                value={formData.hasChildren || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, hasChildren: e.target.value })
+                }
+                className="w-full p-4 bg-gray-50 rounded-2xl"
+              >
+                <option value="">Have Children?</option>
+                <option>No</option>
+                <option>Yes</option>
+              </select>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <select
-              value={formData.wantChildren || ""}
-              onChange={(e) =>
-                setFormData({ ...formData, wantChildren: e.target.value })
-              }
-              className="w-full p-4 bg-gray-50 rounded-2xl"
-            >
-              <option value="">Want Children?</option>
-              <option>Yes</option>
-              <option>No</option>
-              <option>Maybe</option>
-            </select>
-            <input
-              type="text"
-              placeholder="Height (e.g. 5'7)"
-              value={formData.height || ""}
-              onChange={(e) =>
-                setFormData({ ...formData, height: e.target.value })
-              }
-              className="w-full p-4 bg-gray-50 rounded-2xl"
-            />
+            <div>
+              <label className="cmg-edit-field-label">Want Children?</label>
+              <select
+                value={formData.wantChildren || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, wantChildren: e.target.value })
+                }
+                className="w-full p-4 bg-gray-50 rounded-2xl"
+              >
+                <option value="">Want Children?</option>
+                <option>Yes</option>
+                <option>No</option>
+                <option>Maybe</option>
+              </select>
+            </div>
+            <div>
+              <label className="cmg-edit-field-label">Height</label>
+              <input
+                type="text"
+                placeholder="Height (e.g. 5'7)"
+                value={formData.height || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, height: e.target.value })
+                }
+                className="w-full p-4 bg-gray-50 rounded-2xl"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <select
-              value={formData.bodyType || ""}
-              onChange={(e) =>
-                setFormData({ ...formData, bodyType: e.target.value })
-              }
-              className="w-full p-4 bg-gray-50 rounded-2xl"
-            >
-              <option value="">Body Type</option>
-              {BODY_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-            <input
-              type="text"
-              placeholder="Complexion"
-              value={formData.complexion || ""}
-              onChange={(e) =>
-                setFormData({ ...formData, complexion: e.target.value })
-              }
-              className="w-full p-4 bg-gray-50 rounded-2xl"
-            />
+            <div>
+              <label className="cmg-edit-field-label">Body Type</label>
+              <select
+                value={formData.bodyType || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, bodyType: e.target.value })
+                }
+                className="w-full p-4 bg-gray-50 rounded-2xl"
+              >
+                <option value="">Body Type</option>
+                {BODY_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="cmg-edit-field-label">Complexion</label>
+              <input
+                type="text"
+                placeholder="Complexion"
+                value={formData.complexion || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, complexion: e.target.value })
+                }
+                className="w-full p-4 bg-gray-50 rounded-2xl"
+              />
+            </div>
           </div>
 
+          <label className="cmg-edit-field-label">Languages</label>
           <input
             type="text"
             placeholder="Languages (comma separated)"
@@ -3756,29 +3772,35 @@ export const EditProfileView = ({
           />
 
           <div className="grid grid-cols-2 gap-4">
-            <select
-              value={formData.smoking || ""}
-              onChange={(e) =>
-                setFormData({ ...formData, smoking: e.target.value })
-              }
-              className="w-full p-4 bg-gray-50 rounded-2xl"
-            >
-              <option value="">Smoking</option>
-              <option>No</option>
-              <option>Yes</option>
-            </select>
-            <select
-              value={formData.alcohol || ""}
-              onChange={(e) =>
-                setFormData({ ...formData, alcohol: e.target.value })
-              }
-              className="w-full p-4 bg-gray-50 rounded-2xl"
-            >
-              <option value="">Alcohol</option>
-              <option>No</option>
-              <option>Occasionally</option>
-              <option>Yes</option>
-            </select>
+            <div>
+              <label className="cmg-edit-field-label">Smoking</label>
+              <select
+                value={formData.smoking || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, smoking: e.target.value })
+                }
+                className="w-full p-4 bg-gray-50 rounded-2xl"
+              >
+                <option value="">Smoking</option>
+                <option>No</option>
+                <option>Yes</option>
+              </select>
+            </div>
+            <div>
+              <label className="cmg-edit-field-label">Alcohol</label>
+              <select
+                value={formData.alcohol || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, alcohol: e.target.value })
+                }
+                className="w-full p-4 bg-gray-50 rounded-2xl"
+              >
+                <option value="">Alcohol</option>
+                <option>No</option>
+                <option>Occasionally</option>
+                <option>Yes</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -3787,6 +3809,7 @@ export const EditProfileView = ({
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
             C. Education & Work
           </h3>
+          <label className="cmg-edit-field-label">Education Level</label>
           <select
             value={formData.education || ""}
             onChange={(e) =>
@@ -3802,24 +3825,30 @@ export const EditProfileView = ({
             ))}
           </select>
           <div className="grid grid-cols-2 gap-4">
-            <input
-              type="text"
-              placeholder="Occupation"
-              value={formData.occupation || formData.profession || ""}
-              onChange={(e) =>
-                setFormData({ ...formData, occupation: e.target.value })
-              }
-              className="w-full p-4 bg-gray-50 rounded-2xl"
-            />
-            <input
-              type="text"
-              placeholder="Income Range"
-              value={formData.incomeRange || ""}
-              onChange={(e) =>
-                setFormData({ ...formData, incomeRange: e.target.value })
-              }
-              className="w-full p-4 bg-gray-50 rounded-2xl"
-            />
+            <div>
+              <label className="cmg-edit-field-label">Occupation</label>
+              <input
+                type="text"
+                placeholder="Occupation"
+                value={formData.occupation || formData.profession || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, occupation: e.target.value })
+                }
+                className="w-full p-4 bg-gray-50 rounded-2xl"
+              />
+            </div>
+            <div>
+              <label className="cmg-edit-field-label">Income Range</label>
+              <input
+                type="text"
+                placeholder="Income Range"
+                value={formData.incomeRange || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, incomeRange: e.target.value })
+                }
+                className="w-full p-4 bg-gray-50 rounded-2xl"
+              />
+            </div>
           </div>
         </div>
 
@@ -3828,6 +3857,7 @@ export const EditProfileView = ({
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
             D. Relationship Intentions
           </h3>
+          <label className="cmg-edit-field-label">Relationship Intention</label>
           <select
             value={formData.intentions || formData.lookingFor || ""}
             onChange={(e) =>
@@ -3846,6 +3876,7 @@ export const EditProfileView = ({
               </option>
             ))}
           </select>
+          <label className="cmg-edit-field-label">Willing to Relocate?</label>
           <select
             value={formData.willingToRelocate || ""}
             onChange={(e) =>
@@ -3866,24 +3897,30 @@ export const EditProfileView = ({
             Partner Preferences
           </h3>
           <div className="grid grid-cols-2 gap-4">
-            <input
-              type="number"
-              placeholder="Min Age"
-              value={formData.preferredAgeMin || ""}
-              onChange={(e) =>
-                setFormData({ ...formData, preferredAgeMin: e.target.value })
-              }
-              className="w-full p-4 bg-gray-50 rounded-2xl"
-            />
-            <input
-              type="number"
-              placeholder="Max Age"
-              value={formData.preferredAgeMax || ""}
-              onChange={(e) =>
-                setFormData({ ...formData, preferredAgeMax: e.target.value })
-              }
-              className="w-full p-4 bg-gray-50 rounded-2xl"
-            />
+            <div>
+              <label className="cmg-edit-field-label">Minimum Age</label>
+              <input
+                type="number"
+                placeholder="Min Age"
+                value={formData.preferredAgeMin || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, preferredAgeMin: e.target.value })
+                }
+                className="w-full p-4 bg-gray-50 rounded-2xl"
+              />
+            </div>
+            <div>
+              <label className="cmg-edit-field-label">Maximum Age</label>
+              <input
+                type="number"
+                placeholder="Max Age"
+                value={formData.preferredAgeMax || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, preferredAgeMax: e.target.value })
+                }
+                className="w-full p-4 bg-gray-50 rounded-2xl"
+              />
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -3923,38 +3960,45 @@ export const EditProfileView = ({
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <select
-              value={formData.preferredDenomination || ""}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  preferredDenomination: e.target.value,
-                })
-              }
-              className="w-full p-4 bg-gray-50 rounded-2xl"
-            >
-              <option value="">Pref. Denomination</option>
-              <option value="Any">Any</option>
-              {DENOMINATIONS.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-            </select>
-            <input
-              type="text"
-              placeholder="Pref. Ethnic Group"
-              value={formData.preferredEthnicGroup || ""}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  preferredEthnicGroup: e.target.value,
-                })
-              }
-              className="w-full p-4 bg-gray-50 rounded-2xl"
-            />
+            <div>
+              <label className="cmg-edit-field-label">Preferred Denomination</label>
+              <select
+                value={formData.preferredDenomination || ""}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    preferredDenomination: e.target.value,
+                  })
+                }
+                className="w-full p-4 bg-gray-50 rounded-2xl"
+              >
+                <option value="">Pref. Denomination</option>
+                <option value="Any">Any</option>
+                {DENOMINATIONS.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="cmg-edit-field-label">Preferred Ethnic Group</label>
+              <input
+                type="text"
+                placeholder="Pref. Ethnic Group"
+                value={formData.preferredEthnicGroup || ""}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    preferredEthnicGroup: e.target.value,
+                  })
+                }
+                className="w-full p-4 bg-gray-50 rounded-2xl"
+              />
+            </div>
           </div>
 
+          <label className="cmg-edit-field-label">Deal Breakers</label>
           <textarea
             placeholder="Deal Breakers"
             value={formData.dealBreakers || ""}
@@ -3970,6 +4014,7 @@ export const EditProfileView = ({
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
             Sensitive Information (Private)
           </h3>
+          <label className="cmg-edit-field-label">Health Conditions (optional)</label>
           <textarea
             placeholder="Health conditions (optional)"
             value={formData.healthCondition || ""}
@@ -3978,6 +4023,7 @@ export const EditProfileView = ({
             }
             className="w-full p-4 bg-gray-50 rounded-2xl h-24"
           />
+          <label className="cmg-edit-field-label">Lifestyle / Values Note</label>
           <textarea
             placeholder="Lifestyle / Values note"
             value={formData.lifestyleInfo || ""}
