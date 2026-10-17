@@ -7,7 +7,7 @@
 
 import React, { useRef, useState } from 'react';
 import { ViewState } from '../types';
-import { Compass, MessageCircle, User, Heart, LogOut, ArrowLeft, ShieldCheck } from 'lucide-react';
+import { Compass, MessageCircle, User, Heart, Bell, RotateCcw, Power, ArrowLeft, ShieldCheck } from 'lucide-react';
 import Logo from './Logo';
 
 
@@ -17,12 +17,14 @@ interface LayoutProps {
   onChangeView: (view: ViewState) => void;
   onBack?: () => void;
   onLogout?: () => void;
+  onNotifications?: () => void;
+  onRefresh?: () => void;
   onAdmin?: () => void;
   isSystemAdmin?: boolean;
   hideNav?: boolean; 
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, onBack, onLogout, onAdmin, isSystemAdmin, hideNav }) => {
+const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, onBack, onLogout, onNotifications, onRefresh, onAdmin, isSystemAdmin, hideNav }) => {
   // Navigation is hidden during auth, onboarding, and specific deep-view states (like active calls)
   const shouldShowNav = !hideNav && !['AUTH', 'ONBOARDING', 'EDIT_PROFILE'].includes(currentView);
   const [ribbonScrolling, setRibbonScrolling] = useState(false);
@@ -83,9 +85,31 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
                     <ArrowLeft size={20} />
                   </button>
                 )}
+                {onRefresh && (
+                  <button
+                    type="button"
+                    title="Refresh"
+                    aria-label="Refresh"
+                    onClick={onRefresh}
+                    className="cmg-main-icon-button"
+                  >
+                    <RotateCcw size={18} />
+                  </button>
+                )}
               </div>
               <Logo size={160} className="cmg-main-header__logo drop-shadow-lg rounded-full" />
               <div className="cmg-main-header__side cmg-main-header__side--right">
+                {onNotifications && (
+                  <button
+                    type="button"
+                    title="Notifications"
+                    aria-label="Notifications"
+                    onClick={onNotifications}
+                    className="cmg-main-icon-button"
+                  >
+                    <Bell size={18} />
+                  </button>
+                )}
                 {onLogout && (
                   <button
                     type="button"
@@ -94,7 +118,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
                     onClick={onLogout}
                     className="cmg-main-icon-button"
                   >
-                    <LogOut size={18} />
+                    <Power size={18} />
                   </button>
                 )}
               </div>

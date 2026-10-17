@@ -7824,6 +7824,8 @@ const App = () => {
       currentView={currentView}
       onBack={handleUiBack}
       onLogout={handleLogout}
+      onNotifications={() => setCurrentView("SETTINGS")}
+      onRefresh={() => window.location.reload()}
       isSystemAdmin={user?.isSystemAdmin === true}
       onAdmin={() => window.location.assign('/admin')}
       onChangeView={(v) => {

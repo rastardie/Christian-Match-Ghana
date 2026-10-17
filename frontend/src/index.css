@@ -134,6 +134,7 @@ body {
 .cmg-main-header__side {
   display: flex;
   align-items: center;
+  gap: 0.5rem;
 }
 
 .cmg-main-header__side--right {
