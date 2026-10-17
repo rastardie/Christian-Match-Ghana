@@ -2097,7 +2097,7 @@ const AuthView = ({
         <Logo size={160} className="drop-shadow-xl" />
         {isLogin && (
           <>
-            <h2>Welcome back</h2>
+            <h2>Welcome Back</h2>
             <p>Your journey to a Christ-centred connection continues.</p>
           </>
         )}
@@ -2109,7 +2109,7 @@ const AuthView = ({
       >
         {!isLogin && (
           <div className="cmg-auth-signup-copy">
-            <h2>Create your account</h2>
+            <h2>Create Your Account</h2>
             <p>Join a community of believers seeking meaningful, Christ-centred relationships.</p>
           </div>
         )}
@@ -2658,7 +2658,7 @@ const OnboardingView = ({
           <div className="space-y-6 animate-in slide-in-from-right duration-500">
             <div>
               <h2 className="text-3xl font-black text-brand-blue mb-2 tracking-tighter">
-                Tell us about yourself
+                Tell Us About Yourself
               </h2>
               <p className="text-gray-400 text-sm font-medium">
                 Fields marked <span className="font-black text-brand-orange">*</span> are required. You can add photos and other details later in Edit Profile.
@@ -3302,7 +3302,7 @@ export const EditProfileView = ({
         onScroll={(event) => setEditScrolled(event.currentTarget.scrollTop > 2)}
       >
         <div className="cmg-edit-copy">
-          <h2 className="cmg-edit-title">Edit profile</h2>
+          <h2 className="cmg-edit-title">Edit Profile</h2>
           <div aria-live="polite" className="min-h-4 text-[10px] font-bold text-gray-400">
             {draftStatus === "saving" && "Saving draft…"}
             {draftStatus === "saved" && "Saved"}
