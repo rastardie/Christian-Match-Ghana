@@ -2457,12 +2457,7 @@ const AuthView = ({
             By continuing, you agree to our Terms of Service honoring God in your interactions.
          </p>
       </div>
-      {!isLogin && (
-        <div className="cmg-scroll-top-ribbon cmg-scroll-top-ribbon--sunrise" aria-hidden="true" />
-      )}
-      {!isLogin && (
-        <div className={`cmg-scroll-ribbon cmg-scroll-ribbon--sunrise ${signupRibbonScrolling ? "is-scrolling" : ""}`} aria-hidden="true" />
-      )}
+
     </div>
     </div>
   );
