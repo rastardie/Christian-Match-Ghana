@@ -1319,13 +1319,6 @@ textarea::placeholder {
   background-size: 100% auto;
 }
 
-.cmg-edit-scroll .cmg-edit-save-button {
-  min-height: 2.3rem;
-  background: linear-gradient(100deg, var(--cmg-navy), #123e63);
-  border-radius: 0.95rem;
-  letter-spacing: 0.08em;
-}
-
 /* Edit Profile guided text matches the Create your account inputs. */
 .cmg-edit-profile input::placeholder,
 .cmg-edit-profile textarea::placeholder {

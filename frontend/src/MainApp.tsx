@@ -3992,7 +3992,7 @@ export const EditProfileView = ({
           type="button"
           onClick={saveProfile}
           disabled={loading}
-          className="cmg-edit-save-button w-full py-4 rounded-2xl font-black text-white shadow-xl active:scale-95 transition-transform disabled:opacity-50 mt-4 uppercase tracking-widest text-xs flex items-center justify-center gap-2"
+          className="cmg-edit-save-button w-full py-4 rounded-2xl font-black shadow-xl active:scale-95 transition-transform disabled:opacity-50 mt-4 uppercase tracking-widest text-xs flex items-center justify-center gap-2 bg-brand-blue text-white shadow-brand-blue/20"
         >
           {loading ? "SAVING..." : "SAVE"}
         </button>
