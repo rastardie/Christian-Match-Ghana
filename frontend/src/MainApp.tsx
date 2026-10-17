@@ -3569,9 +3569,7 @@ export const EditProfileView = ({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-[10px] uppercase font-bold text-gray-400 ml-2">
-                City / Region
-              </label>
+              <label className="cmg-edit-field-label">City / Region</label>
               <input
                 type="text"
                 placeholder="City / Region"
