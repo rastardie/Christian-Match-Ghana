@@ -1610,3 +1610,58 @@ textarea::placeholder {
 .cmg-auth-signup-panel::before {
   background-size: 100% auto;
 }
+
+/* One shared ribbon geometry for every page that uses the themed frame. */
+:root {
+  --cmg-shared-top-ribbon-height: 10rem;
+  --cmg-shared-bottom-ribbon-height: 11rem;
+}
+
+.cmg-auth-signup-shell,
+.cmg-edit-scroll {
+  --cmg-ribbon: var(--cmg-shared-bottom-ribbon-height);
+  --cmg-edit-fade: var(--cmg-shared-bottom-ribbon-height);
+}
+
+.cmg-auth-signup-panel::before,
+.cmg-edit-profile::before {
+  height: var(--cmg-shared-top-ribbon-height);
+  background-size: 100% 100%;
+}
+
+.cmg-auth-signup-panel::after,
+.cmg-edit-bottom-ribbon {
+  height: var(--cmg-shared-bottom-ribbon-height);
+  background-size: 100% 100%;
+}
+
+.cmg-onboarding-panel .cmg-scroll-top-ribbon,
+.cmg-auth-panel .cmg-scroll-top-ribbon {
+  height: var(--cmg-shared-top-ribbon-height);
+  background-size: 100% 100%;
+}
+
+.cmg-onboarding-panel .cmg-scroll-ribbon,
+.cmg-auth-panel .cmg-scroll-ribbon,
+.cmg-nav-bottom-ribbon,
+.cmg-profile-bottom-ribbon {
+  height: var(--cmg-shared-bottom-ribbon-height);
+  background-size: 100% 100%;
+}
+
+.cmg-app-frame[data-view="BROWSE"],
+.cmg-app-frame[data-view="FRIENDS"],
+.cmg-app-frame[data-view="CHAT"],
+.cmg-app-frame[data-view="COMMUNITY"],
+.cmg-app-frame[data-view="PROFILE"] {
+  background-size: 100% var(--cmg-shared-top-ribbon-height) !important;
+}
+
+.cmg-main-icon-button {
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(4px);
+}
+
+.cmg-main-icon-button:hover {
+  background: rgba(255, 255, 255, 0.6);
+}
