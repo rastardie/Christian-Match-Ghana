@@ -1888,3 +1888,58 @@ textarea::placeholder {
 .cmg-app-frame.is-ribbon-scrolling .cmg-profile-bottom-ribbon {
   opacity: 0.2 !important;
 }
+
+/* Operational pages keep their scrolled-away chrome out of the content area
+   until a full refresh. The one-way state is set by Layout.tsx. */
+.cmg-app-frame[data-view="BROWSE"]::before,
+.cmg-app-frame[data-view="FRIENDS"]::before,
+.cmg-app-frame[data-view="CHAT"]::before,
+.cmg-app-frame[data-view="COMMUNITY"]::before,
+.cmg-app-frame[data-view="PROFILE"]::before {
+  transition: transform 350ms ease, opacity 350ms ease;
+}
+
+.cmg-app-frame.is-ribbon-scrolling[data-view="BROWSE"]::before,
+.cmg-app-frame.is-ribbon-scrolling[data-view="FRIENDS"]::before,
+.cmg-app-frame.is-ribbon-scrolling[data-view="CHAT"]::before,
+.cmg-app-frame.is-ribbon-scrolling[data-view="COMMUNITY"]::before,
+.cmg-app-frame.is-ribbon-scrolling[data-view="PROFILE"]::before {
+  opacity: 0.06;
+  transform: translateY(-50%);
+}
+
+.cmg-main-header {
+  max-height: 12rem;
+  overflow: hidden;
+  transition: max-height 350ms ease, padding 350ms ease, opacity 350ms ease, transform 350ms ease;
+}
+
+.cmg-app-frame.is-ribbon-scrolling .cmg-main-header {
+  max-height: 0;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  opacity: 0;
+  transform: translateY(-100%);
+  pointer-events: none;
+}
+
+.cmg-app-frame.is-ribbon-scrolling .cmg-nav-bottom-ribbon,
+.cmg-app-frame.is-ribbon-scrolling .cmg-profile-bottom-ribbon {
+  opacity: 0;
+  transform: translateY(100%);
+}
+
+.cmg-bottom-nav {
+  transition: max-height 350ms ease, padding 350ms ease, opacity 350ms ease, transform 350ms ease;
+  max-height: 5rem;
+  overflow: hidden;
+}
+
+.cmg-app-frame.is-ribbon-scrolling .cmg-bottom-nav {
+  max-height: 0;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  opacity: 0;
+  transform: translateY(100%);
+  pointer-events: none;
+}
