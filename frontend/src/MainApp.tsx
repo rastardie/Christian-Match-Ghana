@@ -2618,7 +2618,6 @@ const OnboardingView = ({
       </div>
       <div aria-live="polite" className="min-h-4 px-6 text-center text-[10px] font-bold text-gray-400">
         {draftStatus === "saving" && "Saving draft…"}
-        {draftStatus === "saved" && "Draft saved"}
         {draftStatus === "error" && (
           <button type="button" onClick={() => void persistOnboardingDraft(formData)} className="text-red-500 underline">
             Unable to save — Retry
@@ -2627,7 +2626,7 @@ const OnboardingView = ({
       </div>
 
       {/* Wizard Progress Header */}
-      <div className="bg-brand-surface pt-12 pb-6 px-8 border-b flex justify-between items-center relative shrink-0">
+      <div className="bg-brand-surface pt-6 pb-3 px-8 border-b flex justify-between items-center relative shrink-0">
         {steps.map((s, idx) => (
           <div key={s.id} className="z-10 flex flex-col items-center gap-2">
             <div
@@ -2648,7 +2647,7 @@ const OnboardingView = ({
             </span>
           </div>
         ))}
-        <div className="absolute top-[70px] left-12 right-12 h-1 bg-gray-100 -z-0 rounded-full">
+        <div className="absolute top-[42px] left-12 right-12 h-1 bg-gray-100 -z-0 rounded-full">
           <div
             role="progressbar"
             aria-label="Onboarding progress"
@@ -2701,17 +2700,6 @@ const OnboardingView = ({
                 onChange={(e) =>
                   setFormData({ ...formData, name: e.target.value })
                 }
-              />
-            </div>
-            <div className="space-y-1">
-              <label htmlFor="onboarding-phone" className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2">
-                Telephone Number <span className="text-brand-orange">*</span>
-              </label>
-              <PhoneInput
-                id="onboarding-phone"
-                value={formData.phone}
-                onChange={(phoneValue) => setFormData({ ...formData, phone: phoneValue })}
-                required
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
