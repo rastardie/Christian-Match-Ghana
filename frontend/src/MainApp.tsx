@@ -2557,7 +2557,6 @@ const OnboardingView = ({
   const validateStep = () => {
     const missing: string[] = [];
     if (!formData.name.trim()) missing.push("full name");
-    if (!isValidTelephoneNumber(formData.phone)) missing.push("valid telephone number");
     if (!formData.age || Number(formData.age) < 18) missing.push("age (18 or older)");
     if (!formData.location.trim()) missing.push("city or location");
     if (optionalPin && !/^\d{4,6}$/.test(optionalPin)) missing.push("a valid 4–6 digit PIN");
