@@ -2304,7 +2304,7 @@ const AuthView = ({
             </label>
             <div className="grid grid-cols-2 gap-3">
               <input
-                type="tel"
+                type="password"
                 inputMode="numeric"
                 pattern="[0-9]{4,6}"
                 maxLength={6}
@@ -2316,7 +2316,7 @@ const AuthView = ({
                 className="w-full p-4 bg-gray-50 rounded-2xl outline-none border-2 border-transparent focus:border-brand-orange/20 text-gray-900 font-medium transition-all"
               />
               <input
-                type="tel"
+                type="password"
                 inputMode="numeric"
                 pattern="[0-9]{4,6}"
                 maxLength={6}
