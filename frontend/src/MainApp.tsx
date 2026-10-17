@@ -7679,7 +7679,7 @@ const App = () => {
             }}
           />
         ) : (
-          <div className="cmg-auth-card cmg-theme-sunrise w-full max-w-md h-[100dvh] sm:h-[90vh] relative">
+          <div className="cmg-auth-card cmg-theme-leaf w-full max-w-md h-[100dvh] sm:h-[90vh] relative">
             <button
               type="button"
               title="Back to landing page"

@@ -1590,7 +1590,7 @@ textarea::placeholder {
   height: 11rem;
   z-index: 0;
   pointer-events: none;
-  background: url("../brand-reference/wallpapers/cmg-bg-sunrise-bottom.png") no-repeat bottom center / 100% auto;
+  background: url("../brand-reference/wallpapers/cmg-bg-leaf-bottom.png") no-repeat bottom center / 100% auto;
   opacity: 1;
   transform: translateY(0);
   transition: transform 350ms ease, opacity 350ms ease;
