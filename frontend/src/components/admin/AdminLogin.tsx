@@ -49,8 +49,27 @@ const AdminLogin = () => {
         await signInWithEmailAndPassword(auth, loginEmail, password);
       }
       const accessSnapshot = await getDoc(doc(db, 'adminUsers', auth.currentUser?.uid || ''));
-      if (accessSnapshot.exists() && accessSnapshot.data().mustChangePassword === true) {
+      const accessData = accessSnapshot.exists() ? accessSnapshot.data() : {};
+      if (accessData.mustChangePassword === true) {
         setMustChangePassword(true);
+        return;
+      }
+      if (accessData.isSystemAdmin === true) {
+        const profileSnapshot = await getDoc(doc(db, 'users', auth.currentUser?.uid || ''));
+        const profile = profileSnapshot.exists() ? profileSnapshot.data() : {};
+        localStorage.setItem('cmg_demo_user', JSON.stringify({
+          ...profile,
+          ...accessData,
+          id: auth.currentUser?.uid,
+          email: auth.currentUser?.email || accessData.email,
+          isSystemAdmin: true,
+          isSuperAdmin: true,
+          isPremium: true,
+          subscriptionStatus: 'active',
+          mustChangePassword: false,
+        }));
+        localStorage.removeItem('cmg_current_view');
+        navigate('/');
         return;
       }
       navigate('/admin');

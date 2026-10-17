@@ -7,7 +7,7 @@
 
 import React, { useState } from 'react';
 import { ViewState } from '../types';
-import { Compass, MessageCircle, User, Heart, LogOut, ArrowLeft } from 'lucide-react';
+import { Compass, MessageCircle, User, Heart, LogOut, ArrowLeft, ShieldCheck } from 'lucide-react';
 import Logo from './Logo';
 
 
@@ -17,10 +17,12 @@ interface LayoutProps {
   onChangeView: (view: ViewState) => void;
   onBack?: () => void;
   onLogout?: () => void;
+  onAdmin?: () => void;
+  isSystemAdmin?: boolean;
   hideNav?: boolean; 
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, onBack, onLogout, hideNav }) => {
+const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, onBack, onLogout, onAdmin, isSystemAdmin, hideNav }) => {
   // Navigation is hidden during auth, onboarding, and specific deep-view states (like active calls)
   const shouldShowNav = !hideNav && !['AUTH', 'ONBOARDING', 'EDIT_PROFILE'].includes(currentView);
   const [ribbonScrolling, setRibbonScrolling] = useState(false);
@@ -118,6 +120,14 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
               icon={<User size={20} />}
               label="Profile"
             />
+            {isSystemAdmin && onAdmin && (
+              <NavButton
+                active={false}
+                onClick={onAdmin}
+                icon={<ShieldCheck size={20} />}
+                label="Admin"
+              />
+            )}
           </nav>
         )}
       </div>

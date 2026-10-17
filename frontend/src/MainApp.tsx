@@ -7824,6 +7824,8 @@ const App = () => {
       currentView={currentView}
       onBack={handleUiBack}
       onLogout={handleLogout}
+      isSystemAdmin={user?.isSystemAdmin === true}
+      onAdmin={() => window.location.assign('/admin')}
       onChangeView={(v) => {
         if (user && !user.isSystemAdmin && !isProfileFullyComplete(user) && !profileReminderDeferred && v !== "EDIT_PROFILE") {
           setShowIncompleteProfileModal(true);
