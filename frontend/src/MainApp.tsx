@@ -320,6 +320,14 @@ const defaultAuthActionUrl = typeof window !== 'undefined'
 const authActionUrl = import.meta.env.VITE_PUBLIC_APP_URL || defaultAuthActionUrl;
 const isLocalFirebaseEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true';
 const freshLocalTestStart = import.meta.env.VITE_LOCAL_TEST_FRESH_START === 'true';
+const preserveLocalSessionKey = 'cmg_preserve_session_on_reload';
+const preserveLocalSessionOnReload = typeof window !== 'undefined'
+  && window.sessionStorage.getItem(preserveLocalSessionKey) === 'true';
+
+const refreshCurrentPage = () => {
+  if (freshLocalTestStart) window.sessionStorage.setItem(preserveLocalSessionKey, 'true');
+  window.location.reload();
+};
 
 /** Accept local and international telephone formats while requiring a real number. */
 export function isValidTelephoneNumber(value: string): boolean {
@@ -7192,7 +7200,7 @@ const ForcedPasswordChangeView: React.FC<{
 // cold start or reload — which otherwise caused a ~1s landing "flash".
 function readStoredSession(): { user: User | null; view: ViewState | null } {
   try {
-    if (import.meta.env.VITE_LOCAL_TEST_FRESH_START === 'true') return { user: null, view: null };
+    if (import.meta.env.VITE_LOCAL_TEST_FRESH_START === 'true' && !preserveLocalSessionOnReload) return { user: null, view: null };
     const raw = localStorage.getItem('cmg_demo_user');
     if (!raw) return { user: null, view: null };
     const parsed = JSON.parse(raw);
@@ -7574,7 +7582,8 @@ const App = () => {
       const storedUser = localStorage.getItem('cmg_demo_user');
       const storedView = localStorage.getItem('cmg_current_view');
       
-      if (freshLocalTestStart) {
+      if (preserveLocalSessionOnReload) window.sessionStorage.removeItem(preserveLocalSessionKey);
+      if (freshLocalTestStart && !preserveLocalSessionOnReload) {
         localStorage.removeItem('cmg_demo_user');
         localStorage.removeItem('cmg_current_view');
         return;
@@ -7848,7 +7857,7 @@ const App = () => {
       onBack={handleUiBack}
       onLogout={handleLogout}
       onNotifications={() => setCurrentView("SETTINGS")}
-      onRefresh={() => window.location.reload()}
+      onRefresh={refreshCurrentPage}
       isSystemAdmin={user?.isSystemAdmin === true}
       onAdmin={() => window.location.assign('/admin')}
       onChangeView={(v) => {
@@ -8087,7 +8096,7 @@ const App = () => {
           onOpenCommunity={() => setCurrentView("COMMUNITY")}
           onOpenSettings={() => setCurrentView("SETTINGS")}
           onOpenSupport={() => setCurrentView("SUPPORT")}
-          onRefresh={() => window.location.reload()}
+          onRefresh={refreshCurrentPage}
         />
       )}
       {currentView === "EDIT_PROFILE" && user && (
