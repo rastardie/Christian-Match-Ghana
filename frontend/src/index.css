@@ -1823,3 +1823,58 @@ textarea::placeholder {
 .cmg-onboarding-panel .cmg-scroll-ribbon {
   display: none !important;
 }
+
+/* Main app arrival pages: the top-left swoosh and the bottom colored ribbon are
+   shown very faint (opacity 0.2). The top accent is moved from the frame
+   background onto a dedicated ::before layer so its opacity can be controlled
+   independently of the page content. */
+.cmg-app-frame[data-view="BROWSE"],
+.cmg-app-frame[data-view="FRIENDS"],
+.cmg-app-frame[data-view="CHAT"],
+.cmg-app-frame[data-view="COMMUNITY"],
+.cmg-app-frame[data-view="PROFILE"] {
+  background-image: none !important;
+}
+
+.cmg-app-frame[data-view="BROWSE"]::before,
+.cmg-app-frame[data-view="FRIENDS"]::before,
+.cmg-app-frame[data-view="CHAT"]::before,
+.cmg-app-frame[data-view="COMMUNITY"]::before,
+.cmg-app-frame[data-view="PROFILE"]::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: var(--cmg-shared-top-ribbon-height);
+  background-repeat: no-repeat;
+  background-position: top center;
+  background-size: 100% 100%;
+  opacity: 0.2;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.cmg-app-frame[data-view="BROWSE"]::before {
+  background-image: url("../brand-reference/wallpapers/cmg-bg-community-top.png");
+}
+.cmg-app-frame[data-view="FRIENDS"]::before {
+  background-image: url("../brand-reference/wallpapers/cmg-bg-heart-top.png");
+}
+.cmg-app-frame[data-view="CHAT"]::before {
+  background-image: url("../brand-reference/wallpapers/cmg-bg-waves-top.png");
+}
+.cmg-app-frame[data-view="COMMUNITY"]::before {
+  background-image: url("../brand-reference/wallpapers/cmg-bg-cross-top.png");
+}
+.cmg-app-frame[data-view="PROFILE"]::before {
+  background-image: url("../brand-reference/wallpapers/cmg-bg-rings-top.png");
+}
+
+.cmg-nav-bottom-ribbon,
+.cmg-profile-bottom-ribbon {
+  opacity: 0.2 !important;
+}
+
+.cmg-app-frame.is-ribbon-scrolling .cmg-nav-bottom-ribbon,
+.cmg-app-frame.is-ribbon-scrolling .cmg-profile-bottom-ribbon {
+  opacity: 0.1 !important;
+}
