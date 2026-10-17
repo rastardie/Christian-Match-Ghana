@@ -3557,7 +3557,7 @@ export const EditProfileView = ({
                 }
                 className="w-full p-4 bg-gray-50 rounded-2xl"
               >
-                <option value="">Select Country</option>
+                <option value="">Select…</option>
                 {COUNTRIES.map((c, i) => (
                   <option key={`${c}-${i}`} value={c}>
                     {c}
@@ -3589,7 +3589,7 @@ export const EditProfileView = ({
                 }
                 className="w-full p-4 bg-gray-50 rounded-2xl"
               >
-                <option value="">Select Gender</option>
+                <option value="">Select…</option>
                 <option value="Male">Male</option>
                 <option value="Female">Female</option>
               </select>
@@ -3605,7 +3605,7 @@ export const EditProfileView = ({
               }
               className="w-full p-4 bg-gray-50 rounded-2xl"
             >
-              <option value="">Marital Status</option>
+              <option value="">Select…</option>
               {MARITAL_STATUSES.map((s) => (
                 <option key={s} value={s}>
                   {s}
@@ -3630,7 +3630,7 @@ export const EditProfileView = ({
                 }
                 className="w-full p-4 bg-gray-50 rounded-2xl"
               >
-                <option value="">Denomination</option>
+                <option value="">Select…</option>
                 {DENOMINATIONS.map((d) => (
                   <option key={d} value={d}>
                     {d}
@@ -3647,7 +3647,7 @@ export const EditProfileView = ({
                 }
                 className="w-full p-4 bg-gray-50 rounded-2xl"
               >
-                <option value="">Attendance</option>
+                <option value="">Select…</option>
                 <option>Weekly</option>
                 <option>Twice a week</option>
                 <option>Occasional</option>
@@ -3689,7 +3689,7 @@ export const EditProfileView = ({
                 }
                 className="w-full p-4 bg-gray-50 rounded-2xl"
               >
-                <option value="">Have Children?</option>
+                <option value="">Select…</option>
                 <option>No</option>
                 <option>Yes</option>
               </select>
@@ -3706,7 +3706,7 @@ export const EditProfileView = ({
                 }
                 className="w-full p-4 bg-gray-50 rounded-2xl"
               >
-                <option value="">Want Children?</option>
+                <option value="">Select…</option>
                 <option>Yes</option>
                 <option>No</option>
                 <option>Maybe</option>
@@ -3736,7 +3736,7 @@ export const EditProfileView = ({
                 }
                 className="w-full p-4 bg-gray-50 rounded-2xl"
               >
-                <option value="">Body Type</option>
+                <option value="">Select…</option>
                 {BODY_TYPES.map((t) => (
                   <option key={t} value={t}>
                     {t}
@@ -3779,7 +3779,7 @@ export const EditProfileView = ({
                 }
                 className="w-full p-4 bg-gray-50 rounded-2xl"
               >
-                <option value="">Smoking</option>
+                <option value="">Select…</option>
                 <option>No</option>
                 <option>Yes</option>
               </select>
@@ -3793,7 +3793,7 @@ export const EditProfileView = ({
                 }
                 className="w-full p-4 bg-gray-50 rounded-2xl"
               >
-                <option value="">Alcohol</option>
+                <option value="">Select…</option>
                 <option>No</option>
                 <option>Occasionally</option>
                 <option>Yes</option>
@@ -3815,7 +3815,7 @@ export const EditProfileView = ({
             }
             className="w-full p-4 bg-gray-50 rounded-2xl"
           >
-            <option value="">Education Level</option>
+            <option value="">Select…</option>
             {EDUCATION_LEVELS.map((s) => (
               <option key={s} value={s}>
                 {s}
@@ -3867,7 +3867,7 @@ export const EditProfileView = ({
             }
             className="w-full p-4 bg-gray-50 rounded-2xl"
           >
-            <option value="">What are you looking for?</option>
+            <option value="">Select…</option>
             {INTENTIONS.map((s) => (
               <option key={s} value={s}>
                 {s}
@@ -3882,7 +3882,7 @@ export const EditProfileView = ({
             }
             className="w-full p-4 bg-gray-50 rounded-2xl"
           >
-            <option value="">Willing to Relocate?</option>
+            <option value="">Select…</option>
             <option>Yes</option>
             <option>No</option>
             <option>Maybe</option>
@@ -3970,7 +3970,7 @@ export const EditProfileView = ({
                 }
                 className="w-full p-4 bg-gray-50 rounded-2xl"
               >
-                <option value="">Pref. Denomination</option>
+                <option value="">Select…</option>
                 <option value="Any">Any</option>
                 {DENOMINATIONS.map((d) => (
                   <option key={d} value={d}>
