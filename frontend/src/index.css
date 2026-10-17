@@ -111,7 +111,7 @@ body {
   align-items: center;
   justify-content: center;
   border: 1px solid rgba(9, 40, 71, 0.08);
-  border-radius: 1.1rem;
+  border-radius: 0.85rem !important;
   background: rgba(255, 255, 255, 0.96);
   color: var(--cmg-navy);
   box-shadow: 0 8px 20px rgba(9, 40, 71, 0.14);
