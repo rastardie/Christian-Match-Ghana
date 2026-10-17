@@ -36,8 +36,8 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
     const scrollingTarget = event.target as HTMLElement;
     const distanceFromBottom = scrollingTarget.scrollHeight - scrollingTarget.clientHeight - scrollingTarget.scrollTop;
 
-    // Keep the navigation/ribbons available at the end of the page.
-    if (distanceFromBottom <= 4) {
+    // Keep the navigation/ribbons available at the top and end of the page.
+    if (scrollingTarget.scrollTop <= 2 || distanceFromBottom <= 4) {
       setRibbonScrolling(false);
       return;
     }
