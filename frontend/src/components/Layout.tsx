@@ -57,7 +57,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
                   </button>
                 )}
               </div>
-              <Logo size={64} className="cmg-main-header__logo drop-shadow-lg rounded-full" />
+              <Logo size={160} className="cmg-main-header__logo drop-shadow-lg rounded-full" />
               <div className="cmg-main-header__side cmg-main-header__side--right">
                 {onLogout && (
                   <button

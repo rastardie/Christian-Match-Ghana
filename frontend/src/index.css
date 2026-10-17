@@ -127,7 +127,7 @@ body {
 .cmg-main-header__grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  min-height: 3.5rem;
+  min-height: 10rem;
   align-items: center;
 }
 
@@ -142,8 +142,8 @@ body {
 
 .cmg-main-header__logo {
   display: block;
-  width: 4rem;
-  height: 4rem;
+  width: 10rem;
+  height: 10rem;
   object-fit: contain;
 }
 
