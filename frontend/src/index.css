@@ -303,10 +303,13 @@ body {
 }
 
 .cmg-bottom-nav {
-  background: rgba(255, 255, 255, 0.96) !important;
+  background: rgba(255, 255, 255, 0.6) !important;
   border-top: 1px solid rgba(9, 40, 71, 0.07) !important;
   box-shadow: 0 -14px 34px rgba(9, 40, 71, 0.08);
-  backdrop-filter: blur(18px);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  position: relative;
+  z-index: 50;
   /* Compact height; the home-indicator clearance is added only when the device
      actually reports a safe-area inset, so normal screens stay slim. */
   padding-top: 0.5rem;
@@ -1871,10 +1874,10 @@ textarea::placeholder {
 
 .cmg-nav-bottom-ribbon,
 .cmg-profile-bottom-ribbon {
-  opacity: 0.2 !important;
+  opacity: 0.35 !important;
 }
 
 .cmg-app-frame.is-ribbon-scrolling .cmg-nav-bottom-ribbon,
 .cmg-app-frame.is-ribbon-scrolling .cmg-profile-bottom-ribbon {
-  opacity: 0.1 !important;
+  opacity: 0.2 !important;
 }

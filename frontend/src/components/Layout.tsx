@@ -80,14 +80,17 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
           <main onScroll={handleMainScroll} className="h-full overflow-y-auto bg-transparent hide-scrollbar relative">
             {children}
           </main>
-          {shouldShowNav && currentView !== 'PROFILE' && (
-            <div
-              aria-hidden
-              data-view={currentView}
-              className="cmg-nav-bottom-ribbon pointer-events-none absolute inset-x-0 bottom-0 z-20"
-            ></div>
-          )}
         </div>
+
+        {/* Bottom colored ribbon spans to the very bottom of the frame so the
+            translucent nav bar floats on top of it. */}
+        {shouldShowNav && currentView !== 'PROFILE' && (
+          <div
+            aria-hidden
+            data-view={currentView}
+            className="cmg-nav-bottom-ribbon pointer-events-none absolute inset-x-0 bottom-0 z-10"
+          ></div>
+        )}
 
         {/* Persistent bottom tab bar — professional pill-indicator layout.
             Height is driven by .cmg-bottom-nav padding (safe-area aware) so it stays
