@@ -2469,6 +2469,7 @@ const OnboardingView = ({
   userId,
   initialName = "",
   initialPhone = "",
+  initialHasPin = false,
   initialDraft,
 }: {
   onComplete: (profile: any) => void;
@@ -2476,6 +2477,7 @@ const OnboardingView = ({
   userId?: string;
   initialName?: string;
   initialPhone?: string;
+  initialHasPin?: boolean;
   initialDraft?: Record<string, any> | null;
 }) => {
   const draftStorageKey = userId ? `cmg_onboarding_draft_${userId}` : "";
@@ -2663,7 +2665,7 @@ const OnboardingView = ({
       </div>
 
       <div
-        className={`cmg-onboarding-scroll flex-1 overflow-y-auto p-8 pt-5 hide-scrollbar ${onboardingScrolled ? "is-scrolled" : ""}`}
+        className={`cmg-onboarding-scroll flex-1 overflow-y-auto px-8 pb-8 pt-2 hide-scrollbar ${onboardingScrolled ? "is-scrolled" : ""}`}
         onScroll={(event) => {
           const scrolling = event.currentTarget.scrollTop > 2;
           setOnboardingScrolled(scrolling);
@@ -2742,6 +2744,7 @@ const OnboardingView = ({
                 />
               </div>
             </div>
+            {!initialHasPin && (
             <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50 p-4">
               <p className="text-[10px] font-black uppercase tracking-widest text-brand-blue">Optional quick login PIN</p>
               <p className="mt-1 text-xs text-gray-500">Set a separate 4–6 digit PIN for faster sign-in. You can add or change it later in Profile settings.</p>
@@ -2750,6 +2753,7 @@ const OnboardingView = ({
                 <input type="password" inputMode="numeric" maxLength={6} pattern="[0-9]{4,6}" placeholder="Confirm PIN" value={optionalPinConfirm} onChange={(event) => setOptionalPinConfirm(event.target.value.replace(/\D/g, '').slice(0, 6))} className="w-full rounded-xl border border-blue-100 bg-white p-3 text-sm" />
               </div>
             </div>
+            )}
           </div>
         )}
 
@@ -2868,9 +2872,7 @@ const OnboardingView = ({
             {validationMessage}
           </p>
         )}
-      </div>
-
-      <div className="cmg-onboarding-actions shrink-0 px-8 pb-8 pt-4">
+      <div className="cmg-onboarding-actions pt-6 pb-2">
         <div className="flex gap-4">
           {step > 1 && (
             <button
@@ -2887,6 +2889,7 @@ const OnboardingView = ({
             {step === 2 ? "Finish Setup" : "Continue"}
           </button>
         </div>
+      </div>
       </div>
       <div className={`cmg-scroll-ribbon cmg-scroll-ribbon--leaf ${onboardingRibbonScrolling ? "is-scrolling" : ""}`} aria-hidden="true" />
     </div>
@@ -7745,6 +7748,7 @@ const App = () => {
             userId={user?.id}
             initialName={user?.name || ""}
             initialPhone={user?.phone || ""}
+            initialHasPin={Boolean((user as any)?.hasPin)}
             initialDraft={(user as any)?.profileDraft}
             onCancel={handleLogout}
             onComplete={async (data) => {
