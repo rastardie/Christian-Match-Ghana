@@ -1373,3 +1373,12 @@ textarea::placeholder {
 .cmg-edit-media {
   padding-top: 1rem;
 }
+
+/* Direct label/control pairs inside category stacks use the same small gap as
+   Create your account. Wrapped two-column fields already use this spacing. */
+.cmg-edit-category > .cmg-edit-field-label + input,
+.cmg-edit-category > .cmg-edit-field-label + select,
+.cmg-edit-category > .cmg-edit-field-label + textarea,
+.cmg-edit-category > .cmg-edit-field-label + div {
+  margin-top: 0.25rem !important;
+}
