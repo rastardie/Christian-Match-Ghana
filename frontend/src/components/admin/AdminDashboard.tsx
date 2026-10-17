@@ -67,144 +67,67 @@ const AdminDashboard = () => {
     }
   };
 
+  const groupActive = (group: string) => {
+    if (group === 'people') return ['users', 'connections', 'prayers'].includes(activeTab);
+    if (group === 'operations') return ['moderation', 'analytics'].includes(activeTab);
+    if (group === 'billing') return activeTab === 'payments';
+    return ['access-control', 'audit-logs'].includes(activeTab);
+  };
+
   return (
-    <div className="min-h-screen bg-gray-100 flex font-sans">
-      {mobileMenuOpen && (
-        <button
-          type="button"
-          aria-label="Close Admin menu"
-          onClick={() => setMobileMenuOpen(false)}
-          className="fixed inset-0 z-30 bg-slate-950/60 lg:hidden"
-        />
-      )}
-      {/* Responsive Admin drawer: persistent sidebar on desktop, slide-out menu on mobile. */}
-      <aside className={`fixed inset-y-0 left-0 z-40 flex w-72 flex-col bg-slate-900 text-white shadow-2xl transition-transform duration-300 lg:static lg:z-auto lg:w-64 lg:translate-x-0 lg:shadow-none ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="p-6 border-b border-slate-800">
-          <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-            <span className="text-brand-orange text-2xl">⚡</span> 
-            <span>CMG Admin</span>
-          </h1>
-        </div>
-        
-        <nav className="flex-1 p-4 space-y-3 overflow-y-auto">
-          <NavItem
-            icon={<LayoutDashboard size={20} />}
-            label="CMG Admin"
-            active={activeTab === 'overview'}
-            onClick={() => selectTab('overview')}
-          />
-
-          {[
-            {
-              key: 'people',
-              label: 'People',
-              icon: <Users size={18} />,
-              items: [
-                { key: 'users', label: 'Users', icon: <Users size={17} /> },
-                { key: 'connections', label: 'Connections', icon: <LinkIcon size={17} /> },
-                { key: 'prayers', label: 'Prayer Wall', icon: <MessageSquare size={17} /> },
-              ],
-            },
-            {
-              key: 'operations',
-              label: 'Operations',
-              icon: <Activity size={18} />,
-              items: [
-                { key: 'moderation', label: 'Moderation', icon: <Shield size={17} /> },
-                { key: 'analytics', label: 'Analytics', icon: <Activity size={17} /> },
-              ],
-            },
-            {
-              key: 'billing',
-              label: 'Billing',
-              icon: <CreditCard size={18} />,
-              items: [
-                { key: 'payments', label: 'Payments', icon: <CreditCard size={17} /> },
-              ],
-            },
-            {
-              key: 'system',
-              label: 'System',
-              icon: <Settings size={18} />,
-              items: [
-                { key: 'access-control', label: 'Access Control', icon: <Shield size={17} /> },
-                { key: 'audit-logs', label: 'Audit Logs', icon: <ClipboardList size={17} /> },
-              ],
-            },
-          ].map((group) => (
-            <div key={group.key}>
-              <button
-                type="button"
-                onClick={() => setOpenMenus((current) => ({ ...current, [group.key]: !current[group.key] }))}
-                className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs font-black uppercase tracking-widest text-slate-400 hover:bg-slate-800 hover:text-white"
-              >
-                <span className="flex items-center gap-2">{group.icon}{group.label}</span>
-                <ChevronDown size={15} className={`transition-transform ${openMenus[group.key] ? 'rotate-180' : ''}`} />
-              </button>
-              {openMenus[group.key] && (
-                <div className="mt-1 space-y-1 border-l border-slate-700 pl-2">
-                  {group.items.map((item) => (
-                    <NavItem
-                      key={item.key}
-                      icon={item.icon}
-                      label={item.label}
-                      active={activeTab === item.key}
-                      onClick={() => selectTab(item.key)}
-                    />
-                  ))}
-                </div>
-              )}
+    <div className="min-h-screen bg-[#f6f8fc] font-sans text-slate-900">
+      {/* Mobile-first CMG Admin header, based on the Onboard Admin pattern. */}
+      <header className="bg-white shadow-sm">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+          <button type="button" onClick={() => selectTab('overview')} className="text-left">
+            <div className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
+              <span>CMG</span><span className="text-brand-orange"> Admin</span>
             </div>
-          ))}
-        </nav>
-
-        <div className="p-4 border-t border-slate-800">
-          <button 
-            onClick={handleSignOut}
-            className="flex items-center gap-3 text-slate-400 hover:text-white transition-colors w-full p-2 rounded-lg hover:bg-slate-800 cursor-pointer"
-          >
-            <LogOut size={20} />
-            <span>Sign Out</span>
+            <div className="text-xs font-bold text-slate-500 sm:text-sm">Christian Match Ghana</div>
           </button>
-        </div>
-      </aside>
-
-      {/* Main Content */}
-      <main className="flex-1 overflow-auto bg-gray-50">
-        <header className="bg-white shadow-sm p-4 sm:p-6 flex justify-between items-center sticky top-0 z-10">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              aria-label="Open Admin menu"
-              onClick={() => setMobileMenuOpen(true)}
-              className="rounded-xl p-2 text-slate-600 transition hover:bg-slate-100 lg:hidden"
-            >
-              <Menu size={22} />
+          <div className="flex items-center gap-1 sm:gap-2">
+            <button type="button" title="Refresh" aria-label="Refresh" onClick={() => window.location.reload()} className="rounded-xl p-2 text-slate-700 transition hover:bg-slate-100">
+              <RefreshCw size={21} />
             </button>
-            <h2 className="text-xl sm:text-2xl font-bold text-gray-800 capitalize">{activeTab.replace('-', ' ')}</h2>
-          </div>
-          <div className="flex items-center gap-4">
-            <button
-              type="button"
-              title="Refresh Admin"
-              aria-label="Refresh Admin"
-              onClick={() => window.location.reload()}
-              className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
-            >
-              <RefreshCw size={18} />
+            <button type="button" title="Notifications" aria-label="Notifications" onClick={() => selectTab('prayers')} className="rounded-xl p-2 text-slate-700 transition hover:bg-slate-100">
+              <MessageSquare size={21} />
             </button>
-            <div className="text-sm text-gray-500 hidden md:block">
-              Welcome, Administrator
-            </div>
-            <div className="w-10 h-10 rounded-full bg-brand-orange text-white flex items-center justify-center font-bold shadow-md">
-              A
-            </div>
+            <button type="button" title="Sign out" aria-label="Sign out" onClick={handleSignOut} className="rounded-xl p-2 text-slate-700 transition hover:bg-slate-100">
+              <LogOut size={21} />
+            </button>
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-sm font-black text-white">A</span>
           </div>
-        </header>
-
-        <div className="p-8">
-          {renderContent()}
         </div>
+
+        <div className="bg-slate-900 px-3 py-3 sm:px-6">
+          <div className="mx-auto flex max-w-6xl flex-wrap gap-2">
+            {[
+              ['people', 'People', <Users size={16} />],
+              ['operations', 'Operations', <Activity size={16} />],
+              ['billing', 'Billing', <CreditCard size={16} />],
+              ['system', 'System', <Settings size={16} />],
+            ].map(([key, label, icon]) => (
+              <button key={String(key)} type="button" onClick={() => selectTab(key === 'people' ? 'users' : key === 'operations' ? 'moderation' : key === 'billing' ? 'payments' : 'access-control')} className={`flex min-h-10 flex-1 items-center justify-center gap-2 rounded-full border px-4 py-2 text-sm font-black transition sm:flex-none ${groupActive(String(key)) ? 'border-white/80 bg-white/30 text-white' : 'border-white/50 bg-white/20 text-white/90 hover:bg-white/30'}`}>
+                {icon}{label}
+              </button>
+            ))}
+          </div>
+          <div className="mx-auto mt-2 flex max-w-6xl flex-wrap justify-center gap-2">
+            {[
+              ['overview', 'CMG Admin', <LayoutDashboard size={16} />],
+              ['moderation', 'Reports', <ClipboardList size={16} />],
+              ['audit-logs', 'Audit', <Shield size={16} />],
+            ].map(([key, label, icon]) => (
+              <button key={String(key)} type="button" onClick={() => selectTab(String(key))} className={`flex min-h-9 items-center justify-center gap-2 rounded-full border px-4 py-1.5 text-sm font-black transition ${activeTab === key ? 'border-white/80 bg-white/30 text-white' : 'border-white/50 bg-white/20 text-white/90 hover:bg-white/30'}`}>
+                {icon}{label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-6xl overflow-auto px-4 py-5 sm:px-6 sm:py-8">
+        {renderContent()}
       </main>
     </div>
   );
