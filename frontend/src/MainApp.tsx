@@ -278,6 +278,7 @@ import {
   Briefcase,
   Settings,
   LogOut,
+  Power,
   AlertCircle,
   Upload,
   Sparkles,
@@ -4360,6 +4361,7 @@ const ProfileView = ({
   onOpenCommunity,
   onOpenSettings,
   onOpenSupport,
+  onRefresh,
 }: {
   user: User;
   onEdit: () => void;
@@ -4370,6 +4372,7 @@ const ProfileView = ({
   onOpenCommunity?: () => void;
   onOpenSettings?: () => void;
   onOpenSupport?: () => void;
+  onRefresh?: () => void;
 }) => {
   const strength = calculateProfileStrength(user);
   const firstName = (user.name || '').trim().split(/\s+/)[0] || 'there';
@@ -4503,6 +4506,26 @@ const ProfileView = ({
               <ArrowLeft size={20} />
             </button>
             <div className="flex gap-2">
+              {onOpenSettings && (
+                <button
+                  title="Notifications"
+                  aria-label="Notifications"
+                  onClick={onOpenSettings}
+                  className="cmg-main-icon-button"
+                >
+                  <Bell size={18} />
+                </button>
+              )}
+              {onRefresh && (
+                <button
+                  title="Refresh"
+                  aria-label="Refresh"
+                  onClick={onRefresh}
+                  className="cmg-main-icon-button"
+                >
+                  <RotateCcw size={18} />
+                </button>
+              )}
               <button
                 title="Settings"
                 aria-label="Settings"
@@ -4517,7 +4540,7 @@ const ProfileView = ({
                 onClick={onLogout}
                 className="cmg-main-icon-button"
               >
-                <LogOut size={19} />
+                <Power size={19} />
               </button>
             </div>
           </div>
@@ -8064,6 +8087,7 @@ const App = () => {
           onOpenCommunity={() => setCurrentView("COMMUNITY")}
           onOpenSettings={() => setCurrentView("SETTINGS")}
           onOpenSupport={() => setCurrentView("SUPPORT")}
+          onRefresh={() => window.location.reload()}
         />
       )}
       {currentView === "EDIT_PROFILE" && user && (
