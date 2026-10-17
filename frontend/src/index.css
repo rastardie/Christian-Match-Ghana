@@ -1665,3 +1665,11 @@ textarea::placeholder {
 .cmg-main-icon-button:hover {
   background: rgba(255, 255, 255, 0.6);
 }
+
+/* Signup's panel has p-8; extend its ribbon layers through that inset so their
+   rendered width matches Edit Profile's full-card ribbons exactly. */
+.cmg-auth-signup-panel::before,
+.cmg-auth-signup-panel::after {
+  inset-inline: -2rem;
+  width: auto;
+}
