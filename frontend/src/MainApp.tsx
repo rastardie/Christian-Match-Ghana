@@ -2617,7 +2617,7 @@ const OnboardingView = ({
       <div className={`cmg-onboarding-logo flex justify-center pt-4 pb-1 shrink-0 ${onboardingScrolled ? "is-scrolled" : ""}`}>
         <Logo size={160} className="drop-shadow-lg" />
       </div>
-      <div aria-live="polite" className="min-h-4 px-6 text-center text-[10px] font-bold text-gray-400">
+      <div aria-live="polite" className={`px-6 text-center text-[10px] font-bold text-gray-400 ${draftStatus === "error" ? "min-h-4" : "h-0"}`}>
         {draftStatus === "saving" && "Saving draft…"}
         {draftStatus === "error" && (
           <button type="button" onClick={() => void persistOnboardingDraft(formData)} className="text-red-500 underline">
@@ -2627,7 +2627,7 @@ const OnboardingView = ({
       </div>
 
       {/* Wizard Progress Header */}
-      <div className="bg-brand-surface pt-6 pb-3 px-8 border-b flex justify-between items-center relative shrink-0">
+      <div className="bg-brand-surface pt-2 pb-1 px-8 border-b flex justify-between items-center relative shrink-0">
         {steps.map((s, idx) => (
           <div key={s.id} className="z-10 flex flex-col items-center gap-2">
             <div
@@ -2648,7 +2648,7 @@ const OnboardingView = ({
             </span>
           </div>
         ))}
-        <div className="absolute top-[42px] left-12 right-12 h-1 bg-gray-100 -z-0 rounded-full">
+        <div className="absolute top-[20px] left-12 right-12 h-1 bg-gray-100 -z-0 rounded-full">
           <div
             role="progressbar"
             aria-label="Onboarding progress"
@@ -2664,7 +2664,7 @@ const OnboardingView = ({
       </div>
 
       <div
-        className={`cmg-onboarding-scroll flex-1 overflow-y-auto px-8 pt-2 hide-scrollbar ${onboardingScrolled ? "is-scrolled" : ""}`}
+        className={`cmg-onboarding-scroll flex-1 overflow-y-auto px-8 pt-0 hide-scrollbar ${onboardingScrolled ? "is-scrolled" : ""}`}
         onScroll={(event) => {
           const scrolling = event.currentTarget.scrollTop > 2;
           setOnboardingScrolled(scrolling);
