@@ -1943,3 +1943,39 @@ textarea::placeholder {
   transform: translateY(100%);
   pointer-events: none;
 }
+
+/* Operational scroll correction: mirror Create Your Account's move/fade
+   treatment. Keep menus and ribbons present; move them away rather than
+   collapsing/removing them. */
+.cmg-app-frame.is-ribbon-scrolling .cmg-main-header {
+  max-height: 12rem;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 0.9rem) !important;
+  padding-bottom: 0.5rem !important;
+  opacity: 0.3;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.cmg-app-frame.is-ribbon-scrolling .cmg-nav-bottom-ribbon,
+.cmg-app-frame.is-ribbon-scrolling .cmg-profile-bottom-ribbon {
+  opacity: 0.3 !important;
+  transform: translateY(50%);
+}
+
+.cmg-app-frame.is-ribbon-scrolling .cmg-bottom-nav {
+  max-height: 5rem;
+  padding-top: 0.5rem !important;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.65rem) !important;
+  opacity: 0.3;
+  transform: translateY(50%);
+  pointer-events: auto;
+}
+
+.cmg-app-frame.is-ribbon-scrolling[data-view="BROWSE"]::before,
+.cmg-app-frame.is-ribbon-scrolling[data-view="FRIENDS"]::before,
+.cmg-app-frame.is-ribbon-scrolling[data-view="CHAT"]::before,
+.cmg-app-frame.is-ribbon-scrolling[data-view="COMMUNITY"]::before,
+.cmg-app-frame.is-ribbon-scrolling[data-view="PROFILE"]::before {
+  opacity: 0.3;
+  transform: translateY(-50%);
+}
