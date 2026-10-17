@@ -2665,7 +2665,7 @@ const OnboardingView = ({
       </div>
 
       <div
-        className={`cmg-onboarding-scroll flex-1 overflow-y-auto px-8 pb-8 pt-2 hide-scrollbar ${onboardingScrolled ? "is-scrolled" : ""}`}
+        className={`cmg-onboarding-scroll flex-1 overflow-y-auto px-8 pt-2 hide-scrollbar ${onboardingScrolled ? "is-scrolled" : ""}`}
         onScroll={(event) => {
           const scrolling = event.currentTarget.scrollTop > 2;
           setOnboardingScrolled(scrolling);
@@ -2758,111 +2758,107 @@ const OnboardingView = ({
         )}
 
         {step === 2 && (
-          <div className="space-y-6 animate-in slide-in-from-right duration-500">
-            <div>
-              <h2 className="text-3xl font-black text-brand-blue mb-2 tracking-tighter">
+          <div className="space-y-5 animate-in slide-in-from-right duration-500">
+            <div className="cmg-edit-category space-y-4">
+              <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
                 Your Faith Foundation
-              </h2>
-              <p className="text-gray-400 text-sm font-medium">
+              </h3>
+              <p className="text-gray-400 text-xs font-medium">
                 CMG connects believers of like-mind.
               </p>
+              <div className="space-y-1">
+                <label
+                  htmlFor="denomination"
+                  className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2"
+                >
+                  Denomination <span className="text-brand-orange">*</span>
+                </label>
+                <select
+                  id="denomination"
+                  aria-label="Denomination"
+                  required
+                  className="w-full p-4 bg-gray-50 rounded-2xl text-gray-900 font-bold outline-none appearance-none"
+                  value={formData.denomination}
+                  onChange={(e) =>
+                    setFormData({ ...formData, denomination: e.target.value })
+                  }
+                >
+                  <option value="">Select Denomination</option>
+                  {denominations.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label
+                  htmlFor="churchName"
+                  className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2"
+                >
+                  Church Name <span className="text-brand-orange">*</span>
+                </label>
+                <input
+                  id="churchName"
+                  required
+                  className="w-full p-4 bg-gray-50 rounded-2xl text-gray-900 font-bold outline-none"
+                  placeholder="ICGC Christ Temple"
+                  value={formData.churchName}
+                  onChange={(e) =>
+                    setFormData({ ...formData, churchName: e.target.value })
+                  }
+                />
+              </div>
             </div>
-            <div className="space-y-1">
-              <label
-                htmlFor="denomination"
-                className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2"
-              >
-                Denomination <span className="text-brand-orange">*</span>
-              </label>
-              <select
-                id="denomination"
-                aria-label="Denomination"
-                required
-                className="w-full p-4 bg-gray-50 rounded-2xl text-gray-900 font-bold outline-none appearance-none"
-                value={formData.denomination}
-                onChange={(e) =>
-                  setFormData({ ...formData, denomination: e.target.value })
-                }
-              >
-                <option value="">Select Denomination</option>
-                {denominations.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label
-                htmlFor="churchName"
-                className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2"
-              >
-                Church Name <span className="text-brand-orange">*</span>
-              </label>
-              <input
-                id="churchName"
-                required
-                className="w-full p-4 bg-gray-50 rounded-2xl text-gray-900 font-bold outline-none"
-                placeholder="ICGC Christ Temple"
-                value={formData.churchName}
-                onChange={(e) =>
-                  setFormData({ ...formData, churchName: e.target.value })
-                }
-              />
-            </div>
-          </div>
-        )}
 
-        {step === 2 && (
-          <div className="space-y-6 animate-in slide-in-from-right duration-500">
-            <div>
-              <h2 className="text-3xl font-black text-brand-blue mb-2 tracking-tighter">
-                Life & Intentions
-              </h2>
-              <p className="text-gray-400 text-sm font-medium">
+            <div className="cmg-edit-category space-y-4">
+              <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
+                Life &amp; Intentions
+              </h3>
+              <p className="text-gray-400 text-xs font-medium">
                 What is your vision for this season?
               </p>
-            </div>
-            <div className="space-y-1">
-              <label
-                htmlFor="intentions"
-                className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2"
-              >
-                Relationship Goal <span className="text-brand-orange">*</span>
-              </label>
-              <select
-                id="intentions"
-                aria-label="Relationship goal"
-                required
-                className="w-full p-4 bg-gray-50 rounded-2xl text-gray-900 font-bold outline-none"
-                value={formData.intentions}
-                onChange={(e) =>
-                  setFormData({ ...formData, intentions: e.target.value })
-                }
-              >
-                <option value="">What are you seeking?</option>
-                <option value="Marriage Soon">Marriage Soon</option>
-                <option value="Courtship">Courtship</option>
-                <option value="Friendship">Friendship</option>
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label
-                htmlFor="bio"
-                className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2"
-              >
-                Brief Bio <span className="text-brand-orange">*</span>
-              </label>
-              <textarea
-                id="bio"
-                required
-                className="w-full p-4 bg-gray-50 rounded-2xl h-32 text-gray-900 font-medium outline-none"
-                placeholder="Tell us about your journey with Christ..."
-                value={formData.bio}
-                onChange={(e) =>
-                  setFormData({ ...formData, bio: e.target.value })
-                }
-              />
+              <div className="space-y-1">
+                <label
+                  htmlFor="intentions"
+                  className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2"
+                >
+                  Relationship Goal <span className="text-brand-orange">*</span>
+                </label>
+                <select
+                  id="intentions"
+                  aria-label="Relationship goal"
+                  required
+                  className="w-full p-4 bg-gray-50 rounded-2xl text-gray-900 font-bold outline-none"
+                  value={formData.intentions}
+                  onChange={(e) =>
+                    setFormData({ ...formData, intentions: e.target.value })
+                  }
+                >
+                  <option value="">What are you seeking?</option>
+                  <option value="Marriage Soon">Marriage Soon</option>
+                  <option value="Courtship">Courtship</option>
+                  <option value="Friendship">Friendship</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label
+                  htmlFor="bio"
+                  className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2"
+                >
+                  Brief Bio <span className="text-brand-orange">*</span>
+                </label>
+                <textarea
+                  id="bio"
+                  required
+                  className="w-full p-4 bg-gray-50 rounded-2xl h-32 text-gray-900 font-medium outline-none"
+                  placeholder="Tell us about your journey with Christ..."
+                  value={formData.bio}
+                  onChange={(e) =>
+                    setFormData({ ...formData, bio: e.target.value })
+                  }
+                />
+              </div>
             </div>
           </div>
         )}

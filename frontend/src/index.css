@@ -1248,9 +1248,10 @@ textarea::placeholder {
 /* Onboarding uses the same scroll treatment as signup. The action buttons sit in
    their own fixed footer so the fade can never dim Back or Continue/Finish. */
 .cmg-onboarding-scroll {
-  --cmg-onboarding-fade: 4rem;
+  --cmg-onboarding-fade: 11rem;
   --cmg-onboarding-logo-fade: 1.75rem;
   min-height: 0;
+  overscroll-behavior: contain;
   padding-bottom: var(--cmg-onboarding-fade);
   -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - var(--cmg-onboarding-fade)), transparent 100%);
           mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - var(--cmg-onboarding-fade)), transparent 100%);
