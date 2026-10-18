@@ -7314,6 +7314,7 @@ const App = () => {
     if (user && !user.isSystemAdmin && currentView !== "AUTH" && currentView !== "ONBOARDING") {
       if (!isProfileFullyComplete(user) && !profileReminderDeferred) {
         setShowIncompleteProfileModal(true);
+        if (currentView === "BROWSE") setCurrentView("PROFILE");
       } else {
         setShowIncompleteProfileModal(false);
       }
@@ -7503,6 +7504,11 @@ const App = () => {
       setIsLoadingUsers(false);
       return;
     }
+    if (!user.isSystemAdmin && !isProfileFullyComplete(user)) {
+      setAllUsers([]);
+      setIsLoadingUsers(false);
+      return;
+    }
 
     const fetchUsers = async () => {
       setIsLoadingUsers(true);
@@ -7522,6 +7528,12 @@ const App = () => {
 
   const handleConnectRequest = async (profileId: string) => {
     if (!user) return;
+    if (!user.isSystemAdmin && !isProfileFullyComplete(user)) {
+      setCurrentView("PROFILE");
+      setShowIncompleteProfileModal(true);
+      showNotify("Complete your profile, profile photo, and banner before connecting.", "error");
+      return;
+    }
     
     if (isSubscriptionActive(user)) {
       // User is already subscribed! Connect directly.
