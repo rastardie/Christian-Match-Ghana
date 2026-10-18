@@ -4441,7 +4441,9 @@ const ProfileView = ({
   onOpenSupport?: () => void;
   onRefresh?: () => void;
 }) => {
-  const strength = calculateProfileStrength(user);
+  const strength = user.isSystemAdmin === true
+    ? { percentage: 100, suggestions: [] as string[] }
+    : calculateProfileStrength(user);
   const firstName = (user.name || '').trim().split(/\s+/)[0] || 'there';
   const initials = (user.name || '').trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase() || 'CM';
   const [showSettings, setShowSettings] = React.useState(false);
