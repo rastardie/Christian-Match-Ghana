@@ -985,13 +985,13 @@ body {
   opacity: 0;
 }
 
-/* "Tap to play" guide centred over the promo. */
+/* "Tap to play" guide sits at the top of the landing text panel, below the
+   video/photo area, so it never covers faces. */
 .cmg-landing-tap-hint {
-  position: absolute;
-  left: 50%;
-  top: 44%;
+  position: relative;
+  align-self: center;
   z-index: 3;
-  transform: translate(-50%, -50%);
+  transform: none;
   display: inline-flex;
   align-items: center;
   gap: 0.6rem;
@@ -1022,8 +1022,8 @@ body {
 }
 
 @keyframes cmg-tap-pulse {
-  0%, 100% { transform: translate(-50%, -50%) scale(1); }
-  50% { transform: translate(-50%, -50%) scale(1.05); }
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
 }
 
 @media (prefers-reduced-motion: reduce) {

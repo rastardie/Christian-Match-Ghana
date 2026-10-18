@@ -138,19 +138,6 @@ const LandingPage = ({  onGetStarted,
             onEnded={advance}
             aria-label="Christian Match Ghana introduction video — tap to play in full"
           />
-          {!videoFullPlay && (
-            <button
-              type="button"
-              onClick={handleVideoTap}
-              className="cmg-landing-tap-hint"
-              aria-label="Tap to play the full video"
-            >
-              <span className="cmg-landing-tap-hint__icon">
-                <Play size={26} fill="currentColor" />
-              </span>
-              Tap to play full video
-            </button>
-          )}
         </>
       ) : (
         <div
@@ -167,6 +154,19 @@ const LandingPage = ({  onGetStarted,
       )}
 
       <div className="cmg-landing-panel">
+        {slide.type === 'video' && !videoFullPlay && (
+          <button
+            type="button"
+            onClick={handleVideoTap}
+            className="cmg-landing-tap-hint"
+            aria-label="Tap to play the full video"
+          >
+            <span className="cmg-landing-tap-hint__icon">
+              <Play size={26} fill="currentColor" />
+            </span>
+            Tap to play full video
+          </button>
+        )}
         <div className="cmg-landing-copy">
           <h1>{slide.title}</h1>
           {slide.text ? <p>{slide.text}</p> : null}
