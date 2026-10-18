@@ -1,6 +1,6 @@
 # Christian Match Ghana — Handover and Continuation Guide
 
-**Last updated:** 2026-10-16
+**Last updated:** 2026-10-18
 **Workspace:** `/Users/andrewstardie/Documents/TUTS/TESTS/cm/cmg-rebuilt`
 **Branch:** `sync/cmg-local-2026-10-13`
 **Remote:** `origin` → `https://github.com/rastardie/Christian-Match-Ghana.git`
@@ -16,6 +16,16 @@ Christian Match Ghana is a React/Vite/TypeScript + Firebase + Capacitor applicat
 4. **Platform reliability:** Realtime Database presence, support tickets, notification preferences, Storage photo upload, staging deployment configuration, and improved signup/onboarding recovery.
 
 Production Firebase was not intentionally modified. The work targets the staging project unless explicitly stated otherwise.
+
+## 1.1 Mandatory change-validation and resource-boundary requirements
+
+These requirements apply to every future change:
+
+1. **Local validation comes first.** Make the change in source, run the local Firebase emulators and local PWA, and give the project owner time to test the complete behavior locally.
+2. **No premature release actions.** Do not commit to GitHub, push any branch, build/package a frontend archive or image, or deploy/update Firebase until the change has been fully tested and explicitly approved for release.
+3. **Release only after approval.** After local testing and approval, perform the requested validation/build/package/deploy/commit/push steps and report each result separately.
+4. **No unrelated resources.** Do not search, access, inspect, transmit data to, or use any resources associated with `@ecobank.com`. Use only the authorized Christian Match Ghana project/account resources.
+5. **Preserve existing behavior.** Do not remove existing features, options, records, or compatibility paths while implementing a requested change. If a change may affect existing behavior, stop and obtain confirmation before applying it.
 
 ## 2. Repository architecture
 

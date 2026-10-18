@@ -301,6 +301,12 @@ export function subscribeToChats(
     });
 
     callback(chats);
+  }, (error) => {
+    // Production Firestore can reject this query when its composite index or
+    // permissions are unavailable. End loading instead of leaving the PWA on
+    // an infinite spinner; the error remains visible in the console.
+    console.error('Unable to subscribe to chats:', error);
+    callback([]);
   });
 
   return unsubscribe;

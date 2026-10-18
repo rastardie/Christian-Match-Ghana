@@ -29,6 +29,20 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
   const shouldShowNav = !hideNav && !['AUTH', 'ONBOARDING', 'EDIT_PROFILE'].includes(currentView);
   const [ribbonScrolling, setRibbonScrolling] = useState(false);
   const userScrollIntentRef = useRef(false);
+  const ribbonBoundaryTimerRef = useRef<number | undefined>(undefined);
+
+  const setOperationalChromeState = (scrolled: boolean) => {
+    window.clearTimeout(ribbonBoundaryTimerRef.current);
+    if (scrolled) {
+      setRibbonScrolling(true);
+      return;
+    }
+    // Delay boundary restoration slightly so a hard swipe/bounce cannot toggle
+    // the header and ribbons repeatedly while their transitions are running.
+    ribbonBoundaryTimerRef.current = window.setTimeout(() => {
+      setRibbonScrolling(false);
+    }, 180);
+  };
 
   const armUserScroll = () => {
     userScrollIntentRef.current = true;
@@ -37,23 +51,24 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
   const revealOperationalChrome = (event?: React.SyntheticEvent) => {
     event?.stopPropagation();
     userScrollIntentRef.current = false;
+    window.clearTimeout(ribbonBoundaryTimerRef.current);
     setRibbonScrolling(false);
   };
 
   const handleMainScroll = (event: React.UIEvent<HTMLElement>) => {
     const scrollingTarget = event.target as HTMLElement;
-    const distanceFromBottom = scrollingTarget.scrollHeight - scrollingTarget.clientHeight - scrollingTarget.scrollTop;
 
-    // Keep the navigation/ribbons available at the top and end of the page.
-    if (scrollingTarget.scrollTop <= 2 || distanceFromBottom <= 4) {
-      setRibbonScrolling(false);
+    // Only the true top restores the operational chrome. Reaching the bottom
+    // must not bring banners/menu back over the content.
+    if (scrollingTarget.scrollTop <= 2) {
+      setOperationalChromeState(false);
       return;
     }
 
     // Ignore initial layout/browser-restoration scroll events. Only a genuine
     // user gesture may move the operational chrome away.
     if (userScrollIntentRef.current && scrollingTarget.scrollTop > 2) {
-      setRibbonScrolling(true);
+      setOperationalChromeState(true);
     }
   };
 
