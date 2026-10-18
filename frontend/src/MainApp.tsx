@@ -7546,6 +7546,17 @@ const App = () => {
           showNotify("User not found", "error");
           return;
         }
+        if (!user.isSystemAdmin) {
+          const viewerGender = (user.gender || '').trim().toLowerCase();
+          const partnerGender = (partnerData.gender || '').trim().toLowerCase();
+          const compatible =
+            (viewerGender === 'male' && partnerGender === 'female') ||
+            (viewerGender === 'female' && partnerGender === 'male');
+          if ((viewerGender === 'male' || viewerGender === 'female') && !compatible) {
+            showNotify("This profile is not available for your matching preferences.", "error");
+            return;
+          }
+        }
         
         const chatId = await createOrGetChat(
           user.id,
