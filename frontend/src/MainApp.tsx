@@ -4493,7 +4493,16 @@ const ProfileView = ({
                   }}
                   className="w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-50 text-gray-700 font-bold text-sm"
                 >
-                  <Bell size={16} /> Notification settings
+                  <Lock size={16} /> Security &amp; login
+                </button>
+                <button
+                  onClick={() => {
+                    setShowSettings(false);
+                    onOpenSettings();
+                  }}
+                  className="w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-50 text-gray-700 font-bold text-sm"
+                >
+                  <Bell size={16} /> Notifications
                 </button>
               </>
             )}
