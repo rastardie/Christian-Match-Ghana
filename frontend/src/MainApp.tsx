@@ -4123,6 +4123,12 @@ const SettingsView = ({
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [pinBusy, setPinBusy] = useState(false);
   const [pinMessage, setPinMessage] = useState('');
+  const [passwordFormOpen, setPasswordFormOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordBusy, setPasswordBusy] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState('');
 
   const updatePreference = async (key: keyof NotificationPreferences, value: boolean) => {
     if (key === "securityEmails") return;
@@ -4161,6 +4167,42 @@ const SettingsView = ({
       setPinMessage(error?.message || 'Unable to update your PIN.');
     } finally {
       setPinBusy(false);
+    }
+  };
+
+  const changePassword = async () => {
+    setPasswordMessage('');
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordMessage('Enter your current password and the new password twice.');
+      return;
+    }
+    if (newPassword.length < 12 || !/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/\d/.test(newPassword) || !/[^A-Za-z0-9]/.test(newPassword)) {
+      setPasswordMessage('Use at least 12 characters with uppercase, lowercase, a number, and a special character.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordMessage('The new passwords do not match.');
+      return;
+    }
+    setPasswordBusy(true);
+    try {
+      const { auth } = await import('./firebase');
+      const { EmailAuthProvider, reauthenticateWithCredential, updatePassword } = await import('firebase/auth');
+      if (!auth.currentUser || !user.email) throw new Error('Your session has expired. Please sign in again.');
+      const credential = EmailAuthProvider.credential(user.email, currentPassword);
+      await reauthenticateWithCredential(auth.currentUser, credential);
+      await updatePassword(auth.currentUser, newPassword);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setPasswordFormOpen(false);
+      setPasswordMessage('Password changed successfully.');
+    } catch (changeError: any) {
+      setPasswordMessage(changeError?.code === 'auth/wrong-password' || changeError?.code === 'auth/invalid-credential'
+        ? 'Current password is incorrect.'
+        : changeError?.message || 'Unable to change your password.');
+    } finally {
+      setPasswordBusy(false);
     }
   };
 
@@ -4237,6 +4279,22 @@ const SettingsView = ({
           </span>
           <button type="button" disabled={pinBusy} onClick={() => void managePin()} className="shrink-0 rounded-xl bg-brand-orange px-3 py-2 text-xs font-black text-white disabled:opacity-50">{pinBusy ? 'Saving…' : user.hasPin ? 'Change PIN' : 'Set PIN'}</button>
         </div>
+        <div className="flex items-center justify-between gap-4 rounded-2xl border border-gray-100 bg-white p-4">
+          <span>
+            <span className="block text-sm font-bold text-gray-800">Change password</span>
+            <span className="mt-1 block text-[11px] leading-relaxed text-gray-500">Re-authenticate securely before setting a new password.</span>
+            {passwordMessage && <span className="mt-1 block text-[11px] font-bold text-brand-orange">{passwordMessage}</span>}
+          </span>
+          <button type="button" onClick={() => setPasswordFormOpen((open) => !open)} className="shrink-0 rounded-xl bg-brand-blue px-3 py-2 text-xs font-black text-white">{passwordFormOpen ? 'Cancel' : 'Change'}</button>
+        </div>
+        {passwordFormOpen && (
+          <div className="space-y-3 rounded-2xl border border-gray-100 bg-white p-4">
+            <input type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} placeholder="Current password" className="w-full rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm font-bold" />
+            <input type="password" autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} placeholder="New password" className="w-full rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm font-bold" />
+            <input type="password" autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} placeholder="Confirm new password" className="w-full rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm font-bold" />
+            <button type="button" disabled={passwordBusy} onClick={() => void changePassword()} className="w-full rounded-xl bg-brand-orange py-3 text-xs font-black uppercase tracking-widest text-white disabled:opacity-50">{passwordBusy ? 'Saving…' : 'Save new password'}</button>
+          </div>
+        )}
       </section>
     </div>
   );
