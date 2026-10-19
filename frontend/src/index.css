@@ -2051,21 +2051,92 @@ textarea::placeholder {
 }
 
 
-/* Connect the selected Admin top-level pill to the options panel below it. */
+/* Keep Users and Groups report rows governed by the same compact table metrics. */
+.cmg-admin-compact-table tbody td {
+  line-height: 1.15;
+  vertical-align: middle;
+}
+
+
+/* Keep the selected master pill above the shared branch highlight. */
 .cmg-admin-menu-top-selected {
   position: relative;
   z-index: 2;
 }
 
-.cmg-admin-menu-top-selected::after {
+
+/* Admin uses the same subtle arrival ribbons and scroll-away chrome as the
+   operational app views. */
+.cmg-app-frame[data-view="ADMIN"] {
+  background-image: none !important;
+}
+
+.cmg-app-frame[data-view="ADMIN"]::before {
   content: "";
   position: absolute;
-  left: 50%;
-  bottom: -7px;
-  width: 12px;
-  height: 12px;
-  background: #111827;
-  border-right: 2px solid rgb(251 146 60 / 0.85);
-  border-bottom: 2px solid rgb(251 146 60 / 0.85);
-  transform: translateX(-50%) rotate(45deg);
+  inset: 0 0 auto 0;
+  height: var(--cmg-shared-top-ribbon-height);
+  background: url("../brand-reference/wallpapers/cmg-bg-community-top.png") no-repeat top center / 100% 100%;
+  opacity: 0.2;
+  pointer-events: none;
+  z-index: 0;
+  transition: transform 350ms ease, opacity 350ms ease;
+}
+
+.cmg-nav-bottom-ribbon[data-view="ADMIN"] {
+  display: block !important;
+  background: url("../brand-reference/wallpapers/cmg-bg-community-bottom.png") no-repeat bottom center / 100% auto;
+  opacity: 0.3 !important;
+}
+
+.cmg-admin-header {
+  position: relative;
+  z-index: 30;
+  max-height: 18rem;
+  overflow: hidden;
+  background-color: var(--cmg-cream) !important;
+  background-image: none !important;
+  backdrop-filter: blur(2px);
+  transition: max-height 350ms ease, opacity 350ms ease, transform 350ms ease;
+}
+
+.cmg-app-frame.is-ribbon-scrolling .cmg-admin-header {
+  max-height: 18rem;
+  opacity: 0.3;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.cmg-app-frame.is-ribbon-scrolling[data-view="ADMIN"]::before {
+  opacity: 0.06;
+  transform: translateY(-50%);
+}
+
+.cmg-app-frame.is-ribbon-scrolling .cmg-nav-bottom-ribbon[data-view="ADMIN"] {
+  opacity: 0.3 !important;
+  transform: translateY(50%);
+}
+
+
+.cmg-admin-header::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: var(--cmg-shared-top-ribbon-height);
+  background: url("../brand-reference/wallpapers/cmg-bg-community-top.png") no-repeat top left / 100% auto;
+  opacity: 0.3;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.cmg-admin-header > * {
+  position: relative;
+  z-index: 1;
+}
+
+
+/* Admin action labels stay intact; the button group may wrap, but a button's
+   icon/text description never breaks across multiple lines. */
+.cmg-app-frame[data-view="ADMIN"] button {
+  white-space: nowrap;
 }

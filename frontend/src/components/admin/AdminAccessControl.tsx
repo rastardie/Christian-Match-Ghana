@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { KeyRound, Save, ShieldCheck, Users, ScrollText, RefreshCw } from 'lucide-react';
+import { useAdminActionConfirmation } from './AdminActionConfirmation';
 import { getAdminUsers } from '../../services/adminService';
 import {
   AdminAccessUser,
@@ -14,6 +15,7 @@ import {
 const labelPermission = (permission: string) => permission.replace(/\./g, ' · ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 
 const AdminAccessControl: React.FC<{ initialTab?: 'groups' | 'audit' }> = ({ initialTab = 'groups' }) => {
+  const { confirmAdminAction } = useAdminActionConfirmation();
   const [tab, setTab] = useState<'groups' | 'audit'>(initialTab);
   const [groups, setGroups] = useState<AdminGroup[]>([]);
   const [permissions, setPermissions] = useState<string[]>([]);
@@ -21,12 +23,16 @@ const AdminAccessControl: React.FC<{ initialTab?: 'groups' | 'audit' }> = ({ ini
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<AdminGroup | null>(null);
+  const [editingGroup, setEditingGroup] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [selectedUserGroups, setSelectedUserGroups] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [newAdmin, setNewAdmin] = useState({ loginName: '', email: '', displayName: '', password: '' });
   const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(new Set());
+  const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set());
+  const [groupManagerOpen, setGroupManagerOpen] = useState(false);
+  const [selectedGroupMemberIds, setSelectedGroupMemberIds] = useState<Record<string, Set<string>>>({});
   const [groupColumnWidths, setGroupColumnWidths] = useState({ number: 72, name: 180, description: 260, members: 90, permissions: 110, type: 100 });
 
   const resizeGroupColumn = (column: keyof typeof groupColumnWidths, event: React.MouseEvent<HTMLSpanElement>) => {
@@ -85,13 +91,68 @@ const AdminAccessControl: React.FC<{ initialTab?: 'groups' | 'audit' }> = ({ ini
     });
   };
 
+  const expandSelectedGroups = () => {
+    setExpandedGroupIds((current) => new Set([...current, ...selectedGroupIds]));
+    setGroupManagerOpen(false);
+  };
+
+  const openSelectedGroupForEditing = () => {
+    const group = groups.find((item) => selectedGroupIds.has(item.id));
+    if (group) { setSelectedGroup(group); setEditingGroup(true); }
+    setGroupManagerOpen(false);
+  };
+
+  const toggleGroupSelection = (event: React.ChangeEvent<HTMLInputElement>, groupId: string) => {
+    event.stopPropagation();
+    setSelectedGroupIds((current) => {
+      const next = new Set(current);
+      if (event.target.checked) next.add(groupId);
+      else next.delete(groupId);
+      return next;
+    });
+  };
+
+  const toggleMemberSelection = (groupId: string, memberId: string, checked: boolean) => {
+    setSelectedGroupMemberIds((current) => {
+      const next = new Set(current[groupId] || []);
+      if (checked) next.add(memberId);
+      else next.delete(memberId);
+      return { ...current, [groupId]: next };
+    });
+  };
+
+  const removeSelectedMembers = async (groupId: string) => {
+    const memberIds = [...(selectedGroupMemberIds[groupId] || [])];
+    if (!memberIds.length) return;
+    const confirmed = await confirmAdminAction({ title: 'Remove selected users from this group?', description: `Remove ${memberIds.length} selected user${memberIds.length === 1 ? '' : 's'} from the group.` });
+    if (!confirmed) return;
+    setBusy(true);
+    try {
+      const updated = await Promise.all(memberIds.map(async (userId) => {
+        const accessUser = accessUsers.find((item) => item.userId === userId);
+        if (!accessUser) return null;
+        return assignAdminUserGroups(userId, accessUser.groupIds.filter((id) => id !== groupId));
+      }));
+      setAccessUsers((items) => items.map((item) => updated.find((saved) => saved?.userId === item.userId) || item));
+      setSelectedGroupMemberIds((current) => ({ ...current, [groupId]: new Set() }));
+      setMessage('Selected users removed from the group.');
+    } catch (error: any) {
+      setMessage(error?.message || 'Unable to remove selected users from the group.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const saveGroup = async () => {
     if (!selectedGroup) return;
+    const confirmed = await confirmAdminAction({ title: 'Save group permissions?', description: `Save permission changes for ${selectedGroup.name}.` });
+    if (!confirmed) return;
     setBusy(true);
     try {
       const saved = await upsertAdminGroup(selectedGroup);
       setGroups((items) => items.map((item) => item.id === saved.id ? saved : item));
       setSelectedGroup(saved);
+      setEditingGroup(false);
       setMessage('Group permissions saved and audited.');
     } catch (error: any) {
       setMessage(error?.message || 'Unable to save group permissions.');
@@ -102,6 +163,8 @@ const AdminAccessControl: React.FC<{ initialTab?: 'groups' | 'audit' }> = ({ ini
 
   const saveUserGroups = async () => {
     if (!selectedUserId) return;
+    const confirmed = await confirmAdminAction({ title: 'Update user group membership?', description: 'Save the selected user’s group assignments.' });
+    if (!confirmed) return;
     setBusy(true);
     try {
       const saved = await assignAdminUserGroups(selectedUserId, selectedUserGroups);
@@ -120,6 +183,11 @@ const AdminAccessControl: React.FC<{ initialTab?: 'groups' | 'audit' }> = ({ ini
       return;
     }
     setBusy(true);
+    const confirmed = await confirmAdminAction({ title: 'Create administrator?', description: `Create the new administrator account ${newAdmin.displayName || newAdmin.loginName}.` });
+    if (!confirmed) {
+      setBusy(false);
+      return;
+    }
     try {
       await createAdministrator(newAdmin);
       setNewAdmin({ loginName: '', email: '', displayName: '', password: '' });
@@ -153,6 +221,22 @@ const AdminAccessControl: React.FC<{ initialTab?: 'groups' | 'audit' }> = ({ ini
         <button onClick={() => { setTab('audit'); void loadAudit(); }} className={`rounded-xl px-4 py-2 text-sm font-bold ${tab === 'audit' ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 border'}`}><ScrollText className="mr-1 inline" size={15} />Audit logs</button>
       </div>
       {message && <p className="rounded-xl bg-blue-50 px-4 py-3 text-sm font-bold text-blue-800">{message}</p>}
+      {groupManagerOpen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm max-h-[85dvh] overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl">
+            <h2 className="text-xl font-black text-slate-900">{selectedGroupIds.size === 1 ? 'Manage group' : 'Manage groups'}</h2>
+            <p className="mt-1 text-sm text-slate-500">Choose an action for {selectedGroupIds.size} selected group{selectedGroupIds.size === 1 ? '' : 's'}.</p>
+            <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm font-black text-slate-800">{groups.filter((group) => selectedGroupIds.has(group.id)).map((group) => <div key={group.id} className="truncate">{group.name}</div>)}</div>
+            <div className="mt-5 grid gap-2">
+              <button type="button" onClick={expandSelectedGroups} className="rounded-xl border border-slate-200 px-4 py-3 text-left text-sm font-black text-slate-700 hover:bg-slate-50">Expand group{selectedGroupIds.size === 1 ? '' : 's'}</button>
+              <button type="button" onClick={openSelectedGroupForEditing} className="rounded-xl border border-slate-200 px-4 py-3 text-left text-sm font-black text-slate-700 hover:bg-slate-50">Edit permissions</button>
+              <button type="button" onClick={() => { const group = groups.find((item) => selectedGroupIds.has(item.id)); if (group) setSelectedGroup(group); setGroupManagerOpen(false); }} className="rounded-xl border border-slate-200 px-4 py-3 text-left text-sm font-black text-slate-700 hover:bg-slate-50">Add users to group</button>
+              <button type="button" onClick={() => { void Promise.all([...selectedGroupIds].map((id) => removeSelectedMembers(id))); setGroupManagerOpen(false); }} className="rounded-xl border border-red-200 px-4 py-3 text-left text-sm font-black text-red-700 hover:bg-red-50">Remove selected users from group</button>
+            </div>
+            <button type="button" onClick={() => setGroupManagerOpen(false)} className="mt-5 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-black text-slate-600">Cancel</button>
+          </div>
+        </div>
+      )}
 
       {tab === 'groups' ? (
         <>
@@ -164,8 +248,16 @@ const AdminAccessControl: React.FC<{ initialTab?: 'groups' | 'audit' }> = ({ ini
               </div>
               <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-bold text-slate-600">{groups.length} groups</span>
             </div>
+            {selectedGroupIds.size > 0 && (
+              <div className="flex flex-wrap items-center gap-2 border-b border-orange-200 bg-orange-50 px-4 py-2 text-xs">
+                <strong>{selectedGroupIds.size} selected</strong>
+                <button type="button" onClick={() => setGroupManagerOpen(true)} className="rounded-lg bg-brand-orange px-3 py-1.5 font-black text-white">{selectedGroupIds.size === 1 ? 'Manage group' : 'Manage groups'}</button>
+                <button type="button" onClick={expandSelectedGroups} className="rounded-lg bg-white px-3 py-1.5 font-black text-slate-700">Expand selected</button>
+                <button type="button" onClick={() => setSelectedGroupIds(new Set())} className="ml-auto rounded-lg px-3 py-1.5 font-black text-slate-500">Clear</button>
+              </div>
+            )}
             <div className="overflow-x-auto">
-              <table className="min-w-[792px] w-full table-fixed border-collapse text-left">
+              <table className="cmg-admin-compact-table min-w-[792px] w-full table-fixed border-collapse text-left">
                 <colgroup>
                   <col style={{ width: groupColumnWidths.number }} />
                   <col style={{ width: groupColumnWidths.name }} />
@@ -176,7 +268,7 @@ const AdminAccessControl: React.FC<{ initialTab?: 'groups' | 'audit' }> = ({ ini
                 </colgroup>
                 <thead className="bg-slate-900 text-[10px] font-black uppercase tracking-wide text-white">
                   <tr>
-                    <th style={{ width: groupColumnWidths.number }} className="relative border-r-2 border-brand-orange px-2 py-2 text-center">#<span onMouseDown={(event) => resizeGroupColumn('number', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                    <th style={{ width: groupColumnWidths.number }} className="relative border-r-2 border-brand-orange px-2 py-2 text-center"><input type="checkbox" aria-label="Select all groups" checked={groups.length > 0 && groups.every((group) => selectedGroupIds.has(group.id))} onChange={(event) => setSelectedGroupIds(event.target.checked ? new Set(groups.map((group) => group.id)) : new Set())} className="mr-1 h-3.5 w-3.5 accent-orange-500" />#<span onMouseDown={(event) => resizeGroupColumn('number', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
                     <th style={{ width: groupColumnWidths.name }} className="relative border-r-2 border-brand-orange px-3 py-2">Group name<span onMouseDown={(event) => resizeGroupColumn('name', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
                     <th style={{ width: groupColumnWidths.description }} className="relative border-r-2 border-brand-orange px-3 py-2">Description<span onMouseDown={(event) => resizeGroupColumn('description', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
                     <th style={{ width: groupColumnWidths.members }} className="relative border-r-2 border-brand-orange px-3 py-2">Members<span onMouseDown={(event) => resizeGroupColumn('members', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
@@ -188,48 +280,50 @@ const AdminAccessControl: React.FC<{ initialTab?: 'groups' | 'audit' }> = ({ ini
                   {groups.map((group, groupIndex) => {
                     const members = groupMembers(group.id);
                     const expanded = expandedGroupIds.has(group.id);
+                    const selectedMembersForGroup = selectedGroupMemberIds[group.id] || new Set<string>();
                     return (
                       <React.Fragment key={group.id}>
                         <tr
-                          onClick={() => { setSelectedGroup(group); toggleGroupExpanded(group.id); }}
-                          className="cursor-pointer border-b border-slate-200 text-xs text-slate-700 transition hover:bg-slate-50"
+                          onClick={() => { setSelectedGroup(group); setEditingGroup(false); toggleGroupExpanded(group.id); }}
+                          className="h-9 cursor-pointer border-b border-slate-200 text-xs text-slate-700 transition hover:bg-slate-50"
                         >
-                          <td className="px-2 py-2 text-center text-xs font-black text-slate-400">
+                          <td className="px-2 py-1.5 text-center text-xs font-black text-slate-400">
+                            <input type="checkbox" aria-label={`Select ${group.name}`} checked={selectedGroupIds.has(group.id)} onChange={(event) => toggleGroupSelection(event, group.id)} onClick={(event) => event.stopPropagation()} className="mr-1 h-3.5 w-3.5 accent-orange-500" />
                             <span className="inline-flex items-center justify-center gap-1 text-brand-orange">
                               <span className="text-slate-400">{groupIndex + 1}</span>
                               <span aria-hidden>{expanded ? '▾' : '▸'}</span>
                             </span>
                           </td>
-                          <td className="px-3 py-2 font-black text-slate-900">{group.name}</td>
-                          <td className="max-w-[260px] truncate px-3 py-2">{group.description || '—'}</td>
-                          <td className="px-3 py-2 font-bold">{members.length}</td>
-                          <td className="px-3 py-2">{group.permissions.length}</td>
-                          <td className="px-3 py-2">
+                          <td className="px-3 py-1.5 font-black text-slate-900">{group.name}</td>
+                          <td className="max-w-[260px] truncate px-3 py-1.5">{group.description || '—'}</td>
+                          <td className="px-3 py-1.5 font-bold">{members.length}</td>
+                          <td className="px-3 py-1.5">{group.permissions.length}</td>
+                          <td className="px-3 py-1.5">
                             <span className={`rounded px-2 py-1 text-[10px] font-black ${group.system ? 'bg-orange-50 text-orange-700' : 'bg-slate-100 text-slate-600'}`}>{group.system ? 'SYSTEM' : 'CUSTOM'}</span>
                           </td>
                         </tr>
                         {expanded && (
                           <tr className="border-b border-slate-200 bg-[#f7f9fc]">
                             <td colSpan={6} className="px-5 py-3">
-                              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2">
-                                <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Members in {group.name}</span>
-                                <span className="text-xs font-bold text-slate-500">{members.length} assigned</span>
-                              </div>
+                                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2">
+                                  <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Members in {group.name}</span>
+                                  <div className="flex items-center gap-2"><span className="text-xs font-bold text-slate-500">{members.length} assigned</span>{selectedMembersForGroup.size > 0 && <button type="button" onClick={() => void removeSelectedMembers(group.id)} className="rounded-lg bg-red-50 px-2 py-1 text-[10px] font-black text-red-700">Remove selected</button>}</div>
+                                </div>
                               {members.length === 0 ? (
                                 <p className="py-4 text-xs text-slate-500">No users are assigned to this group yet. Use the assignment controls below.</p>
                               ) : (
                                 <div className="mt-2 overflow-x-auto">
                                   <table className="min-w-[520px] w-full text-left text-xs">
                                     <thead className="text-[10px] font-black uppercase tracking-wide text-slate-500">
-                                      <tr><th className="w-10 px-2 py-1">#</th><th className="px-2 py-1">User</th><th className="px-2 py-1">Email</th><th className="px-2 py-1">Status</th></tr>
+                                      <tr><th className="w-10 px-2 py-1"><input type="checkbox" aria-label={`Select all members in ${group.name}`} checked={members.length > 0 && members.every((member: any) => selectedMembersForGroup.has(member.id))} onChange={(event) => setSelectedGroupMemberIds((current) => ({ ...current, [group.id]: event.target.checked ? new Set(members.map((member: any) => member.id)) : new Set() }))} className="h-3.5 w-3.5 accent-orange-500" /> #</th><th className="px-2 py-1">User</th><th className="px-2 py-1">Email</th><th className="px-2 py-1">Status</th></tr>
                                     </thead>
                                     <tbody>
                                       {members.map((member: any, memberIndex) => (
                                         <tr key={member.id} className="border-t border-slate-200 bg-white">
-                                          <td className="px-2 py-2 text-center text-slate-400">{memberIndex + 1}</td>
-                                          <td className="px-2 py-2 font-bold text-slate-800">{member.name || 'Unnamed user'}</td>
-                                          <td className="px-2 py-2 text-slate-600">{member.email || '—'}</td>
-                                          <td className="px-2 py-2 text-slate-600">{member.isBlocked ? 'Blocked' : 'Active'}</td>
+                                          <td className="px-2 py-1.5 text-center text-slate-400"><input type="checkbox" aria-label={`Select ${member.name || 'member'}`} checked={selectedMembersForGroup.has(member.id)} onChange={(event) => toggleMemberSelection(group.id, member.id, event.target.checked)} className="mr-1 h-3.5 w-3.5 accent-orange-500" />{memberIndex + 1}</td>
+                                          <td className="px-2 py-1.5 font-bold text-slate-800">{member.name || 'Unnamed user'}</td>
+                                          <td className="px-2 py-1.5 text-slate-600">{member.email || '—'}</td>
+                                          <td className="px-2 py-1.5 text-slate-600">{member.isBlocked ? 'Blocked' : 'Active'}</td>
                                         </tr>
                                       ))}
                                     </tbody>
@@ -248,8 +342,8 @@ const AdminAccessControl: React.FC<{ initialTab?: 'groups' | 'audit' }> = ({ ini
           </section>
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             {selectedGroup ? <>
-              <div className="mb-4 flex items-start justify-between gap-3"><div><h3 className="text-lg font-black text-slate-900">{selectedGroup.name}</h3><p className="text-sm text-slate-500">Edit group permissions</p></div><button disabled={busy || selectedGroup.id === 'super-admins'} onClick={() => void saveGroup()} className="flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"><Save size={15} /> Save</button></div>
-              <div className="grid gap-2 sm:grid-cols-2">{permissions.map((permission) => <label key={permission} className="flex items-center gap-3 rounded-xl bg-slate-50 p-3 text-sm font-semibold text-slate-700"><input type="checkbox" checked={selectedGroupPermissions.has(permission)} disabled={selectedGroup.id === 'super-admins'} onChange={(event) => setSelectedGroup({ ...selectedGroup, permissions: event.target.checked ? [...selectedGroup.permissions, permission] : selectedGroup.permissions.filter((item) => item !== permission) })} className="h-4 w-4 accent-orange-500" />{labelPermission(permission)}</label>)}</div>
+              <div className="mb-4 flex items-start justify-between gap-3"><div><h3 className="text-lg font-black text-slate-900">{selectedGroup.name}</h3><p className="text-sm text-slate-500">{editingGroup ? 'Edit group permissions' : 'Permissions are locked until Edit is selected.'}</p></div><div className="flex gap-2">{editingGroup && <button onClick={() => { setEditingGroup(false); setSelectedGroup(groups.find((group) => group.id === selectedGroup.id) || selectedGroup); }} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-600">Cancel</button>}{editingGroup ? <button disabled={busy || selectedGroup.id === 'super-admins'} onClick={() => void saveGroup()} className="flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"><Save size={15} /> Save</button> : <button disabled={selectedGroup.id === 'super-admins'} onClick={() => setEditingGroup(true)} className="flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"><KeyRound size={15} /> Edit permissions</button>}</div></div>
+              <div className="grid gap-2 sm:grid-cols-2">{permissions.map((permission) => <label key={permission} className="flex items-center gap-3 rounded-xl bg-slate-50 p-3 text-sm font-semibold text-slate-700"><input type="checkbox" checked={selectedGroupPermissions.has(permission)} disabled={!editingGroup || selectedGroup.id === 'super-admins'} onChange={(event) => setSelectedGroup({ ...selectedGroup, permissions: event.target.checked ? [...selectedGroup.permissions, permission] : selectedGroup.permissions.filter((item) => item !== permission) })} className="h-4 w-4 accent-orange-500" />{labelPermission(permission)}</label>)}</div>
             </> : <p className="text-slate-500">Select a group from the table.</p>}
           </section>
           <section className="rounded-2xl bg-white p-5 shadow-sm border border-slate-200"><h3 className="mb-4 flex items-center gap-2 font-black text-slate-800"><Users size={18} /> Assign users to groups</h3><div className="grid gap-4 lg:grid-cols-[1fr_1fr_auto]"><select value={selectedUserId} onChange={(event) => setSelectedUserId(event.target.value)} className="rounded-xl border border-slate-200 p-3 text-sm"><option value="">Select user</option>{allUsers.map((user) => <option key={user.id} value={user.id}>{user.name || user.email} — {user.email}</option>)}</select><div className="flex flex-wrap gap-2">{groups.map((group) => <label key={group.id} className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-xs font-bold"><input type="checkbox" checked={selectedUserGroups.includes(group.id)} disabled={group.id === 'super-admins'} onChange={(event) => setSelectedUserGroups((items) => event.target.checked ? [...items, group.id] : items.filter((id) => id !== group.id))} className="accent-orange-500" />{group.name}</label>)}</div><button disabled={!selectedUserId || busy} onClick={() => void saveUserGroups()} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">Assign</button></div></section>

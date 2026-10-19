@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { signOut } from 'firebase/auth';
+import { signOut, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../../firebase';
 import { getDashboardStats, getAdminUsers, getAdminPrayers, getAdminReports, deleteUser, toggleBlockUser, getAdminConnections, getAdminPayments, getAnalyticsData, AnalyticsData, adminCreateUser } from '../../services/adminService';
 import { LayoutDashboard, Users, Shield, Activity, LogOut, MessageSquare, Heart, Trash2, Search, CheckCircle, XCircle, Link as LinkIcon, CreditCard, DollarSign, Calendar, MoreHorizontal, ChevronDown, RefreshCw, ClipboardList, Settings, Menu, Power, FileText, Printer } from 'lucide-react';
 import { EditProfileView } from '../../MainApp';
 import { updateUserDocument } from '../../services/userService';
 import AdminAccessControl from './AdminAccessControl';
+import { AdminActionProvider, useAdminActionConfirmation } from './AdminActionConfirmation';
 
-import { getCurrentAdminAccess } from '../../services/adminRbacService';
+import { getCurrentAdminAccess, listAdminAccessControl, assignAdminUserGroups } from '../../services/adminRbacService';
 const ADMIN_MENU_GROUPS = [
   { key: 'users', label: 'Users', icon: Users, items: [
     { key: 'users', label: 'Users' },
@@ -119,9 +120,10 @@ const AdminDashboard = () => {
   const selectedGroup = ADMIN_MENU_GROUPS.find((group) => group.key === selectedMenuGroup);
 
   return (
-    <div className="min-h-screen bg-[#f6f8fc] font-sans text-slate-900">
+    <AdminActionProvider>
+      <div className="min-h-screen bg-[#f6f8fc] font-sans text-slate-900">
       {/* Mobile-first CMG Admin header, based on the Onboard Admin pattern. */}
-      <header className="bg-white shadow-sm">
+      <header className="cmg-admin-header bg-white shadow-sm">
         <div className="mx-auto flex w-full items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <button type="button" onClick={selectDashboard} className="text-left">
             <div className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
@@ -143,12 +145,12 @@ const AdminDashboard = () => {
           </div>
         </div>
           <div className="bg-slate-900 px-3 py-3 sm:px-6">
-            <div className={`mx-auto w-full rounded-2xl border p-1.5 transition-colors ${selectedMenuGroup !== 'dashboard' ? 'border-brand-orange/75 shadow-[0_0_0_2px_rgb(249_115_22_/_0.18)]' : 'border-white/15'} bg-white/10`}>
+            <div className={`mx-auto w-full rounded-2xl border p-1.5 transition-colors ${selectedMenuGroup !== 'dashboard' ? 'border-blue-400/70 bg-blue-500/[0.14] shadow-[0_0_0_2px_rgb(59_130_246_/_0.25),0_0_26px_rgb(59_130_246_/_0.30)]' : 'border-white/15'} bg-white/10`}>
               <div className="flex flex-wrap justify-center gap-1.5">
                 <button
                   type="button"
                   onClick={selectDashboard}
-                  className={`flex min-h-7 w-28 flex-none whitespace-nowrap items-center justify-center gap-1.5 rounded-full border px-2 py-1 text-xs font-black transition ${selectedMenuGroup === 'dashboard' ? 'cmg-admin-menu-top-selected border-brand-orange bg-white/35 text-white shadow-md' : 'border-white/25 bg-white/10 text-white/45 hover:border-white/55 hover:bg-white/20 hover:text-white/75'}`}
+                  className={`flex min-h-7 w-28 flex-none whitespace-nowrap items-center justify-center gap-1.5 rounded-full border px-2 py-1 text-xs font-black transition ${selectedMenuGroup === 'dashboard' ? 'cmg-admin-menu-top-selected border-blue-400/80 bg-blue-500/30 text-white shadow-[0_0_18px_rgb(59_130_246_/_0.45)]' : 'border-white/25 bg-white/10 text-white/45 hover:border-white/55 hover:bg-white/20 hover:text-white/75'}`}
                 >
                   <LayoutDashboard size={16} />
                   Dashboard
@@ -156,7 +158,7 @@ const AdminDashboard = () => {
                 <button
                   type="button"
                   onClick={() => selectTab('reports')}
-                  className={`flex min-h-7 w-28 flex-none whitespace-nowrap items-center justify-center gap-1.5 rounded-full border px-2 py-1 text-xs font-black transition ${selectedMenuGroup === 'reports' ? 'cmg-admin-menu-top-selected border-brand-orange bg-white/35 text-white shadow-md' : 'border-white/25 bg-white/10 text-white/45 hover:border-white/55 hover:bg-white/20 hover:text-white/75'}`}
+                  className={`flex min-h-7 w-28 flex-none whitespace-nowrap items-center justify-center gap-1.5 rounded-full border px-2 py-1 text-xs font-black transition ${selectedMenuGroup === 'reports' ? 'cmg-admin-menu-top-selected border-blue-400/80 bg-blue-500/30 text-white shadow-[0_0_18px_rgb(59_130_246_/_0.45)]' : 'border-white/25 bg-white/10 text-white/45 hover:border-white/55 hover:bg-white/20 hover:text-white/75'}`}
                 >
                   <FileText size={16} />
                   Reports
@@ -170,7 +172,7 @@ const AdminDashboard = () => {
                       type="button"
                       onClick={() => selectMenuGroup(group.key)}
                       aria-expanded={isSelected}
-                      className={`flex min-h-7 w-28 flex-none whitespace-nowrap items-center justify-center gap-1.5 rounded-full border px-2 py-1 text-xs font-black transition ${isSelected ? 'cmg-admin-menu-top-selected border-brand-orange bg-white/35 text-white shadow-md' : 'border-white/25 bg-white/10 text-white/45 hover:border-white/55 hover:bg-white/20 hover:text-white/75'}`}
+                      className={`flex min-h-7 w-28 flex-none whitespace-nowrap items-center justify-center gap-1.5 rounded-full border px-2 py-1 text-xs font-black transition ${isSelected ? 'cmg-admin-menu-top-selected border-blue-400/80 bg-blue-500/30 text-white shadow-[0_0_18px_rgb(59_130_246_/_0.45)]' : 'border-white/25 bg-white/10 text-white/45 hover:border-white/55 hover:bg-white/20 hover:text-white/75'}`}
                     >
                       <GroupIcon size={16} />
                       {group.label}
@@ -181,8 +183,7 @@ const AdminDashboard = () => {
 
               {selectedGroup && selectedMenuGroup !== 'dashboard' && (
                 <div className="relative mt-3 border-t border-white/20 pt-3" aria-label={`${selectedGroup.label} options`}>
-                  <div className="pointer-events-none absolute -top-2 left-1/2 h-4 w-4 -translate-x-1/2 rotate-45 border-b border-r border-brand-orange/80 bg-slate-900" />
-                  <div className="rounded-xl border border-brand-orange/55 bg-slate-900/35 p-1.5">
+                  <div className="rounded-xl border border-blue-400/45 bg-blue-500/10 p-1.5">
                     <div className="flex w-full flex-wrap justify-start gap-1.5">
                       {selectedGroup.items.map((item) => (
                         <button
@@ -220,7 +221,8 @@ const AdminDashboard = () => {
           </div>
         )}
       </main>
-    </div>
+      </div>
+    </AdminActionProvider>
   );
 };
 
@@ -361,35 +363,106 @@ const Overview = () => {
     totalRevenue: 0,
     pendingReports: 0
   });
+  const [dashboardUsers, setDashboardUsers] = useState<any[]>([]);
+  const [dashboardReports, setDashboardReports] = useState<any[]>([]);
 
   useEffect(() => {
-    const loadStats = async () => {
-      const data = await getDashboardStats();
-      setStats(data);
+    const loadDashboard = async () => {
+      const [summary, users, reports] = await Promise.all([
+        getDashboardStats(),
+        getAdminUsers(),
+        getAdminReports(),
+      ]);
+      setStats(summary);
+      setDashboardUsers(users);
+      setDashboardReports(reports);
     };
-    loadStats();
+    void loadDashboard();
   }, []);
 
+  const activeUsers = dashboardUsers.filter((user) => !user.isBlocked).length;
+  const blockedUsers = dashboardUsers.filter((user) => user.isBlocked).length;
+  const verifiedUsers = dashboardUsers.filter((user) => user.isVerified).length;
+  const premiumUsers = dashboardUsers.filter((user) => user.isPremium).length;
+  const recentUsers = [...dashboardUsers].slice(-5).reverse();
+  const recentReports = [...dashboardReports].slice(-5).reverse();
+  const signupTrend = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() - (6 - index));
+    const nextDate = new Date(date);
+    nextDate.setDate(nextDate.getDate() + 1);
+    return {
+      label: date.toLocaleDateString(undefined, { weekday: 'short' }),
+      count: dashboardUsers.filter((user) => {
+        const created = reportDateValue(user.createdAt);
+        return created && created >= date && created < nextDate;
+      }).length,
+    };
+  });
+  const maxSignups = Math.max(...signupTrend.map((item) => item.count), 1);
+  const reportStatus = {
+    pending: dashboardReports.filter((report) => (report.status || 'pending') === 'pending').length,
+    resolved: dashboardReports.filter((report) => report.status === 'resolved').length,
+  };
+  const maxReportStatus = Math.max(reportStatus.pending, reportStatus.resolved, 1);
+
   return (
-    <>
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <StatCard title="Total Users" value={stats.totalUsers.toLocaleString()} change="+0%" icon={<Users className="text-blue-500" />} />
-        <StatCard title="Active Matches" value={stats.activeMatches.toLocaleString()} change="+0%" icon={<LinkIcon className="text-indigo-500" />} />
-        <StatCard title="Revenue (Mo)" value={`$${stats.totalRevenue.toLocaleString()}`} change="+0%" icon={<DollarSign className="text-green-500" />} />
-        <StatCard title="Pending Reports" value={stats.pendingReports.toLocaleString()} change="0" isNegative icon={<Shield className="text-red-500" />} />
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <StatCard title="Total Users" value={stats.totalUsers.toLocaleString()} change="Live" icon={<Users className="text-blue-500" size={18} />} />
+        <StatCard title="Active Users" value={activeUsers.toLocaleString()} change="Live" icon={<Activity className="text-green-500" size={18} />} />
+        <StatCard title="Verified Users" value={verifiedUsers.toLocaleString()} change="Trust" icon={<CheckCircle className="text-indigo-500" size={18} />} />
+        <StatCard title="Pending Reports" value={stats.pendingReports.toLocaleString()} change="Review" isNegative icon={<Shield className="text-red-500" size={18} />} />
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
-        <h3 className="text-lg font-semibold mb-4 text-gray-800">Activity Overview</h3>
-        <div className="h-64 flex items-center justify-center text-gray-400 bg-gray-50 rounded-lg border border-dashed border-gray-200">
-          Chart Visualization Placeholder
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <div className="rounded-xl border border-slate-200 bg-white px-3 py-2"><p className="text-[11px] font-bold text-slate-500">Active matches</p><p className="text-lg font-black text-slate-900">{stats.activeMatches.toLocaleString()}</p></div>
+        <div className="rounded-xl border border-slate-200 bg-white px-3 py-2"><p className="text-[11px] font-bold text-slate-500">Premium users</p><p className="text-lg font-black text-slate-900">{premiumUsers.toLocaleString()}</p></div>
+        <div className="rounded-xl border border-slate-200 bg-white px-3 py-2"><p className="text-[11px] font-bold text-slate-500">Blocked users</p><p className="text-lg font-black text-slate-900">{blockedUsers.toLocaleString()}</p></div>
+        <div className="rounded-xl border border-slate-200 bg-white px-3 py-2"><p className="text-[11px] font-bold text-slate-500">Revenue</p><p className="text-lg font-black text-slate-900">₵{stats.totalRevenue.toLocaleString()}</p></div>
+      </div>
+
+      <details className="rounded-xl border border-slate-200 bg-white p-3">
+        <summary className="cursor-pointer list-none text-sm font-black text-slate-800">Detailed insights and activity</summary>
+        <div className="mt-3 grid gap-3 lg:grid-cols-3">
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <h3 className="font-black text-slate-800">User status</h3>
+          <div className="mt-3 space-y-2 text-xs">
+            {[['Active', activeUsers, 'bg-green-500'], ['Blocked', blockedUsers, 'bg-red-500'], ['Verified', verifiedUsers, 'bg-blue-500'], ['Premium', premiumUsers, 'bg-orange-500']].map(([label, value, color]) => <div key={String(label)}><div className="mb-1 flex justify-between font-bold text-slate-500"><span>{label}</span><span>{String(value)}</span></div><div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${color}`} style={{ width: `${dashboardUsers.length ? (Number(value) / dashboardUsers.length) * 100 : 0}%` }} /></div></div>)}
+          </div>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <h3 className="font-black text-slate-800">Moderation queue</h3>
+          <div className="mt-3 space-y-2 text-xs">
+            {[['Pending', reportStatus.pending, 'bg-orange-500'], ['Resolved', reportStatus.resolved, 'bg-green-500']].map(([label, value, color]) => <div key={String(label)}><div className="mb-1 flex justify-between font-bold text-slate-500"><span>{label}</span><span>{String(value)}</span></div><div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${color}`} style={{ width: `${(Number(value) / maxReportStatus) * 100}%` }} /></div></div>)}
+          </div>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <h3 className="font-black text-slate-800">New users · 7 days</h3>
+          <div className="mt-3 flex h-20 items-end gap-2">
+            {signupTrend.map((item) => <div key={item.label} className="flex flex-1 flex-col items-center gap-1"><div className="w-full rounded-t bg-brand-orange/80" style={{ height: `${Math.max((item.count / maxSignups) * 100, item.count ? 12 : 3)}%` }} title={`${item.count} new users`} /><span className="text-[9px] font-bold text-slate-400">{item.label}</span></div>)}
+          </div>
         </div>
       </div>
-    </>
+
+      <div className="grid gap-3 lg:grid-cols-2">
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <div className="mb-2 flex items-center justify-between"><h3 className="font-black text-slate-800">Recent users</h3><span className="text-xs font-bold text-slate-400">{dashboardUsers.length} total</span></div>
+          <div className="divide-y divide-slate-100">{recentUsers.length ? recentUsers.map((user, index) => <div key={`${user.id}-${index}`} className="flex items-center justify-between gap-2 py-2 text-xs"><span className="truncate font-black text-slate-800">{user.name || user.email || 'Unnamed user'}</span><span className="shrink-0 text-slate-500">{user.isBlocked ? 'Blocked' : 'Active'}</span></div>) : <p className="py-4 text-sm text-slate-500">No users found.</p>}</div>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <div className="mb-2 flex items-center justify-between"><h3 className="font-black text-slate-800">Moderation queue</h3><span className="text-xs font-bold text-slate-400">{stats.pendingReports} pending</span></div>
+          <div className="divide-y divide-slate-100">{recentReports.length ? recentReports.map((report, index) => <div key={`${report.id}-${index}`} className="flex items-center justify-between gap-2 py-2 text-xs"><span className="truncate font-black text-slate-800">{report.reason || 'General report'}</span><span className="shrink-0 rounded px-2 py-0.5 font-bold text-orange-700 bg-orange-50">{report.status || 'pending'}</span></div>) : <p className="py-4 text-sm text-slate-500">No reports found.</p>}</div>
+        </div>
+      </div>
+      </details>
+    </div>
   );
 };
 
 const UsersView = () => {
+    const { confirmAdminAction } = useAdminActionConfirmation();
     // Real Data
     const [users, setUsers] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -419,10 +492,11 @@ const UsersView = () => {
         fetchUsers();
     }, []);
     const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+    const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
     const [selectedUser, setSelectedUser] = useState<any>(null); // State for the details modal
     const [isEditingProfile, setIsEditingProfile] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
-    const [userColumnWidths, setUserColumnWidths] = useState({ number: 52, user: 220, telephone: 140, role: 120, status: 120, joined: 140, actions: 84 });
+    const [userColumnWidths, setUserColumnWidths] = useState({ number: 52, user: 220, email: 200, telephone: 140, role: 120, status: 120, joined: 140, actions: 84 });
 
     const resizeUserColumn = (column: keyof typeof userColumnWidths, event: React.MouseEvent<HTMLSpanElement>) => {
         event.preventDefault();
@@ -447,6 +521,10 @@ const UsersView = () => {
     const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
     const [isSavingUser, setIsSavingUser] = useState(false);
     const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'User', phone: '', status: 'Active' });
+    const [manageGroupsOpen, setManageGroupsOpen] = useState(false);
+    const [manageGroups, setManageGroups] = useState<any[]>([]);
+    const [userGroupAssignments, setUserGroupAssignments] = useState<Record<string, string[]>>({});
+    const [manageGroupsBusy, setManageGroupsBusy] = useState(false);
 
     const toggleMenu = (e: React.MouseEvent, id: string) => {
         e.stopPropagation(); // Prevent row click
@@ -460,6 +538,8 @@ const UsersView = () => {
 
         const newStatus = user.status === 'Blocked' ? 'Active' : 'Blocked';
         const isBlocked = newStatus === 'Blocked';
+        const confirmed = await confirmAdminAction({ title: `${isBlocked ? 'Disable / lock' : 'Unlock'} user?`, description: `Confirm this account action for ${user.name}.` });
+        if (!confirmed) return;
 
         // Optimistic update
         setUsers(users.map(u => {
@@ -485,7 +565,8 @@ const UsersView = () => {
 
     const handleDelete = async (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
-        if (window.confirm("Are you sure you want to delete this user? This action cannot be undone.")) {
+        const confirmed = await confirmAdminAction({ title: 'Delete user?', description: `Permanently delete ${users.find((user) => user.id === id)?.name || 'this user'} and their account data.` });
+        if (confirmed) {
              // Optimistic update
             const prevUsers = [...users];
             setUsers(users.filter(user => user.id !== id));
@@ -510,6 +591,8 @@ const UsersView = () => {
             return;
         }
 
+        const confirmed = await confirmAdminAction({ title: 'Create user?', description: `Create the new user account for ${newUser.name}.` });
+        if (!confirmed) return;
         setIsSavingUser(true);
         const result = await adminCreateUser(newUser);
         setIsSavingUser(false);
@@ -542,6 +625,86 @@ const UsersView = () => {
         const matchesRole = filterRole === 'All' || user.role === filterRole;
         return matchesSearch && matchesStatus && matchesRole;
     });
+
+    const toggleUserSelection = (event: React.ChangeEvent<HTMLInputElement>, userId: string) => {
+        event.stopPropagation();
+        setSelectedUserIds((current) => {
+            const next = new Set(current);
+            if (event.target.checked) next.add(userId);
+            else next.delete(userId);
+            return next;
+        });
+    };
+
+    const toggleAllUserSelection = (event: React.ChangeEvent<HTMLInputElement>) => {
+        setSelectedUserIds((current) => {
+            const next = new Set(current);
+            filteredUsers.forEach((user) => event.target.checked ? next.add(user.id) : next.delete(user.id));
+            return next;
+        });
+    };
+
+    const handleBulkBlock = async (blocked: boolean) => {
+        const confirmed = await confirmAdminAction({ title: blocked ? 'Disable / lock selected users?' : 'Unlock selected users?', description: `Confirm this account action for ${selectedUserIds.size} selected user${selectedUserIds.size === 1 ? '' : 's'}.` });
+        if (!confirmed) return;
+        const ids = [...selectedUserIds];
+        await Promise.all(ids.map((id) => toggleBlockUser(id, blocked)));
+        setUsers((current) => current.map((user) => ids.includes(user.id) ? { ...user, status: blocked ? 'Blocked' : 'Active' } : user));
+    };
+
+    const handleBulkPasswordReset = async () => {
+        const confirmed = await confirmAdminAction({ title: 'Reset selected passwords?', description: `Send password reset emails for ${selectedUserIds.size} selected user${selectedUserIds.size === 1 ? '' : 's'}.` });
+        if (!confirmed) return;
+        const selected = users.filter((user) => selectedUserIds.has(user.id) && user.email);
+        await Promise.all(selected.map((user) => sendPasswordResetEmail(auth, user.email)));
+        alert(`Password reset email sent for ${selected.length} user${selected.length === 1 ? '' : 's'}.`);
+    };
+
+    const openManageGroups = async () => {
+        if (!selectedUserIds.size) return;
+        setManageGroupsBusy(true);
+        try {
+            const access = await listAdminAccessControl();
+            setManageGroups(access.groups);
+            const assignments: Record<string, string[]> = {};
+            selectedUserIds.forEach((userId) => {
+                assignments[userId] = access.users.find((item) => item.userId === userId)?.groupIds || [];
+            });
+            setUserGroupAssignments(assignments);
+            setManageGroupsOpen(true);
+        } catch (error) {
+            alert('Unable to load group assignments.');
+        } finally {
+            setManageGroupsBusy(false);
+        }
+    };
+
+    const toggleSelectedUsersGroup = (groupId: string, checked: boolean) => {
+        setUserGroupAssignments((current) => {
+            const next: Record<string, string[]> = {};
+            Object.entries(current).forEach(([userId, groupIds]) => {
+                next[userId] = checked
+                    ? [...new Set([...groupIds, groupId])]
+                    : groupIds.filter((id) => id !== groupId);
+            });
+            return next;
+        });
+    };
+
+    const saveSelectedUserGroups = async () => {
+        const confirmed = await confirmAdminAction({ title: 'Update group membership?', description: `Apply group membership changes to ${Object.keys(userGroupAssignments).length} selected user${Object.keys(userGroupAssignments).length === 1 ? '' : 's'}.` });
+        if (!confirmed) return;
+        setManageGroupsBusy(true);
+        try {
+            await Promise.all(Object.entries(userGroupAssignments).map(([userId, groupIds]) => assignAdminUserGroups(userId, groupIds)));
+            setManageGroupsOpen(false);
+            alert('Group assignments updated.');
+        } catch (error) {
+            alert('Unable to update group assignments.');
+        } finally {
+            setManageGroupsBusy(false);
+        }
+    };
 
     const handleExport = () => {
         const headers = ["Name", "Email", "Phone", "Role", "Status", "Joined", "Location", "Bio", "Denomination"];
@@ -654,12 +817,21 @@ const UsersView = () => {
                 </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden min-h-[400px]">
+            {selectedUserIds.size > 0 && (
+                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-sm">
+                    <strong>{selectedUserIds.size} selected</strong>
+                    <button type="button" onClick={() => void openManageGroups()} disabled={manageGroupsBusy} className="rounded-lg bg-brand-orange px-3 py-1.5 text-xs font-black text-white disabled:opacity-50">{manageGroupsBusy ? 'Loading…' : selectedUserIds.size === 1 ? 'Manage user' : 'Manage users'}</button>
+                    <button type="button" onClick={() => setSelectedUserIds(new Set())} className="ml-auto rounded-lg px-3 py-1.5 text-xs font-black text-slate-500">Clear</button>
+                </div>
+            )}
+
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden min-h-0">
                 <div className="overflow-x-auto">
-                    <table className="min-w-[876px] w-full table-fixed border-collapse text-left">
+                    <table className="cmg-admin-compact-table min-w-[1076px] w-full table-fixed border-collapse text-left">
                         <colgroup>
                             <col style={{ width: userColumnWidths.number }} />
                             <col style={{ width: userColumnWidths.user }} />
+                            <col style={{ width: userColumnWidths.email }} />
                             <col style={{ width: userColumnWidths.telephone }} />
                             <col style={{ width: userColumnWidths.role }} />
                             <col style={{ width: userColumnWidths.status }} />
@@ -668,8 +840,9 @@ const UsersView = () => {
                         </colgroup>
                     <thead className="bg-slate-900 border-b border-brand-orange text-white">
                         <tr>
-                            <th style={{ width: userColumnWidths.number }} className="relative px-3 py-2 text-center text-[10px] font-black uppercase tracking-wide text-white border-r-2 border-brand-orange">#<span onMouseDown={(event) => resizeUserColumn('number', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                            <th style={{ width: userColumnWidths.number }} className="relative px-3 py-2 text-center text-[10px] font-black uppercase tracking-wide text-white border-r-2 border-brand-orange"><input type="checkbox" aria-label="Select all users" checked={filteredUsers.length > 0 && filteredUsers.every((user) => selectedUserIds.has(user.id))} onChange={toggleAllUserSelection} onClick={(event) => event.stopPropagation()} className="mr-1 h-3.5 w-3.5 accent-orange-500" />#<span onMouseDown={(event) => resizeUserColumn('number', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
                             <th style={{ width: userColumnWidths.user }} className="relative px-3 py-2 text-[10px] font-black uppercase tracking-wide text-white border-r-2 border-brand-orange">User<span onMouseDown={(event) => resizeUserColumn('user', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                            <th style={{ width: userColumnWidths.email }} className="relative px-3 py-2 text-[10px] font-black uppercase tracking-wide text-white border-r-2 border-brand-orange">Email<span onMouseDown={(event) => resizeUserColumn('email', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
                             <th style={{ width: userColumnWidths.telephone }} className="relative px-3 py-2 text-[10px] font-black uppercase tracking-wide text-white border-r-2 border-brand-orange">Telephone<span onMouseDown={(event) => resizeUserColumn('telephone', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
                             <th style={{ width: userColumnWidths.role }} className="relative px-3 py-2 text-[10px] font-black uppercase tracking-wide text-white border-r-2 border-brand-orange">Role<span onMouseDown={(event) => resizeUserColumn('role', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
                             <th style={{ width: userColumnWidths.status }} className="relative px-3 py-2 text-[10px] font-black uppercase tracking-wide text-white border-r-2 border-brand-orange">Status<span onMouseDown={(event) => resizeUserColumn('status', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
@@ -682,34 +855,34 @@ const UsersView = () => {
                             <tr 
                                 key={user.id} 
                                 onClick={() => setSelectedUser(user)}
-                                className="border-b border-slate-200 hover:bg-slate-50 transition-colors group cursor-pointer"
+                                className="h-9 border-b border-slate-200 text-xs hover:bg-slate-50 transition-colors group cursor-pointer"
                             >
-                                <td className="px-3 py-2 text-center text-xs font-black text-slate-400">{userIndex + 1}</td>
-                                <td className="px-3 py-2">
+                                <td className="px-3 py-1.5 text-center text-xs font-black text-slate-400"><input type="checkbox" aria-label={`Select ${user.name}`} checked={selectedUserIds.has(user.id)} onChange={(event) => toggleUserSelection(event, user.id)} onClick={(event) => event.stopPropagation()} className="mr-1 h-3.5 w-3.5 accent-orange-500" />{userIndex + 1}</td>
+                                <td className="px-3 py-1.5">
                                     <div className="flex items-center gap-2">
-                                        <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 text-xs font-black">
+                                        <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 text-[9px] font-black">
                                             {user.name.charAt(0)}
                                         </div>
                                         <div>
-                                            <div className="font-medium text-gray-900 flex items-center gap-1">
+                                            <div className="text-xs font-black text-slate-900 flex items-center gap-1">
                                                 {user.name}
                                                 {user.verified && <CheckCircle size={14} className="text-blue-500" fill="currentColor" color="white" />}
                                             </div>
-                                            <div className="text-xs text-gray-500">{user.email}</div>
                                         </div>
                                     </div>
                                 </td>
-                                <td className="px-3 py-2 text-xs text-slate-600">{user.phone || 'N/A'}</td>
-                                <td className="px-3 py-2 text-xs text-slate-600">{user.role}</td>
-                                <td className="px-3 py-2">
+                                <td className="px-3 py-1.5 text-xs text-slate-600">{user.email}</td>
+                                <td className="px-3 py-1.5 text-xs text-slate-600">{user.phone || 'N/A'}</td>
+                                <td className="px-3 py-1.5 text-xs text-slate-600">{user.role}</td>
+                                <td className="px-3 py-1.5">
                                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black ${
                                         user.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                                     }`}>
                                         {user.status}
                                     </span>
                                 </td>
-                                <td className="px-3 py-2 text-xs text-slate-500">{user.joined}</td>
-                                <td className="px-3 py-2 text-right relative">
+                                <td className="px-3 py-1.5 text-xs text-slate-500">{user.joined}</td>
+                                <td className="px-3 py-1.5 text-right relative">
                                     <button 
                                         onClick={(e) => toggleMenu(e, user.id)}
                                         className="text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-gray-100 rounded-full"
@@ -750,6 +923,52 @@ const UsersView = () => {
                     className="fixed inset-0 z-40 bg-transparent" 
                     onClick={() => setShowFilterMenu(false)}
                 />
+            )}
+
+            {manageGroupsOpen && (
+                <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4">
+                    <div className="w-full max-w-sm max-h-[85dvh] overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl">
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <h2 className="text-xl font-black text-slate-900">{selectedUserIds.size === 1 ? 'Manage user' : 'Manage users'}</h2>
+                                <p className="mt-1 text-sm text-slate-500">Manage account actions and group membership for {selectedUserIds.size} selected user{selectedUserIds.size === 1 ? '' : 's'}.</p>
+                            </div>
+                            <button type="button" onClick={() => setManageGroupsOpen(false)} className="text-2xl font-black text-slate-400">×</button>
+                        </div>
+                        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                            <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">Managing</p>
+                            <div className="mt-2 space-y-1">
+                                {users.filter((user) => selectedUserIds.has(user.id)).map((user) => <p key={user.id} className="truncate text-sm font-black text-slate-800">{user.name} <span className="font-normal text-slate-500">— {user.email}</span></p>)}
+                            </div>
+                        </div>
+                        <div className="mt-4">
+                            <h3 className="text-xs font-black uppercase tracking-wide text-slate-500">Account actions</h3>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                                <button type="button" onClick={() => void handleBulkBlock(false)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700">Unlock {selectedUserIds.size === 1 ? 'user' : 'users'}</button>
+                                <button type="button" onClick={() => void handleBulkBlock(true)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700">Disable / lock</button>
+                                <button type="button" onClick={() => void handleBulkPasswordReset()} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700">Reset password</button>
+                            </div>
+                        </div>
+                        <div className="mt-5">
+                            <h3 className="text-xs font-black uppercase tracking-wide text-slate-500">Group membership</h3>
+                            <p className="mt-1 text-xs text-slate-500">Check a group to add the selected user{selectedUserIds.size === 1 ? '' : 's'}; uncheck it to remove them.</p>
+                        </div>
+                        <div className="mt-2 space-y-2">
+                            {manageGroups.map((group) => {
+                                const checked = selectedUserIds.size > 0 && [...selectedUserIds].every((userId) => (userGroupAssignments[userId] || []).includes(group.id));
+                                return <label key={group.id} className="flex min-w-0 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700">
+                                    <input type="checkbox" checked={checked} onChange={(event) => toggleSelectedUsersGroup(group.id, event.target.checked)} className="h-5 w-5 shrink-0 accent-orange-500" />
+                                    <span className="truncate">{group.name}</span>
+                                    <span className="ml-auto max-w-[42%] truncate text-right text-xs font-normal text-slate-400">{group.description}</span>
+                                </label>;
+                            })}
+                        </div>
+                        <div className="mt-6 flex gap-3">
+                            <button type="button" onClick={() => setManageGroupsOpen(false)} className="flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm font-black text-slate-700">Cancel</button>
+                            <button type="button" onClick={() => void saveSelectedUserGroups()} disabled={manageGroupsBusy} className="flex-1 rounded-xl bg-brand-orange px-4 py-3 text-sm font-black text-white disabled:opacity-50">{manageGroupsBusy ? 'Saving…' : 'Save groups'}</button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {/* Add User Modal */}
@@ -948,6 +1167,8 @@ const UsersView = () => {
                         onCancel={() => setIsEditingProfile(false)}
                         onNotify={(msg) => alert(msg)}
                         onSave={async (updatedUser) => {
+                            const confirmed = await confirmAdminAction({ title: 'Save user profile?', description: `Save profile changes for ${selectedUser.name}.` });
+                            if (!confirmed) return;
                             try {
                                 await updateUserDocument(selectedUser.id, updatedUser);
                                 
@@ -1705,21 +1926,13 @@ const NavItem = ({ icon, label, active = false, onClick }: { icon: React.ReactNo
 );
 
 const StatCard = ({ title, value, change, isNegative, icon }: { title: string, value: string, change: string, isNegative?: boolean, icon?: React.ReactNode }) => (
-  <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 transition-hover hover:shadow-md relative overflow-hidden">
-    <div className="flex justify-between items-start mb-4">
-        <div className="p-2 bg-gray-50 rounded-lg">
-            {icon || <Activity size={20} className="text-gray-400" />}
-        </div>
-        <span className={`text-sm font-medium px-2 py-1 rounded-full ${
-            isNegative 
-            ? 'bg-red-50 text-red-600' 
-            : 'bg-green-50 text-green-600'
-        }`}>
-            {change}
-        </span>
+  <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition-shadow hover:shadow-md">
+    <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="rounded-lg bg-gray-50 p-1.5">{icon || <Activity size={18} className="text-gray-400" />}</div>
+        <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-black ${isNegative ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>{change}</span>
     </div>
-    <p className="text-sm text-gray-500 font-medium mb-1">{title}</p>
-    <h3 className="text-3xl font-bold text-gray-900 tracking-tight">{value}</h3>
+    <p className="truncate text-[11px] font-bold text-gray-500">{title}</p>
+    <h3 className="text-xl font-black tracking-tight text-gray-900">{value}</h3>
   </div>
 );
 
