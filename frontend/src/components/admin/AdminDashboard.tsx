@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signOut, sendPasswordResetEmail, onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../../firebase';
 import { getDashboardStats, getAdminUsers, getAdminPrayers, getAdminReports, deleteUser, toggleBlockUser, getAdminConnections, getAdminPayments, getAnalyticsData, AnalyticsData, adminCreateUser } from '../../services/adminService';
-import { LayoutDashboard, Users, Shield, Activity, LogOut, MessageSquare, Heart, Trash2, Search, CheckCircle, XCircle, Link as LinkIcon, CreditCard, DollarSign, Calendar, MoreHorizontal, ChevronDown, RefreshCw, ClipboardList, Settings, Menu, Power, FileText, Printer, KeyRound } from 'lucide-react';
+import { LayoutDashboard, Users, Shield, Activity, LogOut, MessageSquare, Heart, Trash2, Search, CheckCircle, XCircle, Link as LinkIcon, CreditCard, DollarSign, Calendar, MoreHorizontal, ChevronDown, RefreshCw, ClipboardList, Settings, Menu, Power, FileText, Printer, KeyRound, X } from 'lucide-react';
 import { EditProfileView } from '../../MainApp';
 import { updateUserDocument } from '../../services/userService';
 import AdminAccessControl from './AdminAccessControl';
@@ -30,9 +30,30 @@ const ADMIN_MENU_GROUPS = [
   ] },
 ] as const;
 
-const AdminDashboard = () => {
-  const [activeTab, setActiveTab] = useState('overview');
-  const [selectedMenuGroup, setSelectedMenuGroup] = useState('dashboard');
+const ADMIN_NAV_STATE_KEY = 'cmg_admin_navigation_state';
+const ADMIN_NAV_TABS = new Set([
+  'overview', 'reports', 'users', 'access-control', 'connections', 'prayers',
+  'moderation', 'analytics', 'payments', 'audit-logs',
+]);
+
+function readAdminNavigationState(): { activeTab: string; selectedMenuGroup: string } {
+  if (typeof window === 'undefined') return { activeTab: 'overview', selectedMenuGroup: 'dashboard' };
+  try {
+    const stored = JSON.parse(window.sessionStorage.getItem(ADMIN_NAV_STATE_KEY) || '{}') as { activeTab?: string; selectedMenuGroup?: string };
+    const activeTab = stored.activeTab && ADMIN_NAV_TABS.has(stored.activeTab) ? stored.activeTab : 'overview';
+    const selectedMenuGroup = activeTab === 'reports'
+      ? 'reports'
+      : ADMIN_MENU_GROUPS.find((group) => group.items.some((item) => item.key === activeTab))?.key || 'dashboard';
+    return { activeTab, selectedMenuGroup };
+  } catch {
+    return { activeTab: 'overview', selectedMenuGroup: 'dashboard' };
+  }
+}
+
+const AdminDashboard: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
+  const initialNavigation = readAdminNavigationState();
+  const [activeTab, setActiveTab] = useState(initialNavigation.activeTab);
+  const [selectedMenuGroup, setSelectedMenuGroup] = useState(initialNavigation.selectedMenuGroup);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({
     people: true,
@@ -44,6 +65,14 @@ const AdminDashboard = () => {
   const [refreshKey, setRefreshKey] = useState(0);
   const [showSignOutDialog, setShowSignOutDialog] = useState(false);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem(ADMIN_NAV_STATE_KEY, JSON.stringify({ activeTab, selectedMenuGroup }));
+    } catch {
+      // Session storage can be unavailable in restricted browser contexts.
+    }
+  }, [activeTab, selectedMenuGroup]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
@@ -85,10 +114,16 @@ const AdminDashboard = () => {
     setShowSignOutDialog(true);
   };
 
+  const handleClose = () => {
+    if (onClose) onClose();
+    else navigate('/');
+  };
+
   const handleSignOut = async () => {
     try {
+      window.sessionStorage.removeItem(ADMIN_NAV_STATE_KEY);
       await signOut(auth);
-      navigate('/admin/login');
+      navigate('/');
     } catch (error) {
       console.error("Error signing out: ", error);
     }
@@ -129,12 +164,17 @@ const AdminDashboard = () => {
       {/* Mobile-first CMG Admin header, based on the Onboard Admin pattern. */}
       <header className="cmg-admin-header bg-white shadow-sm">
         <div className="mx-auto flex w-full items-center justify-between gap-3 px-4 py-3 sm:px-6">
-          <button type="button" onClick={selectDashboard} className="text-left">
+          <div className="flex items-center gap-2">
+            <button type="button" title="Close Admin" aria-label="Close Admin" onClick={handleClose} className="rounded-xl p-2 text-slate-700 transition hover:bg-slate-100">
+              <X size={21} />
+            </button>
+            <button type="button" onClick={selectDashboard} className="text-left">
             <div className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
               <span>CMG</span><span className="text-brand-orange"> Admin</span>
             </div>
             <div className="text-xs font-bold text-slate-500 sm:text-sm">Christian Match Ghana</div>
           </button>
+          </div>
           <div className="flex items-center gap-1 sm:gap-2">
             <button type="button" title="Refresh" aria-label="Refresh" onClick={handleRefresh} className="rounded-xl p-2 text-slate-700 transition hover:bg-slate-100">
               <RefreshCw size={21} />
@@ -149,8 +189,8 @@ const AdminDashboard = () => {
           </div>
         </div>
           <div className="bg-slate-900 px-3 py-3 sm:px-6">
-            <div className={`mx-auto w-full rounded-2xl border p-1.5 transition-colors ${selectedMenuGroup !== 'dashboard' ? 'border-blue-400/70 bg-blue-500/[0.14] shadow-[0_0_0_2px_rgb(59_130_246_/_0.25),0_0_26px_rgb(59_130_246_/_0.30)]' : 'border-white/15'} bg-white/10`}>
-              <div className="flex flex-wrap justify-center gap-1.5">
+            <div className={`cmg-admin-branch-panel mx-auto w-full rounded-2xl border p-1.5 transition-colors ${selectedMenuGroup !== 'dashboard' ? 'border-blue-400/70 bg-blue-500/[0.14] shadow-[0_0_0_2px_rgb(59_130_246_/_0.25),0_0_26px_rgb(59_130_246_/_0.30)]' : 'border-white/15'} bg-white/10`}>
+              <div className="relative z-10 flex flex-wrap justify-center gap-1.5">
                 <button
                   type="button"
                   onClick={selectDashboard}
@@ -187,7 +227,7 @@ const AdminDashboard = () => {
 
               {selectedGroup && selectedMenuGroup !== 'dashboard' && (
                 <div className="relative mt-3 border-t border-white/20 pt-3" aria-label={`${selectedGroup.label} options`}>
-                  <div className="rounded-xl border border-blue-400/45 bg-blue-500/10 p-1.5">
+                  <div className="rounded-xl border border-blue-400/60 bg-blue-500/[0.16] p-1.5 shadow-[0_0_22px_rgb(59_130_246_/_0.22)]">
                     <div className="flex w-full flex-wrap justify-start gap-1.5">
                       {selectedGroup.items.map((item) => (
                         <button
@@ -500,7 +540,7 @@ const UsersView = () => {
     const [selectedUser, setSelectedUser] = useState<any>(null); // State for the details modal
     const [isEditingProfile, setIsEditingProfile] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
-    const [userColumnWidths, setUserColumnWidths] = useState({ number: 52, user: 220, email: 200, firestoreId: 180, telephone: 140, role: 120, status: 120, joined: 140, actions: 84 });
+    const [userColumnWidths, setUserColumnWidths] = useState({ number: 72, user: 220, email: 200, firestoreId: 180, telephone: 140, role: 120, status: 120, joined: 140, actions: 84 });
 
     const resizeUserColumn = (column: keyof typeof userColumnWidths, event: React.MouseEvent<HTMLSpanElement>) => {
         event.preventDefault();
@@ -529,6 +569,7 @@ const UsersView = () => {
     const [manageGroups, setManageGroups] = useState<any[]>([]);
     const [userGroupAssignments, setUserGroupAssignments] = useState<Record<string, string[]>>({});
     const [manageGroupsBusy, setManageGroupsBusy] = useState(false);
+    const [groupMembershipEditing, setGroupMembershipEditing] = useState(false);
 
     const toggleMenu = (e: React.MouseEvent, id: string) => {
         e.stopPropagation(); // Prevent row click
@@ -636,6 +677,10 @@ const UsersView = () => {
         return counts;
     }, {})).filter((count) => count > 1).reduce((total, count) => total + count, 0);
 
+    const selectedUsersForActions = users.filter((user) => selectedUserIds.has(user.id));
+    const allSelectedUsersActive = selectedUsersForActions.length > 0 && selectedUsersForActions.every((user) => user.status === 'Active');
+    const allSelectedUsersBlocked = selectedUsersForActions.length > 0 && selectedUsersForActions.every((user) => user.status === 'Blocked');
+
     const toggleUserSelection = (event: React.ChangeEvent<HTMLInputElement>, userId: string) => {
         event.stopPropagation();
         setSelectedUserIds((current) => {
@@ -687,6 +732,7 @@ const UsersView = () => {
     const openManageGroups = async (userIds: string[] = [...selectedUserIds]) => {
         if (!userIds.length) return;
         setSelectedUserIds(new Set(userIds));
+        setGroupMembershipEditing(false);
         setManageGroupsBusy(true);
         try {
             const access = await listAdminAccessControl();
@@ -870,7 +916,7 @@ const UsersView = () => {
                         </colgroup>
                     <thead className="bg-slate-900 border-b border-brand-orange text-white">
                         <tr>
-                            <th style={{ width: userColumnWidths.number }} className="relative px-3 py-2 text-center text-[10px] font-black uppercase tracking-wide text-white border-r-2 border-brand-orange"><input type="checkbox" aria-label="Select all users" checked={filteredUsers.length > 0 && filteredUsers.every((user) => selectedUserIds.has(user.id))} onChange={toggleAllUserSelection} onClick={(event) => event.stopPropagation()} className="mr-1 h-3.5 w-3.5 accent-orange-500" />#<span onMouseDown={(event) => resizeUserColumn('number', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                            <th style={{ width: userColumnWidths.number }} className="relative whitespace-nowrap px-3 py-2 text-center text-[10px] font-black uppercase tracking-wide text-white border-r-2 border-brand-orange"><input type="checkbox" aria-label="Select all users" checked={filteredUsers.length > 0 && filteredUsers.every((user) => selectedUserIds.has(user.id))} onChange={toggleAllUserSelection} onClick={(event) => event.stopPropagation()} className="mr-1 h-3.5 w-3.5 accent-orange-500" />#<span onMouseDown={(event) => resizeUserColumn('number', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
                             <th style={{ width: userColumnWidths.user }} className="relative px-3 py-2 text-[10px] font-black uppercase tracking-wide text-white border-r-2 border-brand-orange">User<span onMouseDown={(event) => resizeUserColumn('user', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
                             <th style={{ width: userColumnWidths.email }} className="relative px-3 py-2 text-[10px] font-black uppercase tracking-wide text-white border-r-2 border-brand-orange">Email<span onMouseDown={(event) => resizeUserColumn('email', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
                             <th style={{ width: userColumnWidths.telephone }} className="relative px-3 py-2 text-[10px] font-black uppercase tracking-wide text-white border-r-2 border-brand-orange">Telephone<span onMouseDown={(event) => resizeUserColumn('telephone', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
@@ -887,7 +933,7 @@ const UsersView = () => {
                                 onClick={() => setSelectedUser(user)}
                                 className="h-9 border-b border-slate-200 text-xs hover:bg-slate-50 transition-colors group cursor-pointer"
                             >
-                                <td className="px-3 py-1.5 text-center text-xs font-black text-slate-400"><input type="checkbox" aria-label={`Select ${user.name}`} checked={selectedUserIds.has(user.id)} onChange={(event) => toggleUserSelection(event, user.id)} onClick={(event) => event.stopPropagation()} className="mr-1 h-3.5 w-3.5 accent-orange-500" />{userIndex + 1}</td>
+                                <td className="whitespace-nowrap px-3 py-1.5 text-center text-xs font-black text-slate-400"><input type="checkbox" aria-label={`Select ${user.name}`} checked={selectedUserIds.has(user.id)} onChange={(event) => toggleUserSelection(event, user.id)} onClick={(event) => event.stopPropagation()} className="mr-1 h-3.5 w-3.5 accent-orange-500" /><span className="inline-block truncate align-middle" style={{ maxWidth: 'calc(100% - 1.5rem)' }} title={String(userIndex + 1)}>{userIndex + 1}</span></td>
                                 <td className="px-3 py-1.5">
                                     <div className="flex items-center gap-2">
                                         <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 text-[9px] font-black">
@@ -934,7 +980,7 @@ const UsersView = () => {
                                                 className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 border-t border-gray-100"
                                             >
                                                 <Shield size={16} />
-                                                {user.status === 'Blocked' ? 'Unlock user' : 'Disable / lock'}
+                                                {user.status === 'Blocked' ? 'Enable user' : 'Disable user'}
                                             </button>
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); void handlePasswordReset([user.id]); }}
@@ -942,6 +988,20 @@ const UsersView = () => {
                                             >
                                                 <KeyRound size={16} />
                                                 Reset password
+                                            </button>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); void openManageGroups([user.id]); }}
+                                                className="w-full text-left px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 border-t border-gray-100"
+                                            >
+                                                <Users size={16} />
+                                                Add to group
+                                            </button>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); void openManageGroups([user.id]); }}
+                                                className="w-full text-left px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 border-t border-gray-100"
+                                            >
+                                                <Users size={16} />
+                                                Remove from group
                                             </button>
                                             <button 
                                                 onClick={(e) => handleDelete(e, user.id)}
@@ -987,22 +1047,25 @@ const UsersView = () => {
                         </div>
                         <div className="mt-4">
                             <h3 className="text-xs font-black uppercase tracking-wide text-slate-500">Account actions</h3>
-                            <div className="mt-2 flex flex-wrap gap-2">
-                                <button type="button" onClick={() => void handleBulkBlock(false)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700">Unlock {selectedUserIds.size === 1 ? 'user' : 'users'}</button>
-                                <button type="button" onClick={() => void handleBulkBlock(true)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700">Disable / lock</button>
-                                <button type="button" onClick={() => void handleBulkPasswordReset()} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700">Reset password</button>
-                                <button type="button" onClick={() => void handleBulkDeleteUsers()} className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-black text-red-700">Delete {selectedUserIds.size === 1 ? 'user' : 'users'}</button>
+                            <div className="mt-2 grid grid-cols-2 gap-2">
+                                <button type="button" onClick={() => void handleBulkBlock(false)} disabled={allSelectedUsersActive || manageGroupsBusy} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-slate-100 px-3 py-2 text-xs font-black uppercase tracking-wide text-slate-700 shadow-sm transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-200 disabled:text-slate-400"><Power size={15} />Unlock {selectedUserIds.size === 1 ? 'user' : 'users'}</button>
+                                <button type="button" onClick={() => void handleBulkBlock(!allSelectedUsersBlocked)} disabled={manageGroupsBusy} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-black uppercase tracking-wide text-amber-800 shadow-sm transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-200 disabled:text-slate-400"><Power size={15} />{allSelectedUsersBlocked ? 'Enable' : 'Disable / lock'} {selectedUserIds.size === 1 ? 'user' : 'users'}</button>
+                                <button type="button" onClick={() => void handleBulkPasswordReset()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-blue-300 bg-blue-50 px-3 py-2 text-xs font-black uppercase tracking-wide text-blue-800 shadow-sm transition hover:bg-blue-100"><KeyRound size={15} />Reset password</button>
+                                <button type="button" onClick={() => void handleBulkDeleteUsers()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-xs font-black uppercase tracking-wide text-red-700 shadow-sm transition hover:bg-red-100"><Trash2 size={15} />Delete {selectedUserIds.size === 1 ? 'user' : 'users'}</button>
                             </div>
                         </div>
-                        <div className="mt-5">
-                            <h3 className="text-xs font-black uppercase tracking-wide text-slate-500">Group membership</h3>
-                            <p className="mt-1 text-xs text-slate-500">Check a group to add the selected user{selectedUserIds.size === 1 ? '' : 's'}; uncheck it to remove them.</p>
+                        <div className="mt-5 flex items-center justify-between gap-3">
+                            <div>
+                                <h3 className="text-xs font-black uppercase tracking-wide text-slate-500">Group membership</h3>
+                                <p className="mt-1 text-xs text-slate-500">{groupMembershipEditing ? 'Check a group to add the selected user(s); uncheck it to remove them.' : 'Group membership is locked until you activate editing.'}</p>
+                            </div>
+                            <button type="button" onClick={() => setGroupMembershipEditing(true)} disabled={groupMembershipEditing || manageGroupsBusy} className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-brand-orange px-3 py-2 text-xs font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-brand-orange/90 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"><Users size={15} />Add user(s) to group</button>
                         </div>
-                        <div className="mt-2 space-y-2">
+                        <div className={`mt-2 space-y-2 rounded-xl p-2 transition-colors ${groupMembershipEditing ? 'bg-orange-50/60' : 'bg-slate-100/80'}`}>
                             {manageGroups.map((group) => {
                                 const checked = selectedUserIds.size > 0 && [...selectedUserIds].every((userId) => (userGroupAssignments[userId] || []).includes(group.id));
-                                return <label key={group.id} className="flex min-w-0 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700">
-                                    <input type="checkbox" checked={checked} onChange={(event) => toggleSelectedUsersGroup(group.id, event.target.checked)} className="h-5 w-5 shrink-0 accent-orange-500" />
+                                return <label key={group.id} className={`flex min-w-0 items-center gap-3 rounded-xl border px-3 py-3 text-sm font-bold transition-colors ${groupMembershipEditing ? 'border-orange-200 bg-white text-slate-700' : 'border-slate-200 bg-slate-200 text-slate-400'}`}>
+                                    <input type="checkbox" checked={checked} disabled={!groupMembershipEditing || manageGroupsBusy} onChange={(event) => toggleSelectedUsersGroup(group.id, event.target.checked)} className="h-5 w-5 shrink-0 accent-orange-500 disabled:cursor-not-allowed disabled:grayscale" />
                                     <span className="truncate">{group.name}</span>
                                     <span className="ml-auto max-w-[42%] truncate text-right text-xs font-normal text-slate-400">{group.description}</span>
                                 </label>;
@@ -1010,7 +1073,7 @@ const UsersView = () => {
                         </div>
                         <div className="mt-6 flex gap-3">
                             <button type="button" onClick={() => setManageGroupsOpen(false)} className="flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm font-black text-slate-700">Cancel</button>
-                            <button type="button" onClick={() => void saveSelectedUserGroups()} disabled={manageGroupsBusy} className="flex-1 rounded-xl bg-brand-orange px-4 py-3 text-sm font-black text-white disabled:opacity-50">{manageGroupsBusy ? 'Saving…' : 'Save groups'}</button>
+                            <button type="button" onClick={() => void saveSelectedUserGroups()} disabled={!groupMembershipEditing || manageGroupsBusy} className="flex-1 rounded-xl bg-brand-orange px-4 py-3 text-sm font-black text-white transition disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500">{manageGroupsBusy ? 'Saving…' : 'Save groups'}</button>
                         </div>
                     </div>
                 </div>

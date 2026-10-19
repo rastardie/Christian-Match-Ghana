@@ -8028,7 +8028,7 @@ const App = () => {
 
       {currentView === "ADMIN" && hasAdminAccess && (
         <React.Suspense fallback={<div className="flex h-full items-center justify-center text-brand-blue font-black">Loading Admin…</div>}>
-          <AdminDashboard />
+          <AdminDashboard onClose={() => setCurrentView("BROWSE")} />
         </React.Suspense>
       )}
 

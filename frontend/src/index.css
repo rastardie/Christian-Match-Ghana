@@ -2140,3 +2140,25 @@ textarea::placeholder {
 .cmg-app-frame[data-view="ADMIN"] button {
   white-space: nowrap;
 }
+
+
+/* Continuous selected-branch treatment: the master menu and submenu share a
+   blended panel glow; no connector or arrow is rendered. */
+.cmg-admin-branch-panel {
+  position: relative;
+}
+
+.cmg-admin-menu-top-selected {
+  position: relative;
+  z-index: 3;
+  isolation: isolate;
+}
+
+.cmg-admin-menu-top-selected > * {
+  position: relative;
+  z-index: 1;
+}
+
+
+/* The selected branch glow is drawn from measured DOM bounds in AdminDashboard.
+   Keep the master pill free of static connector geometry. */

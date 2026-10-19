@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { Fingerprint } from 'lucide-react';
 import { EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { auth } from '../../firebase';
 import { loginWithPin } from '../../services/pinAuthService';
@@ -109,7 +110,7 @@ export const AdminActionProvider: React.FC<{ children: React.ReactNode }> = ({ c
             {error && <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{error}</p>}
             <div className="mt-5 grid gap-2">
               <button type="button" onClick={() => void verify()} disabled={busy} className="rounded-xl bg-brand-orange px-4 py-3 text-sm font-black text-white disabled:opacity-50">{busy ? 'Verifying…' : 'Confirm with credential'}</button>
-              {biometricAvailable && <button type="button" onClick={() => void verifyBiometric()} disabled={busy} className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-black text-slate-700 disabled:opacity-50">Confirm with biometrics</button>}
+              {biometricAvailable && <button type="button" onClick={() => void verifyBiometric()} disabled={busy} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-black text-slate-700 disabled:opacity-50"><Fingerprint size={18} aria-hidden="true" />Confirm with biometric</button>}
               <button type="button" onClick={() => close(false)} disabled={busy} className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-black text-slate-600">Cancel</button>
             </div>
           </div>

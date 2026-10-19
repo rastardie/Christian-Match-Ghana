@@ -35,7 +35,7 @@ const AdminAccessControl: React.FC<{ initialTab?: 'groups' | 'audit' }> = ({ ini
   const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set());
   const [groupManagerOpen, setGroupManagerOpen] = useState(false);
   const [selectedGroupMemberIds, setSelectedGroupMemberIds] = useState<Record<string, Set<string>>>({});
-  const [groupColumnWidths, setGroupColumnWidths] = useState({ number: 72, name: 180, description: 260, members: 90, permissions: 110, type: 100 });
+  const [groupColumnWidths, setGroupColumnWidths] = useState({ number: 80, name: 180, description: 260, members: 90, permissions: 110, type: 100 });
 
   const resizeGroupColumn = (column: keyof typeof groupColumnWidths, event: React.MouseEvent<HTMLSpanElement>) => {
     event.preventDefault();
@@ -277,7 +277,7 @@ const AdminAccessControl: React.FC<{ initialTab?: 'groups' | 'audit' }> = ({ ini
                 </colgroup>
                 <thead className="bg-slate-900 text-[10px] font-black uppercase tracking-wide text-white">
                   <tr>
-                    <th style={{ width: groupColumnWidths.number }} className="relative border-r-2 border-brand-orange px-2 py-2 text-center"><input type="checkbox" aria-label="Select all groups" checked={groups.length > 0 && groups.every((group) => selectedGroupIds.has(group.id))} onChange={(event) => setSelectedGroupIds(event.target.checked ? new Set(groups.map((group) => group.id)) : new Set())} className="mr-1 h-3.5 w-3.5 accent-orange-500" />#<span onMouseDown={(event) => resizeGroupColumn('number', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                    <th style={{ width: groupColumnWidths.number }} className="relative whitespace-nowrap border-r-2 border-brand-orange px-2 py-2 text-center"><input type="checkbox" aria-label="Select all groups" checked={groups.length > 0 && groups.every((group) => selectedGroupIds.has(group.id))} onChange={(event) => setSelectedGroupIds(event.target.checked ? new Set(groups.map((group) => group.id)) : new Set())} className="mr-1 h-3.5 w-3.5 accent-orange-500" />#<span onMouseDown={(event) => resizeGroupColumn('number', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
                     <th style={{ width: groupColumnWidths.name }} className="relative border-r-2 border-brand-orange px-3 py-2">Group name<span onMouseDown={(event) => resizeGroupColumn('name', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
                     <th style={{ width: groupColumnWidths.description }} className="relative border-r-2 border-brand-orange px-3 py-2">Description<span onMouseDown={(event) => resizeGroupColumn('description', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
                     <th style={{ width: groupColumnWidths.members }} className="relative border-r-2 border-brand-orange px-3 py-2">Members<span onMouseDown={(event) => resizeGroupColumn('members', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
@@ -296,10 +296,10 @@ const AdminAccessControl: React.FC<{ initialTab?: 'groups' | 'audit' }> = ({ ini
                           onClick={() => { setSelectedGroup(group); setEditingGroup(false); toggleGroupExpanded(group.id); }}
                           className="h-9 cursor-pointer border-b border-slate-200 text-xs text-slate-700 transition hover:bg-slate-50"
                         >
-                          <td className="px-2 py-1.5 text-center text-xs font-black text-slate-400">
+                          <td className="whitespace-nowrap px-2 py-1.5 text-center text-xs font-black text-slate-400">
                             <input type="checkbox" aria-label={`Select ${group.name}`} checked={selectedGroupIds.has(group.id)} onChange={(event) => toggleGroupSelection(event, group.id)} onClick={(event) => event.stopPropagation()} className="mr-1 h-3.5 w-3.5 accent-orange-500" />
-                            <span className="inline-flex items-center justify-center gap-1 text-brand-orange">
-                              <span className="text-slate-400">{groupIndex + 1}</span>
+                            <span className="inline-flex items-center justify-center gap-1 truncate text-brand-orange" style={{ maxWidth: 'calc(100% - 1.5rem)' }} title={String(groupIndex + 1)}>
+                              <span className="truncate text-slate-400">{groupIndex + 1}</span>
                               <span aria-hidden>{expanded ? '▾' : '▸'}</span>
                             </span>
                           </td>
@@ -324,12 +324,12 @@ const AdminAccessControl: React.FC<{ initialTab?: 'groups' | 'audit' }> = ({ ini
                                 <div className="mt-2 overflow-x-auto">
                                   <table className="min-w-[520px] w-full text-left text-xs">
                                     <thead className="text-[10px] font-black uppercase tracking-wide text-slate-500">
-                                      <tr><th className="w-10 px-2 py-1"><input type="checkbox" aria-label={`Select all members in ${group.name}`} checked={members.length > 0 && members.every((member: any) => selectedMembersForGroup.has(member.id))} onChange={(event) => setSelectedGroupMemberIds((current) => ({ ...current, [group.id]: event.target.checked ? new Set(members.map((member: any) => member.id)) : new Set() }))} className="h-3.5 w-3.5 accent-orange-500" /> #</th><th className="px-2 py-1">User</th><th className="px-2 py-1">Email</th><th className="px-2 py-1">Status</th></tr>
+                                      <tr><th className="w-20 whitespace-nowrap px-2 py-1"><input type="checkbox" aria-label={`Select all members in ${group.name}`} checked={members.length > 0 && members.every((member: any) => selectedMembersForGroup.has(member.id))} onChange={(event) => setSelectedGroupMemberIds((current) => ({ ...current, [group.id]: event.target.checked ? new Set(members.map((member: any) => member.id)) : new Set() }))} className="h-3.5 w-3.5 accent-orange-500" /> #</th><th className="px-2 py-1">User</th><th className="px-2 py-1">Email</th><th className="px-2 py-1">Status</th></tr>
                                     </thead>
                                     <tbody>
                                       {members.map((member: any, memberIndex) => (
                                         <tr key={member.id} className="border-t border-slate-200 bg-white">
-                                          <td className="px-2 py-1.5 text-center text-slate-400"><input type="checkbox" aria-label={`Select ${member.name || 'member'}`} checked={selectedMembersForGroup.has(member.id)} onChange={(event) => toggleMemberSelection(group.id, member.id, event.target.checked)} className="mr-1 h-3.5 w-3.5 accent-orange-500" />{memberIndex + 1}</td>
+                                          <td className="whitespace-nowrap px-2 py-1.5 text-center text-slate-400"><input type="checkbox" aria-label={`Select ${member.name || 'member'}`} checked={selectedMembersForGroup.has(member.id)} onChange={(event) => toggleMemberSelection(group.id, member.id, event.target.checked)} className="mr-1 h-3.5 w-3.5 accent-orange-500" /><span className="inline-block truncate align-middle" style={{ maxWidth: 'calc(100% - 1.5rem)' }} title={String(memberIndex + 1)}>{memberIndex + 1}</span></td>
                                           <td className="px-2 py-1.5 font-bold text-slate-800">{member.name || 'Unnamed user'}</td>
                                           <td className="px-2 py-1.5 text-slate-600">{member.email || '—'}</td>
                                           <td className="px-2 py-1.5 text-slate-600">{member.isBlocked ? 'Blocked' : 'Active'}</td>
