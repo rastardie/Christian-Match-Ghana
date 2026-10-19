@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { KeyRound, Save, ShieldCheck, Users, ScrollText, RefreshCw } from 'lucide-react';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '../../firebase';
 import { useAdminActionConfirmation } from './AdminActionConfirmation';
 import { getAdminUsers } from '../../services/adminService';
 import {
@@ -55,6 +57,13 @@ const AdminAccessControl: React.FC<{ initialTab?: 'groups' | 'audit' }> = ({ ini
     setBusy(true);
     setMessage('');
     try {
+      const firebaseUser = await new Promise<any>((resolve) => {
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
+          unsubscribe();
+          resolve(user);
+        });
+      });
+      if (!firebaseUser) throw new Error('Admin authentication is not ready. Please sign in again.');
       const [access, users] = await Promise.all([listAdminAccessControl(), getAdminUsers()]);
       setGroups(access.groups);
       setPermissions(access.permissions);

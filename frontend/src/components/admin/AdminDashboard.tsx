@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { signOut, sendPasswordResetEmail } from 'firebase/auth';
+import { signOut, sendPasswordResetEmail, onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../../firebase';
 import { getDashboardStats, getAdminUsers, getAdminPrayers, getAdminReports, deleteUser, toggleBlockUser, getAdminConnections, getAdminPayments, getAnalyticsData, AnalyticsData, adminCreateUser } from '../../services/adminService';
 import { LayoutDashboard, Users, Shield, Activity, LogOut, MessageSquare, Heart, Trash2, Search, CheckCircle, XCircle, Link as LinkIcon, CreditCard, DollarSign, Calendar, MoreHorizontal, ChevronDown, RefreshCw, ClipboardList, Settings, Menu, Power, FileText, Printer } from 'lucide-react';
@@ -46,9 +46,13 @@ const AdminDashboard = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    void getCurrentAdminAccess().then((access) => {
-      setPermissions(new Set(access.permissions));
-    }).catch((error) => console.error('Unable to load admin permissions:', error));
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (!firebaseUser) return;
+      void getCurrentAdminAccess().then((access) => {
+        setPermissions(new Set(access.permissions));
+      }).catch((error) => console.error('Unable to load admin permissions:', error));
+    });
+    return unsubscribe;
   }, []);
 
   const can = (permission: string) => permissions.has(permission) || permissions.has('permissions.manage');
