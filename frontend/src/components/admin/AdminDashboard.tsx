@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { signOut, sendPasswordResetEmail, onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../../firebase';
 import { getDashboardStats, getAdminUsers, getAdminPrayers, getAdminReports, deleteUser, toggleBlockUser, getAdminConnections, getAdminPayments, getAnalyticsData, AnalyticsData, adminCreateUser } from '../../services/adminService';
-import { LayoutDashboard, Users, Shield, Activity, LogOut, MessageSquare, Heart, Trash2, Search, CheckCircle, XCircle, Link as LinkIcon, CreditCard, DollarSign, Calendar, MoreHorizontal, ChevronDown, RefreshCw, ClipboardList, Settings, Menu, Power, FileText, Printer } from 'lucide-react';
+import { LayoutDashboard, Users, Shield, Activity, LogOut, MessageSquare, Heart, Trash2, Search, CheckCircle, XCircle, Link as LinkIcon, CreditCard, DollarSign, Calendar, MoreHorizontal, ChevronDown, RefreshCw, ClipboardList, Settings, Menu, Power, FileText, Printer, KeyRound } from 'lucide-react';
 import { EditProfileView } from '../../MainApp';
 import { updateUserDocument } from '../../services/userService';
 import AdminAccessControl from './AdminAccessControl';
@@ -478,7 +478,7 @@ const UsersView = () => {
             const formattedUsers = data.map(user => ({
                 ...user,
                 id: user.id,
-                name: user.name || 'Unknown',
+                firestoreDocId: user.firestoreDocId,
                 email: user.email || 'No Email',
                 phone: user.phone || 'N/A',
                 role: user.isPremium ? 'Subscriber' : 'User',
@@ -500,7 +500,7 @@ const UsersView = () => {
     const [selectedUser, setSelectedUser] = useState<any>(null); // State for the details modal
     const [isEditingProfile, setIsEditingProfile] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
-    const [userColumnWidths, setUserColumnWidths] = useState({ number: 52, user: 220, email: 200, telephone: 140, role: 120, status: 120, joined: 140, actions: 84 });
+    const [userColumnWidths, setUserColumnWidths] = useState({ number: 52, user: 220, email: 200, firestoreId: 180, telephone: 140, role: 120, status: 120, joined: 140, actions: 84 });
 
     const resizeUserColumn = (column: keyof typeof userColumnWidths, event: React.MouseEvent<HTMLSpanElement>) => {
         event.preventDefault();
@@ -630,6 +630,12 @@ const UsersView = () => {
         return matchesSearch && matchesStatus && matchesRole;
     });
 
+    const duplicateEmailRows = Object.values(users.reduce<Record<string, number>>((counts, user) => {
+        const email = String(user.email || '').trim().toLowerCase();
+        if (email) counts[email] = (counts[email] || 0) + 1;
+        return counts;
+    }, {})).filter((count) => count > 1).reduce((total, count) => total + count, 0);
+
     const toggleUserSelection = (event: React.ChangeEvent<HTMLInputElement>, userId: string) => {
         event.stopPropagation();
         setSelectedUserIds((current) => {
@@ -656,22 +662,37 @@ const UsersView = () => {
         setUsers((current) => current.map((user) => ids.includes(user.id) ? { ...user, status: blocked ? 'Blocked' : 'Active' } : user));
     };
 
-    const handleBulkPasswordReset = async () => {
-        const confirmed = await confirmAdminAction({ title: 'Reset selected passwords?', description: `Send password reset emails for ${selectedUserIds.size} selected user${selectedUserIds.size === 1 ? '' : 's'}.` });
+    const handlePasswordReset = async (userIds: string[]) => {
+        const confirmed = await confirmAdminAction({ title: 'Reset selected passwords?', description: `Send password reset emails for ${userIds.length} selected user${userIds.length === 1 ? '' : 's'}.` });
         if (!confirmed) return;
-        const selected = users.filter((user) => selectedUserIds.has(user.id) && user.email);
+        const selected = users.filter((user) => userIds.includes(user.id) && user.email);
         await Promise.all(selected.map((user) => sendPasswordResetEmail(auth, user.email)));
         alert(`Password reset email sent for ${selected.length} user${selected.length === 1 ? '' : 's'}.`);
     };
 
-    const openManageGroups = async () => {
-        if (!selectedUserIds.size) return;
+    const handleBulkPasswordReset = async () => {
+        await handlePasswordReset([...selectedUserIds]);
+    };
+
+    const handleBulkDeleteUsers = async () => {
+        const ids = [...selectedUserIds];
+        const confirmed = await confirmAdminAction({ title: 'Delete selected users?', description: `Permanently delete ${ids.length} selected user${ids.length === 1 ? '' : 's'} and their account data.` });
+        if (!confirmed) return;
+        const results = await Promise.all(ids.map(async (id) => ({ id, success: await deleteUser(id) })));
+        const deletedIds = results.filter((result) => result.success).map((result) => result.id);
+        setUsers((current) => current.filter((user) => !deletedIds.includes(user.id)));
+        setSelectedUserIds((current) => new Set([...current].filter((id) => !deletedIds.includes(id))));
+    };
+
+    const openManageGroups = async (userIds: string[] = [...selectedUserIds]) => {
+        if (!userIds.length) return;
+        setSelectedUserIds(new Set(userIds));
         setManageGroupsBusy(true);
         try {
             const access = await listAdminAccessControl();
             setManageGroups(access.groups);
             const assignments: Record<string, string[]> = {};
-            selectedUserIds.forEach((userId) => {
+            userIds.forEach((userId) => {
                 assignments[userId] = access.users.find((item) => item.userId === userId)?.groupIds || [];
             });
             setUserGroupAssignments(assignments);
@@ -821,6 +842,11 @@ const UsersView = () => {
                 </div>
             </div>
 
+            {duplicateEmailRows > 0 && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                    <strong>{duplicateEmailRows} duplicate-email profile rows detected.</strong> Review each Firestore document ID before deleting anything; these rows are not automatically linked to Authentication accounts.
+                </div>
+            )}
             {selectedUserIds.size > 0 && (
                 <div className="flex flex-wrap items-center gap-2 rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-sm">
                     <strong>{selectedUserIds.size} selected</strong>
@@ -896,12 +922,26 @@ const UsersView = () => {
                                     
                                     {openMenuId === user.id && (
                                         <div className="absolute right-8 top-10 w-48 bg-white rounded-lg shadow-xl border border-gray-100 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                                            <button 
-                                                onClick={(e) => handleBlock(e, user.id)}
-                                                className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); void openManageGroups([user.id]); }}
+                                                className="w-full text-left px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                                            >
+                                                <Users size={16} />
+                                                Manage user
+                                            </button>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); void handleBlock(e, user.id); }}
+                                                className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 border-t border-gray-100"
                                             >
                                                 <Shield size={16} />
-                                                {user.status === 'Blocked' ? 'Unblock User' : 'Block User'}
+                                                {user.status === 'Blocked' ? 'Unlock user' : 'Disable / lock'}
+                                            </button>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); void handlePasswordReset([user.id]); }}
+                                                className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 border-t border-gray-100"
+                                            >
+                                                <KeyRound size={16} />
+                                                Reset password
                                             </button>
                                             <button 
                                                 onClick={(e) => handleDelete(e, user.id)}
@@ -951,6 +991,7 @@ const UsersView = () => {
                                 <button type="button" onClick={() => void handleBulkBlock(false)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700">Unlock {selectedUserIds.size === 1 ? 'user' : 'users'}</button>
                                 <button type="button" onClick={() => void handleBulkBlock(true)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700">Disable / lock</button>
                                 <button type="button" onClick={() => void handleBulkPasswordReset()} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700">Reset password</button>
+                                <button type="button" onClick={() => void handleBulkDeleteUsers()} className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-black text-red-700">Delete {selectedUserIds.size === 1 ? 'user' : 'users'}</button>
                             </div>
                         </div>
                         <div className="mt-5">

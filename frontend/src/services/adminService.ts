@@ -108,13 +108,15 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 /**
  * Get all users for the Users View
  */
-export async function getAdminUsers(): Promise<User[]> {
+export async function getAdminUsers(): Promise<Array<User & { firestoreDocId: string }>> {
   try {
     const usersColl = collection(db, 'users');
     const q = query(usersColl, orderBy('createdAt', 'desc')); // Most recent first
     const snapshot = await getDocs(q);
-    
-    return snapshot.docs.map(doc => doc.data() as User);
+    return snapshot.docs.map((userDoc) => ({
+      ...userDoc.data(),
+      firestoreDocId: userDoc.id,
+    } as User & { firestoreDocId: string }));
   } catch (error) {
     console.error("Error fetching admin users:", error);
     return [];
@@ -225,18 +227,15 @@ export async function getAdminPayments(): Promise<any[]> {
  */
 export async function deleteUser(userId: string): Promise<boolean> {
   try {
-    // 1. Delete user files (photos, etc.)
-    await deleteUserFiles(userId);
-
-    // 2. Delete user prayers
-    await deleteUserPrayers(userId);
-
-    // 3. Delete user document
-    await deleteDoc(doc(db, 'users', userId));
-
-    // 4. Delete user authentication account (via Cloud Function)
+    // Delete/verify the Auth account first so a failed authorization cannot
+    // leave the profile data partially removed.
     const deleteAccount = httpsCallable(functions, 'deleteUserAccount');
     await deleteAccount({ userId });
+
+    // Then remove profile-owned data.
+    await deleteUserFiles(userId);
+    await deleteUserPrayers(userId);
+    await deleteDoc(doc(db, 'users', userId));
 
     return true;
   } catch (error) {

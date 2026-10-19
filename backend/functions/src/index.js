@@ -386,41 +386,7 @@ exports.paystackWebhook = functions.https.onRequest(async (req, res) => {
 // Deletes a user from Firebase Authentication.
 // Must be called by an authenticated admin user.
 exports.deleteUserAccount = functions.https.onCall(async (data, context) => {
-  // 1. Check Authentication
-  if (!context.auth) {
-    throw new functions.https.HttpsError(
-      'unauthenticated',
-      'The function must be called while authenticated.'
-    );
-  }
-
-  // 2. Check Admin Authorization
-  const adminEmail = context.auth.token.email;
-  const authorizedAdmins = [
-    'christianmatchghanaltd@gmail.com',
-    'admin@example.com'
-  ];
-
-  let isAdmin = authorizedAdmins.includes(adminEmail);
-
-  if (!isAdmin) {
-     // Check if user has admin claim as fallback
-     try {
-       const userRecord = await auth.getUser(context.auth.uid);
-       if (userRecord.customClaims && userRecord.customClaims.admin) {
-          isAdmin = true;
-       }
-     } catch(e) {
-       console.error("Error checking claims", e);
-     }
-  }
-
-  if (!isAdmin) {
-    throw new functions.https.HttpsError(
-      'permission-denied',
-      'Only admins can delete user accounts.'
-    );
-  }
+  await requireAdminPermission(context, 'users.delete');
 
   const { userId } = data;
   if (!userId) {
@@ -431,17 +397,16 @@ exports.deleteUserAccount = functions.https.onCall(async (data, context) => {
   }
 
   try {
-    // 3. Delete User from Auth
     await auth.deleteUser(userId);
     console.log(`Successfully deleted user ${userId} from Auth`);
-    return { success: true, message: `User ${userId} deleted from Auth.` };
+    return { success: true, authDeleted: true, message: `User ${userId} deleted from Auth.` };
   } catch (error) {
+    if (error?.code === 'auth/user-not-found') {
+      console.warn(`Auth user ${userId} was already absent; allowing profile cleanup.`);
+      return { success: true, authDeleted: false, message: `No Auth account found for ${userId}; profile cleanup may continue.` };
+    }
     console.error('Error deleting user:', error);
-    // Don't expose internal error details to client unless necessary
-    throw new functions.https.HttpsError(
-      'internal',
-      'Unable to delete user from Auth.'
-    );
+    throw new functions.https.HttpsError('internal', 'Unable to delete user from Auth.');
   }
 });
 

@@ -30,7 +30,6 @@ export const AdminActionProvider: React.FC<{ children: React.ReactNode }> = ({ c
     options: ConfirmationOptions;
     resolve: (confirmed: boolean) => void;
   } | null>(null);
-  const [method, setMethod] = useState<'password' | 'pin'>('password');
   const [credential, setCredential] = useState('');
   const [error, setError] = useState('');
   const [biometricAvailable, setBiometricAvailable] = useState(false);
@@ -64,23 +63,25 @@ export const AdminActionProvider: React.FC<{ children: React.ReactNode }> = ({ c
       return;
     }
     if (!credential.trim()) {
-      setError(`Enter your Admin ${method}.`);
+      setError('Enter your Admin password or PIN.');
       return;
     }
     setBusy(true);
     setError('');
     try {
-      if (method === 'pin') {
-        await loginWithPin(auth.currentUser.email || '', credential.trim());
+      const value = credential.trim();
+      const isPin = /^\d{4,6}$/.test(value);
+      if (isPin) {
+        await loginWithPin(auth.currentUser.email || '', value);
       } else {
         if (!auth.currentUser.email) throw new Error('Your Admin account has no email address.');
-        const authCredential = EmailAuthProvider.credential(auth.currentUser.email, credential);
+        const authCredential = EmailAuthProvider.credential(auth.currentUser.email, value);
         await reauthenticateWithCredential(auth.currentUser, authCredential);
       }
       close(true);
     } catch {
       setBusy(false);
-      setError(`Admin ${method} verification failed.`);
+      setError('Admin password or PIN verification failed.');
     }
   };
 
@@ -104,11 +105,7 @@ export const AdminActionProvider: React.FC<{ children: React.ReactNode }> = ({ c
           <div className="w-full max-w-sm max-h-[85dvh] overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="admin-action-confirm-title" onClick={(event) => event.stopPropagation()}>
             <h2 id="admin-action-confirm-title" className="text-lg font-black text-slate-900">{pending.options.title}</h2>
             <p className="mt-2 text-sm text-slate-600">{pending.options.description}</p>
-            <div className="mt-4 flex rounded-lg bg-slate-100 p-1">
-              <button type="button" onClick={() => { setMethod('password'); setCredential(''); setError(''); }} className={`flex-1 rounded-md px-3 py-2 text-xs font-black ${method === 'password' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Password</button>
-              <button type="button" onClick={() => { setMethod('pin'); setCredential(''); setError(''); }} className={`flex-1 rounded-md px-3 py-2 text-xs font-black ${method === 'pin' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>PIN</button>
-            </div>
-            <input autoFocus type={method === 'pin' ? 'password' : 'password'} inputMode={method === 'pin' ? 'numeric' : 'text'} value={credential} onChange={(event) => setCredential(event.target.value)} placeholder={`Admin ${method}`} className="mt-3 w-full rounded-xl border border-slate-200 px-3 py-3 text-sm font-bold text-slate-800 focus:border-brand-orange focus:outline-none focus:ring-2 focus:ring-brand-orange/20" />
+            <input autoFocus type="password" inputMode="text" value={credential} onChange={(event) => setCredential(event.target.value)} placeholder="Admin password or PIN" className="mt-4 w-full rounded-xl border border-slate-200 px-3 py-3 text-sm font-bold text-slate-800 focus:border-brand-orange focus:outline-none focus:ring-2 focus:ring-brand-orange/20" />
             {error && <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{error}</p>}
             <div className="mt-5 grid gap-2">
               <button type="button" onClick={() => void verify()} disabled={busy} className="rounded-xl bg-brand-orange px-4 py-3 text-sm font-black text-white disabled:opacity-50">{busy ? 'Verifying…' : 'Confirm with credential'}</button>
