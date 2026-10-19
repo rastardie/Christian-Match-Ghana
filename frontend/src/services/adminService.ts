@@ -277,13 +277,22 @@ export interface AnalyticsData {
 /**
  * Get aggregated analytics data for the Analytics View
  */
-export async function getAnalyticsData(timeRange: '7d' | '30d' | '90d'): Promise<AnalyticsData> {
-    const now = new Date();
+export async function getAnalyticsData(
+  timeRange: '7d' | '30d' | '90d' | 'custom',
+  customStartDate?: string,
+  customEndDate?: string,
+): Promise<AnalyticsData> {
+    let now = new Date();
     let startDate = new Date();
     let prevStartDate = new Date(); // To calculate "vs previous period" change
     
     // 1. Determine Date Range
-    if (timeRange === '7d') {
+    if (timeRange === 'custom' && customStartDate && customEndDate) {
+        startDate = new Date(`${customStartDate}T00:00:00`);
+        now = new Date(`${customEndDate}T23:59:59`);
+        const rangeLength = Math.max(now.getTime() - startDate.getTime(), 24 * 60 * 60 * 1000);
+        prevStartDate = new Date(startDate.getTime() - rangeLength);
+    } else if (timeRange === '7d') {
         startDate.setDate(now.getDate() - 7);
         prevStartDate.setDate(now.getDate() - 14);
     } else if (timeRange === '30d') {

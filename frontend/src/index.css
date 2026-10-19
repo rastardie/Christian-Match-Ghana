@@ -2009,3 +2009,63 @@ textarea::placeholder {
   width: 70%;
   height: 70%;
 }
+
+
+/* Admin reports print as documents, not as the mobile app shell. */
+@media print {
+  body {
+    background: #fff !important;
+  }
+
+  .cmg-app-backdrop {
+    display: block !important;
+    min-height: 0 !important;
+    background: #fff !important;
+  }
+
+  .cmg-app-frame {
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+  }
+
+  .cmg-main-header,
+  .cmg-bottom-nav,
+  .cmg-nav-bottom-ribbon,
+  .cmg-profile-bottom-ribbon,
+  .cmg-app-frame[data-view="ADMIN"] main > div > header {
+    display: none !important;
+  }
+
+  .cmg-app-frame main,
+  .cmg-app-frame main > div {
+    height: auto !important;
+    overflow: visible !important;
+  }
+}
+
+
+/* Connect the selected Admin top-level pill to the options panel below it. */
+.cmg-admin-menu-top-selected {
+  position: relative;
+  z-index: 2;
+}
+
+.cmg-admin-menu-top-selected::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -7px;
+  width: 12px;
+  height: 12px;
+  background: #111827;
+  border-right: 2px solid rgb(251 146 60 / 0.85);
+  border-bottom: 2px solid rgb(251 146 60 / 0.85);
+  transform: translateX(-50%) rotate(45deg);
+}

@@ -27,7 +27,9 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, onBack, onLogout, onNotifications, onRefresh, onAdmin, isSystemAdmin, hideNav }) => {
   // Navigation is hidden during auth, onboarding, and specific deep-view states (like active calls)
   const shouldShowNav = !hideNav && !['AUTH', 'ONBOARDING', 'EDIT_PROFILE'].includes(currentView);
+  const shouldShowMainHeader = shouldShowNav && currentView !== 'PROFILE' && currentView !== 'ADMIN';
   const [ribbonScrolling, setRibbonScrolling] = useState(false);
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const userScrollIntentRef = useRef(false);
   const ribbonBoundaryTimerRef = useRef<number | undefined>(undefined);
 
@@ -85,7 +87,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
         className={frameClassName}
       >
         {/* Shared top bar: balanced left action, centered logo, and right action. */}
-        {shouldShowNav && currentView !== 'PROFILE' && (
+        {shouldShowMainHeader && (
           <header className="cmg-main-header shrink-0 relative z-30 px-5 cmg-safe-top">
             <div className="cmg-main-header__grid">
               <div className="cmg-main-header__side cmg-main-header__side--left">
@@ -130,7 +132,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
                     type="button"
                     title="Log out"
                     aria-label="Log out"
-                    onClick={onLogout}
+                    onClick={() => setShowLogoutDialog(true)}
                     className="cmg-main-icon-button"
                   >
                     <Power size={18} />
@@ -200,6 +202,22 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
               />
             )}
           </nav>
+        )}
+
+        {showLogoutDialog && onLogout && (
+          <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-slate-950/70 p-4" role="presentation" onClick={() => setShowLogoutDialog(false)}>
+            <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="logout-dialog-title" onClick={(event) => event.stopPropagation()}>
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-brand-orange/10 text-brand-orange">
+                <Power size={26} />
+              </div>
+              <h2 id="logout-dialog-title" className="text-xl font-black text-slate-900">Sign out?</h2>
+              <p className="mt-2 text-sm text-slate-600">Are you sure you want to sign out of Christian Match Ghana?</p>
+              <div className="mt-6 flex gap-3">
+                <button type="button" onClick={() => setShowLogoutDialog(false)} className="flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-50">Cancel</button>
+                <button type="button" onClick={() => { setShowLogoutDialog(false); onLogout(); }} className="flex-1 rounded-xl bg-brand-orange px-4 py-3 text-sm font-black text-white transition hover:brightness-95">Sign out</button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

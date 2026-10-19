@@ -3,14 +3,35 @@ import { useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../../firebase';
 import { getDashboardStats, getAdminUsers, getAdminPrayers, getAdminReports, deleteUser, toggleBlockUser, getAdminConnections, getAdminPayments, getAnalyticsData, AnalyticsData, adminCreateUser } from '../../services/adminService';
-import { LayoutDashboard, Users, Shield, Activity, LogOut, MessageSquare, Heart, Trash2, Search, CheckCircle, XCircle, Link as LinkIcon, CreditCard, DollarSign, Calendar, MoreHorizontal, ChevronDown, RefreshCw, ClipboardList, Settings, Menu } from 'lucide-react';
+import { LayoutDashboard, Users, Shield, Activity, LogOut, MessageSquare, Heart, Trash2, Search, CheckCircle, XCircle, Link as LinkIcon, CreditCard, DollarSign, Calendar, MoreHorizontal, ChevronDown, RefreshCw, ClipboardList, Settings, Menu, Power, FileText, Printer } from 'lucide-react';
 import { EditProfileView } from '../../MainApp';
 import { updateUserDocument } from '../../services/userService';
 import AdminAccessControl from './AdminAccessControl';
 
 import { getCurrentAdminAccess } from '../../services/adminRbacService';
+const ADMIN_MENU_GROUPS = [
+  { key: 'users', label: 'Users', icon: Users, items: [
+    { key: 'users', label: 'Users' },
+    { key: 'access-control', label: 'Groups' },
+    { key: 'connections', label: 'Connections' },
+    { key: 'prayers', label: 'Prayers' },
+  ] },
+  { key: 'operations', label: 'Operations', icon: Activity, items: [
+    { key: 'moderation', label: 'Reports' },
+    { key: 'analytics', label: 'Analytics' },
+  ] },
+  { key: 'billing', label: 'Billing', icon: CreditCard, items: [
+    { key: 'payments', label: 'Payments' },
+  ] },
+  { key: 'system', label: 'System', icon: Settings, items: [
+    { key: 'overview', label: 'Dashboard' },
+    { key: 'audit-logs', label: 'Audit' },
+  ] },
+] as const;
+
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
+  const [selectedMenuGroup, setSelectedMenuGroup] = useState('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({
     people: true,
@@ -19,6 +40,8 @@ const AdminDashboard = () => {
     system: true,
   });
   const [permissions, setPermissions] = useState<Set<string>>(new Set());
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [showSignOutDialog, setShowSignOutDialog] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -30,7 +53,31 @@ const AdminDashboard = () => {
   const can = (permission: string) => permissions.has(permission) || permissions.has('permissions.manage');
   const selectTab = (tab: string) => {
     setActiveTab(tab);
+    const owningGroup = ADMIN_MENU_GROUPS.find((group) => group.items.some((item) => item.key === tab));
+    if (tab === 'reports') setSelectedMenuGroup('reports');
+    else if (owningGroup) setSelectedMenuGroup(owningGroup.key);
     setMobileMenuOpen(false);
+  };
+
+  const selectMenuGroup = (groupKey: string) => {
+    const group = ADMIN_MENU_GROUPS.find((candidate) => candidate.key === groupKey);
+    if (!group) return;
+    setSelectedMenuGroup(group.key);
+    selectTab(group.items[0].key);
+  };
+
+  const selectDashboard = () => {
+    setSelectedMenuGroup('dashboard');
+    setActiveTab('overview');
+    setMobileMenuOpen(false);
+  };
+
+  const handleRefresh = () => {
+    setRefreshKey((currentKey) => currentKey + 1);
+  };
+
+  const requestSignOut = () => {
+    setShowSignOutDialog(true);
   };
 
   const handleSignOut = async () => {
@@ -46,6 +93,8 @@ const AdminDashboard = () => {
     switch (activeTab) {
       case 'overview':
         return <Overview />;
+      case 'reports':
+        return <AdminReportsView />;
       case 'users':
         return <UsersView />;
       case 'connections':
@@ -67,79 +116,243 @@ const AdminDashboard = () => {
     }
   };
 
-  const groupActive = (group: string) => {
-    if (group === 'people') return ['users', 'connections', 'prayers', 'access-control'].includes(activeTab);
-    if (group === 'operations') return ['moderation', 'analytics'].includes(activeTab);
-    if (group === 'billing') return activeTab === 'payments';
-    return ['access-control', 'audit-logs'].includes(activeTab);
-  };
+  const selectedGroup = ADMIN_MENU_GROUPS.find((group) => group.key === selectedMenuGroup);
 
   return (
     <div className="min-h-screen bg-[#f6f8fc] font-sans text-slate-900">
       {/* Mobile-first CMG Admin header, based on the Onboard Admin pattern. */}
       <header className="bg-white shadow-sm">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-          <button type="button" onClick={() => selectTab('overview')} className="text-left">
+        <div className="mx-auto flex w-full items-center justify-between gap-3 px-4 py-3 sm:px-6">
+          <button type="button" onClick={selectDashboard} className="text-left">
             <div className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
               <span>CMG</span><span className="text-brand-orange"> Admin</span>
             </div>
             <div className="text-xs font-bold text-slate-500 sm:text-sm">Christian Match Ghana</div>
           </button>
           <div className="flex items-center gap-1 sm:gap-2">
-            <button type="button" title="Refresh" aria-label="Refresh" onClick={() => window.location.reload()} className="rounded-xl p-2 text-slate-700 transition hover:bg-slate-100">
+            <button type="button" title="Refresh" aria-label="Refresh" onClick={handleRefresh} className="rounded-xl p-2 text-slate-700 transition hover:bg-slate-100">
               <RefreshCw size={21} />
             </button>
             <button type="button" title="Notifications" aria-label="Notifications" onClick={() => selectTab('prayers')} className="rounded-xl p-2 text-slate-700 transition hover:bg-slate-100">
               <MessageSquare size={21} />
             </button>
-            <button type="button" title="Sign out" aria-label="Sign out" onClick={handleSignOut} className="rounded-xl p-2 text-slate-700 transition hover:bg-slate-100">
-              <LogOut size={21} />
+            <button type="button" title="Sign out" aria-label="Sign out" onClick={requestSignOut} className="rounded-xl p-2 text-slate-700 transition hover:bg-slate-100">
+              <Power size={21} />
             </button>
             <span className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-sm font-black text-white">A</span>
           </div>
         </div>
+          <div className="bg-slate-900 px-3 py-3 sm:px-6">
+            <div className={`mx-auto w-full rounded-2xl border p-1.5 transition-colors ${selectedMenuGroup !== 'dashboard' ? 'border-brand-orange/75 shadow-[0_0_0_2px_rgb(249_115_22_/_0.18)]' : 'border-white/15'} bg-white/10`}>
+              <div className="flex flex-wrap justify-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={selectDashboard}
+                  className={`flex min-h-7 w-28 flex-none whitespace-nowrap items-center justify-center gap-1.5 rounded-full border px-2 py-1 text-xs font-black transition ${selectedMenuGroup === 'dashboard' ? 'cmg-admin-menu-top-selected border-brand-orange bg-white/35 text-white shadow-md' : 'border-white/25 bg-white/10 text-white/45 hover:border-white/55 hover:bg-white/20 hover:text-white/75'}`}
+                >
+                  <LayoutDashboard size={16} />
+                  Dashboard
+                </button>
+                <button
+                  type="button"
+                  onClick={() => selectTab('reports')}
+                  className={`flex min-h-7 w-28 flex-none whitespace-nowrap items-center justify-center gap-1.5 rounded-full border px-2 py-1 text-xs font-black transition ${selectedMenuGroup === 'reports' ? 'cmg-admin-menu-top-selected border-brand-orange bg-white/35 text-white shadow-md' : 'border-white/25 bg-white/10 text-white/45 hover:border-white/55 hover:bg-white/20 hover:text-white/75'}`}
+                >
+                  <FileText size={16} />
+                  Reports
+                </button>
+                {ADMIN_MENU_GROUPS.map((group) => {
+                  const GroupIcon = group.icon;
+                  const isSelected = selectedMenuGroup === group.key;
+                  return (
+                    <button
+                      key={group.key}
+                      type="button"
+                      onClick={() => selectMenuGroup(group.key)}
+                      aria-expanded={isSelected}
+                      className={`flex min-h-7 w-28 flex-none whitespace-nowrap items-center justify-center gap-1.5 rounded-full border px-2 py-1 text-xs font-black transition ${isSelected ? 'cmg-admin-menu-top-selected border-brand-orange bg-white/35 text-white shadow-md' : 'border-white/25 bg-white/10 text-white/45 hover:border-white/55 hover:bg-white/20 hover:text-white/75'}`}
+                    >
+                      <GroupIcon size={16} />
+                      {group.label}
+                    </button>
+                  );
+                })}
+              </div>
 
-        <div className="bg-slate-900 px-3 py-3 sm:px-6">
-          <div className="mx-auto flex max-w-6xl flex-wrap gap-2">
-            {[
-              ['people', 'People', <Users size={16} />],
-              ['operations', 'Operations', <Activity size={16} />],
-              ['billing', 'Billing', <CreditCard size={16} />],
-              ['system', 'System', <Settings size={16} />],
-            ].map(([key, label, icon]) => (
-              <button key={String(key)} type="button" onClick={() => selectTab(key === 'people' ? 'users' : key === 'operations' ? 'moderation' : key === 'billing' ? 'payments' : 'access-control')} className={`flex min-h-10 flex-1 items-center justify-center gap-2 rounded-full border px-4 py-2 text-sm font-black transition sm:flex-none ${groupActive(String(key)) ? 'border-white/80 bg-white/30 text-white' : 'border-white/50 bg-white/20 text-white/90 hover:bg-white/30'}`}>
-                {icon}{label}
-              </button>
-            ))}
-          </div>
-          {groupActive('people') && (
-            <div className="mx-auto mt-2 flex max-w-6xl justify-center gap-2">
-              <button type="button" onClick={() => selectTab('users')} className={`rounded-full border px-5 py-1.5 text-sm font-black transition ${activeTab === 'users' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white/90 text-slate-700 hover:bg-slate-100'}`}>Users</button>
-              <button type="button" onClick={() => selectTab('access-control')} className={`rounded-full border px-5 py-1.5 text-sm font-black transition ${activeTab === 'access-control' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white/90 text-slate-700 hover:bg-slate-100'}`}>Groups</button>
+              {selectedGroup && selectedMenuGroup !== 'dashboard' && (
+                <div className="relative mt-3 border-t border-white/20 pt-3" aria-label={`${selectedGroup.label} options`}>
+                  <div className="pointer-events-none absolute -top-2 left-1/2 h-4 w-4 -translate-x-1/2 rotate-45 border-b border-r border-brand-orange/80 bg-slate-900" />
+                  <div className="rounded-xl border border-brand-orange/55 bg-slate-900/35 p-1.5">
+                    <div className="flex w-full flex-wrap justify-start gap-1.5">
+                      {selectedGroup.items.map((item) => (
+                        <button
+                          key={item.key}
+                          type="button"
+                          onClick={() => selectTab(item.key)}
+                          className={`flex min-h-7 flex-none whitespace-nowrap items-center justify-center rounded-full border px-3 py-1 text-xs font-black transition ${activeTab === item.key ? 'border-white/85 bg-white text-slate-950 shadow-md' : 'border-white/25 bg-white/15 text-white/75 hover:border-white/60 hover:bg-white/25 hover:text-white'}`}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-          <div className="mx-auto mt-2 flex max-w-6xl flex-wrap justify-center gap-2">
-            {[
-              ['overview', 'Dashboard', <LayoutDashboard size={16} />],
-              ['moderation', 'Reports', <ClipboardList size={16} />],
-              ['audit-logs', 'Audit', <Shield size={16} />],
-            ].map(([key, label, icon]) => (
-              <button key={String(key)} type="button" onClick={() => selectTab(String(key))} className={`flex min-h-9 items-center justify-center gap-2 rounded-full border px-4 py-1.5 text-sm font-black transition ${activeTab === key ? 'border-white/80 bg-white/30 text-white' : 'border-white/50 bg-white/20 text-white/90 hover:bg-white/30'}`}>
-                {icon}{label}
-              </button>
-            ))}
           </div>
-        </div>
       </header>
 
-      <main className="mx-auto max-w-6xl overflow-auto px-4 py-5 sm:px-6 sm:py-8">
-        {renderContent()}
+      <main className="mx-auto w-full overflow-auto px-4 py-5 sm:px-6 sm:py-8">
+        <div key={refreshKey}>{renderContent()}</div>
+        {showSignOutDialog && (
+          <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-slate-950/70 p-4" role="presentation" onClick={() => setShowSignOutDialog(false)}>
+            <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="admin-signout-dialog-title" onClick={(event) => event.stopPropagation()}>
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-brand-orange/10 text-brand-orange">
+                <Power size={26} />
+              </div>
+              <h2 id="admin-signout-dialog-title" className="text-xl font-black text-slate-900">Sign out?</h2>
+              <p className="mt-2 text-sm text-slate-600">Are you sure you want to sign out of CMG Admin?</p>
+              <div className="mt-6 flex gap-3">
+                <button type="button" onClick={() => setShowSignOutDialog(false)} className="flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-50">Cancel</button>
+                <button type="button" onClick={() => { setShowSignOutDialog(false); void handleSignOut(); }} className="flex-1 rounded-xl bg-brand-orange px-4 py-3 text-sm font-black text-white transition hover:brightness-95">Sign out</button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
 };
 
 // --- Sub-Views ---
+
+const reportDateValue = (value: any): Date | null => {
+    if (!value) return null;
+    if (typeof value?.toDate === 'function') return value.toDate();
+    if (typeof value?.seconds === 'number') return new Date(value.seconds * 1000);
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const AdminReportsView = () => {
+    type ReportKind = 'platform' | 'users' | 'moderation' | 'payments';
+    const today = new Date();
+    const [reportKind, setReportKind] = useState<ReportKind>('platform');
+    const [startDate, setStartDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10));
+    const [endDate, setEndDate] = useState(today.toISOString().slice(0, 10));
+    const [generatedReport, setGeneratedReport] = useState<any>(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+
+    const inDateRange = (value: any) => {
+        const date = reportDateValue(value);
+        if (!date) return false;
+        const start = new Date(`${startDate}T00:00:00`);
+        const end = new Date(`${endDate}T23:59:59`);
+        return date >= start && date <= end;
+    };
+
+    const generateReport = async () => {
+        if (!startDate || !endDate || startDate > endDate) {
+            setError('Choose a valid start and end date.');
+            return;
+        }
+        setError('');
+        setLoading(true);
+        try {
+            if (reportKind === 'platform') {
+                const analytics = await getAnalyticsData('custom', startDate, endDate);
+                setGeneratedReport({ kind: reportKind, analytics });
+            } else if (reportKind === 'users') {
+                const users = (await getAdminUsers()).filter((user: any) => inDateRange(user.createdAt));
+                setGeneratedReport({ kind: reportKind, rows: users });
+            } else if (reportKind === 'moderation') {
+                const reports = (await getAdminReports()).filter((report: any) => inDateRange(report.createdAt));
+                setGeneratedReport({ kind: reportKind, rows: reports });
+            } else {
+                const payments = (await getAdminPayments()).filter((payment: any) => inDateRange(payment.createdAt));
+                setGeneratedReport({ kind: reportKind, rows: payments });
+            }
+        } catch (reportError) {
+            console.error('Unable to generate report:', reportError);
+            setError('Unable to generate this report. Please try again.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const reportTitle = {
+        platform: 'Platform analytics',
+        users: 'User activity',
+        moderation: 'Moderation reports',
+        payments: 'Payments and revenue',
+    }[reportKind];
+
+    const renderGeneratedReport = () => {
+        if (!generatedReport) return null;
+        if (generatedReport.kind === 'platform') {
+            const analytics = generatedReport.analytics as AnalyticsData;
+            return <>
+                <div className="grid gap-3 sm:grid-cols-4">{analytics.cards.map((card) => <div key={card.title} className="rounded-xl border border-slate-200 bg-white p-4"><p className="text-xs font-bold text-slate-500">{card.title}</p><p className="mt-1 text-2xl font-black text-slate-900">{card.value}</p><p className="text-xs font-bold text-brand-orange">{card.change} vs previous period</p></div>)}</div>
+                <div className="grid gap-4 lg:grid-cols-2">
+                    <div className="rounded-xl border border-slate-200 bg-white p-4"><h4 className="font-black text-slate-800">User growth</h4><div className="mt-3 space-y-2">{analytics.growth.map((item) => <div key={item.label} className="flex justify-between border-b border-slate-100 py-1 text-sm"><span>{item.label}</span><strong>{item.value}</strong></div>)}</div></div>
+                    <div className="rounded-xl border border-slate-200 bg-white p-4"><h4 className="font-black text-slate-800">Top locations</h4><div className="mt-3 space-y-2">{analytics.locations.length ? analytics.locations.map((location) => <div key={location.city} className="flex justify-between border-b border-slate-100 py-1 text-sm"><span>{location.city}</span><strong>{location.users}</strong></div>) : <p className="text-sm text-slate-500">No location data for this range.</p>}</div></div>
+                </div>
+            </>;
+        }
+        const rows = generatedReport.rows as any[];
+        if (generatedReport.kind === 'users') {
+            return <ReportTable title="Users created in range" headers={['#', 'Name', 'Email', 'Location', 'Status']} rows={rows.map((user, index) => [index + 1, user.name || 'Unnamed user', user.email || '—', user.location || user.country || '—', user.isBlocked ? 'Blocked' : 'Active'])} />;
+        }
+        if (generatedReport.kind === 'moderation') {
+            return <ReportTable title="Reports created in range" headers={['#', 'Reported user', 'Reason', 'Status', 'Description']} rows={rows.map((report, index) => [index + 1, report.reportedUserName || 'Unknown', report.reason || 'General', report.status || 'pending', report.description || '—'])} />;
+        }
+        const total = rows.reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0);
+        return <>
+            <div className="rounded-xl border border-slate-200 bg-white p-4"><p className="text-xs font-bold text-slate-500">Total in range</p><p className="mt-1 text-2xl font-black text-slate-900">₵{total.toFixed(2)}</p><p className="text-xs text-slate-500">{rows.length} transactions</p></div>
+            <ReportTable title="Payments in range" headers={['#', 'Reference', 'User', 'Amount', 'Status']} rows={rows.map((payment, index) => [index + 1, payment.reference || payment.id || '—', payment.userName || 'Anonymous', `₵${(Number(payment.amount) || 0).toFixed(2)}`, payment.status || '—'])} />
+        </>;
+    };
+
+    return (
+        <div className="space-y-6">
+            <div>
+                <h2 className="text-2xl font-black text-slate-900">Reports</h2>
+                <p className="mt-1 text-sm text-slate-500">Choose a suggested report or generate a custom report for any date range.</p>
+            </div>
+            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <label className="block text-sm font-black text-slate-700" htmlFor="admin-report-type">Report type</label>
+                <p className="mt-1 text-xs text-slate-500">Choose a suggested report, then select the date range below.</p>
+                <div className="relative mt-3 w-full max-w-xl">
+                    <select id="admin-report-type" value={reportKind} onChange={(event) => { setReportKind(event.target.value as ReportKind); setGeneratedReport(null); }} className="w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 py-2 pr-10 text-sm font-black text-slate-800 focus:border-brand-orange focus:outline-none focus:ring-2 focus:ring-brand-orange/20">
+                        <option value="platform">Platform analytics</option>
+                        <option value="users">User activity</option>
+                        <option value="moderation">Moderation report</option>
+                        <option value="payments">Payments and revenue</option>
+                    </select>
+                    <ChevronDown size={21} strokeWidth={3} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-800" />
+                </div>
+            </section>
+            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex flex-wrap items-end gap-3">
+                    <label className="text-xs font-black text-slate-600">From<input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} className="mt-1 block rounded-lg border border-slate-200 px-3 py-2 text-sm font-normal text-slate-700" /></label>
+                    <label className="text-xs font-black text-slate-600">To<input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} className="mt-1 block rounded-lg border border-slate-200 px-3 py-2 text-sm font-normal text-slate-700" /></label>
+                    <button type="button" onClick={() => void generateReport()} disabled={loading} className="flex items-center gap-2 rounded-lg bg-brand-orange px-4 py-2 text-sm font-black text-white disabled:opacity-50">{loading ? 'Generating…' : 'Generate report'}</button>
+                    {generatedReport && <button type="button" onClick={() => window.print()} className="flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-black text-white"><Printer size={16} /> Print report</button>}
+                </div>
+                {error && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm font-bold text-red-700">{error}</p>}
+            </section>
+            {generatedReport && <section className="space-y-4" id="generated-admin-report"><div className="flex flex-wrap items-end justify-between gap-2"><div><h3 className="text-xl font-black text-slate-900">{reportTitle}</h3><p className="text-sm text-slate-500">{startDate} — {endDate}</p></div><span className="text-xs font-bold uppercase tracking-wide text-slate-400">Generated report</span></div>{renderGeneratedReport()}</section>}
+        </div>
+    );
+};
+
+const ReportTable = ({ title, headers, rows }: { title: string; headers: string[]; rows: Array<Array<string | number>> }) => (
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <div className="border-b border-slate-200 px-4 py-3"><h4 className="font-black text-slate-800">{title}</h4><p className="text-xs text-slate-500">{rows.length} records</p></div>
+        <div className="overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="bg-slate-900 text-xs font-black uppercase text-white"><tr>{headers.map((header) => <th key={header} className="px-3 py-2">{header}</th>)}</tr></thead><tbody>{rows.length ? rows.map((row, rowIndex) => <tr key={rowIndex} className="border-t border-slate-100"><>{row.map((cell, cellIndex) => <td key={cellIndex} className="max-w-[22rem] truncate px-3 py-2 text-slate-700">{cell}</td>)}</></tr>) : <tr><td colSpan={headers.length} className="px-3 py-8 text-center text-slate-500">No records found for this date range.</td></tr>}</tbody></table></div>
+    </div>
+);
 
 const Overview = () => {
   const [stats, setStats] = useState({
@@ -209,6 +422,23 @@ const UsersView = () => {
     const [selectedUser, setSelectedUser] = useState<any>(null); // State for the details modal
     const [isEditingProfile, setIsEditingProfile] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [userColumnWidths, setUserColumnWidths] = useState({ number: 52, user: 220, telephone: 140, role: 120, status: 120, joined: 140, actions: 84 });
+
+    const resizeUserColumn = (column: keyof typeof userColumnWidths, event: React.MouseEvent<HTMLSpanElement>) => {
+        event.preventDefault();
+        const startX = event.clientX;
+        const startWidth = userColumnWidths[column];
+        const handleMove = (moveEvent: MouseEvent) => {
+            const nextWidth = Math.max(80, startWidth + moveEvent.clientX - startX);
+            setUserColumnWidths((current) => ({ ...current, [column]: nextWidth }));
+        };
+        const handleUp = () => {
+            window.removeEventListener('mousemove', handleMove);
+            window.removeEventListener('mouseup', handleUp);
+        };
+        window.addEventListener('mousemove', handleMove);
+        window.addEventListener('mouseup', handleUp);
+    };
     
     // Filter & Add User State
     const [showFilterMenu, setShowFilterMenu] = useState(false);
@@ -424,28 +654,40 @@ const UsersView = () => {
                 </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden min-h-[400px]">
-                <table className="w-full text-left">
-                    <thead className="bg-gray-50 border-b border-gray-200">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden min-h-[400px]">
+                <div className="overflow-x-auto">
+                    <table className="min-w-[876px] w-full table-fixed border-collapse text-left">
+                        <colgroup>
+                            <col style={{ width: userColumnWidths.number }} />
+                            <col style={{ width: userColumnWidths.user }} />
+                            <col style={{ width: userColumnWidths.telephone }} />
+                            <col style={{ width: userColumnWidths.role }} />
+                            <col style={{ width: userColumnWidths.status }} />
+                            <col style={{ width: userColumnWidths.joined }} />
+                            <col style={{ width: userColumnWidths.actions }} />
+                        </colgroup>
+                    <thead className="bg-slate-900 border-b border-brand-orange text-white">
                         <tr>
-                            <th className="px-6 py-4 font-semibold text-gray-600 text-sm">User</th>
-                            <th className="px-6 py-4 font-semibold text-gray-600 text-sm">Telephone</th>
-                            <th className="px-6 py-4 font-semibold text-gray-600 text-sm">Role</th>
-                            <th className="px-6 py-4 font-semibold text-gray-600 text-sm">Status</th>
-                            <th className="px-6 py-4 font-semibold text-gray-600 text-sm">Joined</th>
-                            <th className="px-6 py-4 font-semibold text-gray-600 text-sm text-right">Actions</th>
+                            <th style={{ width: userColumnWidths.number }} className="relative px-3 py-2 text-center text-[10px] font-black uppercase tracking-wide text-white border-r-2 border-brand-orange">#<span onMouseDown={(event) => resizeUserColumn('number', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                            <th style={{ width: userColumnWidths.user }} className="relative px-3 py-2 text-[10px] font-black uppercase tracking-wide text-white border-r-2 border-brand-orange">User<span onMouseDown={(event) => resizeUserColumn('user', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                            <th style={{ width: userColumnWidths.telephone }} className="relative px-3 py-2 text-[10px] font-black uppercase tracking-wide text-white border-r-2 border-brand-orange">Telephone<span onMouseDown={(event) => resizeUserColumn('telephone', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                            <th style={{ width: userColumnWidths.role }} className="relative px-3 py-2 text-[10px] font-black uppercase tracking-wide text-white border-r-2 border-brand-orange">Role<span onMouseDown={(event) => resizeUserColumn('role', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                            <th style={{ width: userColumnWidths.status }} className="relative px-3 py-2 text-[10px] font-black uppercase tracking-wide text-white border-r-2 border-brand-orange">Status<span onMouseDown={(event) => resizeUserColumn('status', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                            <th style={{ width: userColumnWidths.joined }} className="relative px-3 py-2 text-[10px] font-black uppercase tracking-wide text-white border-r-2 border-brand-orange">Joined<span onMouseDown={(event) => resizeUserColumn('joined', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                            <th style={{ width: userColumnWidths.actions }} className="px-3 py-2 text-right text-[10px] font-black uppercase tracking-wide text-white">Actions</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
-                        {filteredUsers.map((user) => (
+                    <tbody className="divide-y divide-slate-200">
+                        {filteredUsers.map((user, userIndex) => (
                             <tr 
                                 key={user.id} 
                                 onClick={() => setSelectedUser(user)}
-                                className="hover:bg-gray-50 transition-colors group cursor-pointer"
+                                className="border-b border-slate-200 hover:bg-slate-50 transition-colors group cursor-pointer"
                             >
-                                <td className="px-6 py-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 font-medium">
+                                <td className="px-3 py-2 text-center text-xs font-black text-slate-400">{userIndex + 1}</td>
+                                <td className="px-3 py-2">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 text-xs font-black">
                                             {user.name.charAt(0)}
                                         </div>
                                         <div>
@@ -457,17 +699,17 @@ const UsersView = () => {
                                         </div>
                                     </div>
                                 </td>
-                                <td className="px-6 py-4 text-sm text-gray-600">{user.phone || 'N/A'}</td>
-                                <td className="px-6 py-4 text-sm text-gray-600">{user.role}</td>
-                                <td className="px-6 py-4">
-                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                <td className="px-3 py-2 text-xs text-slate-600">{user.phone || 'N/A'}</td>
+                                <td className="px-3 py-2 text-xs text-slate-600">{user.role}</td>
+                                <td className="px-3 py-2">
+                                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black ${
                                         user.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                                     }`}>
                                         {user.status}
                                     </span>
                                 </td>
-                                <td className="px-6 py-4 text-sm text-gray-500">{user.joined}</td>
-                                <td className="px-6 py-4 text-right relative">
+                                <td className="px-3 py-2 text-xs text-slate-500">{user.joined}</td>
+                                <td className="px-3 py-2 text-right relative">
                                     <button 
                                         onClick={(e) => toggleMenu(e, user.id)}
                                         className="text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-gray-100 rounded-full"
@@ -497,7 +739,8 @@ const UsersView = () => {
                             </tr>
                         ))}
                     </tbody>
-                </table>
+                    </table>
+                </div>
             </div>
             
 
@@ -1225,15 +1468,22 @@ const ModerationView = () => {
 
 
 const AnalyticsView = () => {
-    const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d'>('7d');
+    const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d' | 'custom'>('7d');
+    const [customStartDate, setCustomStartDate] = useState('');
+    const [customEndDate, setCustomEndDate] = useState('');
     const [data, setData] = useState<AnalyticsData | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchAnalytics = async () => {
+            if (timeRange === 'custom' && (!customStartDate || !customEndDate)) return;
             setLoading(true);
             try {
-                const result = await getAnalyticsData(timeRange);
+                const result = await getAnalyticsData(
+                    timeRange,
+                    timeRange === 'custom' ? customStartDate : undefined,
+                    timeRange === 'custom' ? customEndDate : undefined,
+                );
                 setData(result);
             } catch (error) {
                 console.error("Failed to load analytics", error);
@@ -1242,7 +1492,7 @@ const AnalyticsView = () => {
             }
         };
         fetchAnalytics();
-    }, [timeRange]);
+    }, [timeRange, customStartDate, customEndDate]);
 
     if (loading) {
         return (
@@ -1260,22 +1510,38 @@ const AnalyticsView = () => {
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
             {/* Header / Controls */}
-            <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                <h3 className="text-lg font-semibold text-gray-800">Platform Analytics</h3>
-                <div className="flex bg-gray-100 p-1 rounded-lg">
-                    {['7d', '30d', '90d'].map((range) => (
-                        <button 
-                            key={range}
-                            onClick={() => setTimeRange(range as any)}
-                            className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
-                                timeRange === range 
-                                ? 'bg-white text-brand-orange shadow-sm' 
-                                : 'text-gray-500 hover:text-gray-700'
-                            }`}
+            <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                <div>
+                    <h3 className="text-lg font-semibold text-gray-800">Platform Analytics</h3>
+                    <p className="mt-1 text-xs text-gray-500">Use the period controls or choose exact dates for a printable report.</p>
+                </div>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                    <div className="flex bg-gray-100 p-1 rounded-lg">
+                        {(['7d', '30d', '90d'] as const).map((range) => (
+                            <button
+                                key={range}
+                                onClick={() => setTimeRange(range)}
+                                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${timeRange === range ? 'bg-white text-brand-orange shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                            >
+                                {range === '7d' ? 'Week' : range === '30d' ? 'Month' : 'Quarter'}
+                            </button>
+                        ))}
+                        <button
+                            onClick={() => setTimeRange('custom')}
+                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${timeRange === 'custom' ? 'bg-white text-brand-orange shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                         >
-                            {range === '7d' ? 'Week' : range === '30d' ? 'Month' : 'Quarter'}
+                            Custom
                         </button>
-                    ))}
+                    </div>
+                    {timeRange === 'custom' && (
+                        <div className="flex flex-wrap items-center gap-2">
+                            <label className="text-xs font-bold text-gray-500">From <input type="date" value={customStartDate} onChange={(event) => setCustomStartDate(event.target.value)} className="ml-1 rounded-lg border border-gray-200 px-2 py-1.5 text-xs text-gray-700" /></label>
+                            <label className="text-xs font-bold text-gray-500">To <input type="date" value={customEndDate} onChange={(event) => setCustomEndDate(event.target.value)} className="ml-1 rounded-lg border border-gray-200 px-2 py-1.5 text-xs text-gray-700" /></label>
+                        </div>
+                    )}
+                    <button type="button" onClick={() => window.print()} className="flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-sm font-bold text-white hover:bg-slate-800">
+                        Print report
+                    </button>
                 </div>
             </div>
 
