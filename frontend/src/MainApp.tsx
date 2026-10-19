@@ -196,6 +196,9 @@ const LandingPage = ({  onGetStarted,
   );
 };
 
+import { auth } from './firebase';
+import { onAuthStateChanged } from 'firebase/auth';
+import { getCurrentAdminAccess } from './services/adminRbacService';
 import { App as CapacitorApp } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 import {
@@ -7291,6 +7294,7 @@ function readStoredSession(): { user: User | null; view: ViewState | null } {
 const App = () => {
   const initialSession = readStoredSession();
   const [user, setUser] = useState<User | null>(initialSession.user);
+  const [hasAdminAccess, setHasAdminAccess] = useState(initialSession.user?.isSystemAdmin === true);
   const [currentView, setCurrentView] = useState<ViewState>(initialSession.view || "AUTH");
   const [showLanding, setShowLanding] = useState(!initialSession.user);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
@@ -7313,7 +7317,7 @@ const App = () => {
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   useEffect(() => {
-    if (user && !user.isSystemAdmin && currentView !== "AUTH" && currentView !== "ONBOARDING") {
+    if (user && !hasAdminAccess && currentView !== "AUTH" && currentView !== "ONBOARDING") {
       if (!isProfileFullyComplete(user) && !profileReminderDeferred) {
         setShowIncompleteProfileModal(true);
         if (currentView === "BROWSE") setCurrentView("PROFILE");
@@ -7335,6 +7339,19 @@ const App = () => {
 
   const showNotify = (message: string, type: "success" | "error") =>
     setNotification({ message, type });
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (!firebaseUser) {
+        setHasAdminAccess(false);
+        return;
+      }
+      void getCurrentAdminAccess()
+        .then((access) => setHasAdminAccess(access.isSuperAdmin || access.permissions.length > 0))
+        .catch(() => setHasAdminAccess(false));
+    });
+    return unsubscribe;
+  }, []);
 
   // Handle the native Android back button. Close overlays and nested views
   // first; exit only when the user is already at the app root.
@@ -7506,7 +7523,7 @@ const App = () => {
       setIsLoadingUsers(false);
       return;
     }
-    if (!user.isSystemAdmin && !isProfileFullyComplete(user)) {
+    if (!hasAdminAccess && !isProfileFullyComplete(user)) {
       setAllUsers([]);
       setIsLoadingUsers(false);
       return;
@@ -7530,7 +7547,7 @@ const App = () => {
 
   const handleConnectRequest = async (profileId: string) => {
     if (!user) return;
-    if (!user.isSystemAdmin && !isProfileFullyComplete(user)) {
+    if (!hasAdminAccess && !isProfileFullyComplete(user)) {
       setCurrentView("PROFILE");
       setShowIncompleteProfileModal(true);
       showNotify("Complete your profile, profile photo, and banner before connecting.", "error");
@@ -7548,7 +7565,7 @@ const App = () => {
           showNotify("User not found", "error");
           return;
         }
-        if (!user.isSystemAdmin) {
+        if (!hasAdminAccess) {
           const viewerGender = (user.gender || '').trim().toLowerCase();
           const partnerGender = (partnerData.gender || '').trim().toLowerCase();
           const compatible =
@@ -7951,10 +7968,10 @@ const App = () => {
       onLogout={handleLogout}
       onNotifications={() => setCurrentView("SETTINGS")}
       onRefresh={refreshCurrentPage}
-      isSystemAdmin={user?.isSystemAdmin === true}
+      isSystemAdmin={hasAdminAccess}
       onAdmin={() => setCurrentView("ADMIN")}
       onChangeView={(v) => {
-        if (user && !user.isSystemAdmin && !isProfileFullyComplete(user) && !profileReminderDeferred && v !== "EDIT_PROFILE") {
+        if (user && !hasAdminAccess && !isProfileFullyComplete(user) && !profileReminderDeferred && v !== "EDIT_PROFILE") {
           setShowIncompleteProfileModal(true);
           return;
         }
@@ -8009,7 +8026,7 @@ const App = () => {
         email={user?.email}
       />
 
-      {currentView === "ADMIN" && user?.isSystemAdmin === true && (
+      {currentView === "ADMIN" && hasAdminAccess && (
         <React.Suspense fallback={<div className="flex h-full items-center justify-center text-brand-blue font-black">Loading Admin…</div>}>
           <AdminDashboard />
         </React.Suspense>
