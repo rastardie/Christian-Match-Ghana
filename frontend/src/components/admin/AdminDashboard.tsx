@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signOut, sendPasswordResetEmail, onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../../firebase';
@@ -64,7 +64,44 @@ const AdminDashboard: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
   const [permissions, setPermissions] = useState<Set<string>>(new Set());
   const [refreshKey, setRefreshKey] = useState(0);
   const [showSignOutDialog, setShowSignOutDialog] = useState(false);
+  const [highlightX, setHighlightX] = useState(50);
+  const mainMenuRef = useRef<HTMLDivElement>(null);
+  const activeButtonRef = useRef<HTMLButtonElement>(null);
+  const submenuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+
+  useLayoutEffect(() => {
+    const updateHighlight = () => {
+      const button = activeButtonRef.current;
+      const submenu = submenuRef.current;
+      if (!button || !submenu) {
+        setHighlightX(50);
+        return;
+      }
+
+      const buttonRect = button.getBoundingClientRect();
+      const submenuRect = submenu.getBoundingClientRect();
+      setHighlightX(buttonRect.left + buttonRect.width / 2 - submenuRect.left);
+    };
+
+    updateHighlight();
+    const frame = window.requestAnimationFrame(updateHighlight);
+    window.addEventListener('resize', updateHighlight);
+
+    const resizeObserver = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(updateHighlight)
+      : null;
+    if (resizeObserver) {
+      if (mainMenuRef.current) resizeObserver.observe(mainMenuRef.current);
+      if (submenuRef.current) resizeObserver.observe(submenuRef.current);
+    }
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener('resize', updateHighlight);
+      resizeObserver?.disconnect();
+    };
+  }, [selectedMenuGroup, activeTab]);
 
   useEffect(() => {
     try {
@@ -189,10 +226,11 @@ const AdminDashboard: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
           </div>
         </div>
           <div className="bg-slate-900 px-3 py-3 sm:px-6">
-            <div className={`cmg-admin-branch-panel mx-auto w-full rounded-2xl border p-1.5 transition-colors ${selectedMenuGroup !== 'dashboard' ? 'border-blue-400/70 bg-blue-500/[0.14] shadow-[0_0_0_2px_rgb(59_130_246_/_0.25),0_0_26px_rgb(59_130_246_/_0.30)]' : 'border-white/15'} bg-white/10`}>
-              <div className="relative z-10 flex flex-wrap justify-center gap-1.5">
+            <div className="cmg-admin-branch-panel mx-auto w-full rounded-2xl border border-white/15 bg-white/10 p-1.5 transition-colors">
+              <div ref={mainMenuRef} className="relative z-10 flex flex-wrap justify-center gap-1.5">
                 <button
                   type="button"
+                  ref={selectedMenuGroup === 'dashboard' ? activeButtonRef : undefined}
                   onClick={selectDashboard}
                   className={`flex min-h-7 w-28 flex-none whitespace-nowrap items-center justify-center gap-1.5 rounded-full border px-2 py-1 text-xs font-black transition ${selectedMenuGroup === 'dashboard' ? 'cmg-admin-menu-top-selected border-blue-400/80 bg-blue-500/30 text-white shadow-[0_0_18px_rgb(59_130_246_/_0.45)]' : 'border-white/25 bg-white/10 text-white/45 hover:border-white/55 hover:bg-white/20 hover:text-white/75'}`}
                 >
@@ -201,6 +239,7 @@ const AdminDashboard: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
                 </button>
                 <button
                   type="button"
+                  ref={selectedMenuGroup === 'reports' ? activeButtonRef : undefined}
                   onClick={() => selectTab('reports')}
                   className={`flex min-h-7 w-28 flex-none whitespace-nowrap items-center justify-center gap-1.5 rounded-full border px-2 py-1 text-xs font-black transition ${selectedMenuGroup === 'reports' ? 'cmg-admin-menu-top-selected border-blue-400/80 bg-blue-500/30 text-white shadow-[0_0_18px_rgb(59_130_246_/_0.45)]' : 'border-white/25 bg-white/10 text-white/45 hover:border-white/55 hover:bg-white/20 hover:text-white/75'}`}
                 >
@@ -214,6 +253,7 @@ const AdminDashboard: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
                     <button
                       key={group.key}
                       type="button"
+                      ref={isSelected ? activeButtonRef : undefined}
                       onClick={() => selectMenuGroup(group.key)}
                       aria-expanded={isSelected}
                       className={`flex min-h-7 w-28 flex-none whitespace-nowrap items-center justify-center gap-1.5 rounded-full border px-2 py-1 text-xs font-black transition ${isSelected ? 'cmg-admin-menu-top-selected border-blue-400/80 bg-blue-500/30 text-white shadow-[0_0_18px_rgb(59_130_246_/_0.45)]' : 'border-white/25 bg-white/10 text-white/45 hover:border-white/55 hover:bg-white/20 hover:text-white/75'}`}
@@ -226,8 +266,12 @@ const AdminDashboard: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
               </div>
 
               {selectedGroup && selectedMenuGroup !== 'dashboard' && (
-                <div className="relative mt-3 border-t border-white/20 pt-3" aria-label={`${selectedGroup.label} options`}>
-                  <div className="rounded-xl border border-blue-400/60 bg-blue-500/[0.16] p-1.5 shadow-[0_0_22px_rgb(59_130_246_/_0.22)]">
+                <div className="relative mt-3 pt-3" aria-label={`${selectedGroup.label} options`}>
+                  <div
+                    ref={submenuRef}
+                    className="submenu-connected"
+                    style={{ '--highlight-x': `${highlightX}px` } as React.CSSProperties}
+                  >
                     <div className="flex w-full flex-wrap justify-start gap-1.5">
                       {selectedGroup.items.map((item) => (
                         <button
