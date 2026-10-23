@@ -1,10 +1,10 @@
 # Christian Match Ghana — Handover and Continuation Guide
 
-**Last updated:** 2026-10-22
+**Last updated:** 2026-10-23
 **Workspace:** `/Users/andrewstardie/Documents/TUTS/TESTS/cm/cmg-rebuilt`
 **Branch:** `sync/cmg-local-2026-10-13`
 **Remote:** `origin` → `https://github.com/rastardie/Christian-Match-Ghana.git`
-**Last pushed commit:** `6c035e1 build: add explicit Firebase staging build`
+**Last pushed commit:** `d68fcb7 feat: complete admin messaging and PWA calls`
 
 ## 1. Current system snapshot
 
@@ -68,7 +68,7 @@ The current feature branch has been pushed successfully:
 ```text
 Branch:  sync/cmg-local-2026-10-13
 Remote:  origin
-HEAD:    6c035e1b05f70f63d536596a93d28440e9b27da
+HEAD:    d68fcb79abc224e9272d76366583f1717b02e851
 ```
 
 Recent commits:
@@ -684,3 +684,157 @@ The remaining npm output is a non-security upstream deprecation notice for `node
 ### Release boundary reminder
 
 No production Firebase deployment, frontend archive release, Git commit, or GitHub push was performed for these local fixes. Production project `christianmatch-app` remains untouched. The generated emulator exports, `frontend/dist.zip`, and temporary build outputs must remain out of Git unless deliberately reviewed and requested.
+
+## 16. Latest release update — 2026-10-23
+
+### GitHub synchronization
+
+The latest intended source/configuration changes were committed and pushed to the feature branch:
+
+```text
+Commit:  d68fcb7 feat: complete admin messaging and PWA calls
+Branch:  sync/cmg-local-2026-10-13
+Remote:  origin/sync/cmg-local-2026-10-13
+```
+
+The commit includes the Admin messaging system, distribution audiences, Admin routing/layout work, popup exit fixes, PWA WebRTC calling, notification services, Firebase rules/indexes, and required frontend assets.
+
+The following local/generated artifacts remain intentionally untracked and were not pushed:
+
+```text
+firebase-export-*/
+frontend/dist.zip
+pubsub-debug.log
+```
+
+No `.env` files, Paystack secret keys, SMTP passwords, Firebase private keys, or deployment credentials were committed.
+
+### Desktop staging archive
+
+The latest staging frontend build was archived at:
+
+```text
+/Users/andrewstardie/Desktop/CMG-staging-dist-20261023-085054.zip
+```
+
+This archive contains the built `frontend/dist` staging artifact. It is not the source repository archive and should not be used as a native Android package.
+
+### Firebase staging deployment
+
+The following project was used:
+
+```text
+Project: christian-match-ghana
+Hosting: https://christian-match-ghana.web.app/
+```
+
+Successfully deployed/verified:
+
+- Firebase Hosting frontend — HTTP 200.
+- Cloud Functions, including Admin message callables, distribution-group callables, Paystack webhook, and notification functions.
+- Offline notification scheduler after a retry of the Cloud Scheduler operation.
+- Firestore indexes, including the incoming-call query index.
+- Firestore security rules, including hardened call and ICE-candidate access.
+
+The Paystack webhook endpoint is:
+
+```text
+https://us-central1-christian-match-ghana.cloudfunctions.net/paystackWebhook
+```
+
+The separate custom URL remains a StormerHost deployment path:
+
+```text
+https://christianmatchghana.com/dev/
+```
+
+Firebase Hosting deployment does not update that StormerHost `/dev` directory. Updating the custom URL requires the separate `deploy-dev.sh` SFTP workflow and its local deployment credentials.
+
+### Admin UI and navigation
+
+Completed Admin changes include:
+
+- Operations → Messages broadcast composer with All users, Selected users, and Saved audience modes.
+- Server-side admin broadcast resolution and audit logging.
+- Reports is now a top-level menu with submenu report types:
+  - Analytics
+  - Users
+  - Moderate
+  - Payments
+- The Reports page no longer uses a report-type dropdown.
+- Operations was shortened to Ops and duplicate Reports labeling was removed.
+- Equal-width Admin top-level and submenu buttons.
+- Admin `/admin` routes hand off into `MainApp`/`Layout` instead of rendering a standalone dashboard.
+- PWA Admin routing is base-path aware.
+- Admin audience, user-management, and payment popups have explicit Close/Cancel paths.
+- Audience editor includes X, Back to Audiences, and Cancel actions.
+- Payment processing includes a Cancel action and payment success includes Close.
+
+### PWA voice/video calls
+
+The PWA now has a dependency-free one-to-one WebRTC media path:
+
+```text
+frontend/src/services/callService.ts
+```
+
+Implemented:
+
+- `RTCPeerConnection` media sessions.
+- Firestore SDP offer/answer signaling.
+- Firestore ICE candidate exchange.
+- Remote audio and video rendering.
+- Local microphone/camera preview.
+- Mute/unmute and camera toggle.
+- Connecting, connected, reconnecting, failed, and ended states.
+- Call expiry metadata and unanswered-call timeout.
+- Call/chat context restoration for incoming calls.
+- Hardened Firestore call and candidate rules.
+- Required incoming-call composite index.
+
+The PWA uses STUN by default for local testing. Production needs a TURN provider configured through `VITE_WEBRTC_ICE_SERVERS`; TURN credentials must be short-lived and must not be hardcoded into source.
+
+Foreground PWA calling is implemented. Background/closed-PWA call notifications and native telephony-style handling remain future work.
+
+### Paystack status
+
+Local and staging templates contain placeholders only. No Paystack test key was found in the online Firebase legacy Functions configuration or in the deployed staging frontend. The deployed production frontend contains a live public key; its value is not recorded in this handover.
+
+Current Paystack configuration requirements:
+
+```text
+Frontend: VITE_PAYSTACK_PUBLIC_KEY=pk_test_...
+Functions: PAYSTACK_SECRET_KEY=sk_test_...
+```
+
+Do not commit either key. The Paystack webhook still requires complete server-side purchase reconciliation/premium activation before production payment use.
+
+### Validation completed
+
+```text
+npm run build:staging                         passed
+node --check backend/functions/src/index.js  passed
+node --check backend/functions/src/rbac.js   passed
+python3 -m json.tool firestore.indexes.json  passed
+bash -n start-cmg-pwa.sh                     passed
+bash -n run-cmg-pwa.sh                       passed
+Firebase Firestore rules compilation         passed
+Firebase Hosting deployment                  passed
+Firebase Functions deployment                passed after scheduler retry
+Firebase Firestore indexes deployment        passed
+Firebase Firestore rules release             passed
+```
+
+### Next local smoke tests
+
+```text
+[ ] Restart/import the local Firebase emulators so the latest rules/indexes are loaded.
+[ ] Run the PWA with run-cmg-pwa.sh.
+[ ] Test Admin Messages, Reports submenus, and every popup Close/Cancel path.
+[ ] Test two authenticated PWA sessions for voice calling.
+[ ] Test two authenticated PWA sessions for video calling.
+[ ] Test microphone/camera denial and recovery.
+[ ] Configure TURN before testing across separate networks.
+[ ] Verify staging Firebase Hosting and Functions behavior with test accounts.
+[ ] Do not deploy the StormerHost /dev path unless separately requested.
+```
