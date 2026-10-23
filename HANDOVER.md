@@ -838,3 +838,37 @@ Firebase Firestore rules release             passed
 [ ] Verify staging Firebase Hosting and Functions behavior with test accounts.
 [ ] Do not deploy the StormerHost /dev path unless separately requested.
 ```
+
+## 17. Firebase Hosting base-path correction — 2026-10-23
+
+The staging frontend configuration uses `VITE_BASE_PATH=/dev/` for the custom StormerHost URL, but Firebase Hosting serves the staging site at the root:
+
+```text
+https://christian-match-ghana.web.app/
+```
+
+The Firebase Hosting release was rebuilt with:
+
+```text
+VITE_BASE_PATH=/
+```
+
+and redeployed successfully to `christian-match-ghana`. The matching Firebase-root build archive is:
+
+```text
+/Users/andrewstardie/Desktop/CMG-firebase-staging-root-20261023-095732.zip
+```
+
+The earlier `/dev` build archive remains intended for the custom host:
+
+```text
+/Users/andrewstardie/Desktop/CMG-staging-dist-20261023-085054.zip
+```
+
+The custom `https://christianmatchghana.com/dev/` frontend was not updated because `.deploy/stormerhost.env` has an empty `CMG_DEPLOY_HOST`. Populate that local value before running:
+
+```bash
+./deploy-dev.sh
+```
+
+Do not copy or commit the StormerHost credentials.
