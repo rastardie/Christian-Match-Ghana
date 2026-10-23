@@ -76,6 +76,7 @@ const AdminDashboard: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
   const [highlightX, setHighlightX] = useState(50);
   const [focusUserId, setFocusUserId] = useState<string | null>(null);
   const [focusGroupId, setFocusGroupId] = useState<string | null>(null);
+  const [focusPermissionGroupId, setFocusPermissionGroupId] = useState<string | null>(null);
   const mainMenuRef = useRef<HTMLDivElement>(null);
   const activeButtonRef = useRef<HTMLButtonElement>(null);
   const submenuRef = useRef<HTMLDivElement>(null);
@@ -150,13 +151,22 @@ const AdminDashboard: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
   const openAdminUser = (userId: string) => {
     setFocusUserId(userId);
     setFocusGroupId(null);
+    setFocusPermissionGroupId(null);
     selectTab('users');
   };
 
   const openDistributionGroup = (groupId: string) => {
     setFocusGroupId(groupId);
     setFocusUserId(null);
+    setFocusPermissionGroupId(null);
     selectTab('message-distribution-groups');
+  };
+
+  const openPermissionGroup = (groupId: string) => {
+    setFocusPermissionGroupId(groupId);
+    setFocusUserId(null);
+    setFocusGroupId(null);
+    selectTab('access-control');
   };
 
   const selectDashboard = () => {
@@ -201,7 +211,7 @@ const AdminDashboard: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
       case 'report-payments':
         return <AdminReportsView key={activeTab} reportKind="payments" />;
       case 'users':
-        return <UsersView focusUserId={focusUserId} onOpenGroup={openDistributionGroup} onOpenMessages={() => selectTab('messages')} />;
+        return <UsersView focusUserId={focusUserId} onOpenGroup={openDistributionGroup} onOpenPermissionGroup={openPermissionGroup} onOpenMessages={() => selectTab('messages')} />;
       case 'connections':
         return <ConnectionsView />;
       case 'payments':
@@ -215,7 +225,7 @@ const AdminDashboard: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
       case 'analytics':
         return <AnalyticsView />;
       case 'access-control':
-        return <AdminAccessControl initialTab="groups" onOpenUser={openAdminUser} />;
+        return <AdminAccessControl initialTab="groups" focusGroupId={focusPermissionGroupId} onOpenUser={openAdminUser} />;
       case 'message-distribution-groups':
         return <DistributionGroupsView focusGroupId={focusGroupId} onOpenUser={openAdminUser} />;
       case 'audit-logs':
@@ -557,11 +567,12 @@ const Overview = () => {
   );
 };
 
-const UsersView = ({ focusUserId, onOpenGroup, onOpenMessages }: { focusUserId?: string | null; onOpenGroup?: (groupId: string) => void; onOpenMessages?: () => void }) => {
+const UsersView = ({ focusUserId, onOpenGroup, onOpenPermissionGroup, onOpenMessages }: { focusUserId?: string | null; onOpenGroup?: (groupId: string) => void; onOpenPermissionGroup?: (groupId: string) => void; onOpenMessages?: () => void }) => {
     const { confirmAdminAction } = useAdminActionConfirmation();
     // Real Data
     const [users, setUsers] = useState<any[]>([]);
     const [distributionMemberships, setDistributionMemberships] = useState<Record<string, Array<{ id: string; name: string }>>>({});
+    const [permissionMemberships, setPermissionMemberships] = useState<Record<string, Array<{ id: string; name: string }>>>({});
     const [expandedUserIds, setExpandedUserIds] = useState<Set<string>>(new Set());
     const [loading, setLoading] = useState(true);
 
@@ -585,11 +596,26 @@ const UsersView = ({ focusUserId, onOpenGroup, onOpenMessages }: { focusUserId?:
                 profileCompletion: 50 // Placeholder logic for completion
             }));
             setUsers(formattedUsers);
+            const userIds = formattedUsers.map((user) => user.firestoreDocId || user.id);
             try {
-                const membershipMap = await getAdminDistributionMemberships(formattedUsers.map((user) => user.firestoreDocId || user.id));
+                const membershipMap = await getAdminDistributionMemberships(userIds);
                 setDistributionMemberships(membershipMap);
             } catch (membershipError) {
                 console.warn('Unable to load distribution memberships:', membershipError);
+            }
+            try {
+                const access = await listAdminAccessControl();
+                const groupNames = new Map(access.groups.map((group) => [group.id, group.name]));
+                const permissionMap: Record<string, Array<{ id: string; name: string }>> = Object.fromEntries(userIds.map((userId) => [userId, []]));
+                access.users.forEach((accessUser) => {
+                    const userId = accessUser.userId;
+                    permissionMap[userId] = (accessUser.groupIds || [])
+                        .map((groupId) => ({ id: groupId, name: groupNames.get(groupId) || groupId }))
+                        .filter((group) => Boolean(group.name));
+                });
+                setPermissionMemberships(permissionMap);
+            } catch (permissionError) {
+                console.warn('Unable to load permission group memberships:', permissionError);
             }
             setLoading(false);
         };
@@ -1097,23 +1123,43 @@ const UsersView = ({ focusUserId, onOpenGroup, onOpenMessages }: { focusUserId?:
                                     )}
                                 </td>
                             </tr>
-                            {expandedUserIds.has(user.id) && (
+                            {expandedUserIds.has(user.id) && (() => {
+                                const userId = user.firestoreDocId || user.id;
+                                const audienceGroups = distributionMemberships[userId] || [];
+                                const permissionGroups = permissionMemberships[userId] || [];
+                                return (
                                 <tr className="border-b border-slate-200 bg-[#f7f9fc]">
                                     <td colSpan={8} className="px-5 py-3">
                                         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2">
                                             <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Groups for {user.name}</span>
-                                            <span className="text-xs font-bold text-slate-500">{(distributionMemberships[user.firestoreDocId || user.id] || []).length} group{(distributionMemberships[user.firestoreDocId || user.id] || []).length === 1 ? '' : 's'}</span>
+                                            <span className="text-xs font-bold text-slate-500">{audienceGroups.length} audience · {permissionGroups.length} permission</span>
                                         </div>
-                                        <div className="mt-2 flex flex-wrap gap-2">
-                                            {(distributionMemberships[user.firestoreDocId || user.id] || []).length === 0 ? (
-                                                <span className="text-xs text-slate-500">No distribution groups assigned.</span>
-                                            ) : (distributionMemberships[user.firestoreDocId || user.id] || []).map((group) => (
-                                                <button key={group.id} type="button" onClick={() => onOpenGroup?.(group.id)} className="rounded-lg border border-orange-100 bg-orange-50 px-3 py-1.5 text-xs font-black text-orange-800 hover:bg-orange-100">{group.name}</button>
-                                            ))}
+                                        <div className="mt-3 grid gap-3 md:grid-cols-2">
+                                            <div>
+                                                <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">Audience groups</p>
+                                                <div className="mt-2 flex flex-wrap gap-2">
+                                                    {audienceGroups.length === 0 ? (
+                                                        <span className="text-xs text-slate-500">No audience groups assigned.</span>
+                                                    ) : audienceGroups.map((group) => (
+                                                        <button key={group.id} type="button" onClick={(event) => { event.stopPropagation(); onOpenGroup?.(group.id); }} className="font-black text-orange-800 underline decoration-orange-200 underline-offset-2 hover:text-brand-orange">{group.name}</button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">Permission groups</p>
+                                                <div className="mt-2 flex flex-wrap gap-2">
+                                                    {permissionGroups.length === 0 ? (
+                                                        <span className="text-xs text-slate-500">No permission group assigned.</span>
+                                                    ) : permissionGroups.map((group) => (
+                                                        <button key={group.id} type="button" onClick={(event) => { event.stopPropagation(); onOpenPermissionGroup?.(group.id); }} className="font-black text-slate-800 underline decoration-orange-200 underline-offset-2 hover:text-brand-orange">{group.name}</button>
+                                                    ))}
+                                                </div>
+                                            </div>
                                         </div>
                                     </td>
                                 </tr>
-                            )}
+                                );
+                            })()}
                             </React.Fragment>
                         ))}
                     </tbody>

@@ -16,7 +16,7 @@ import {
 
 const labelPermission = (permission: string) => permission.replace(/\./g, ' · ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 
-const AdminAccessControl: React.FC<{ initialTab?: 'groups' | 'audit'; onOpenUser?: (userId: string) => void }> = ({ initialTab = 'groups', onOpenUser }) => {
+const AdminAccessControl: React.FC<{ initialTab?: 'groups' | 'audit'; focusGroupId?: string | null; onOpenUser?: (userId: string) => void }> = ({ initialTab = 'groups', focusGroupId, onOpenUser }) => {
   const { confirmAdminAction } = useAdminActionConfirmation();
   const [tab, setTab] = useState<'groups' | 'audit'>(initialTab);
   const [groups, setGroups] = useState<AdminGroup[]>([]);
@@ -79,6 +79,17 @@ const AdminAccessControl: React.FC<{ initialTab?: 'groups' | 'audit'; onOpenUser
   };
 
   useEffect(() => { void loadAccess(); }, []);
+
+  useEffect(() => {
+    if (!focusGroupId || !groups.length) return;
+    const focusedGroup = groups.find((group) => group.id === focusGroupId);
+    if (!focusedGroup) return;
+    setSelectedGroup(focusedGroup);
+    setSelectedGroupIds(new Set([focusedGroup.id]));
+    setExpandedGroupIds((current) => new Set([...current, focusedGroup.id]));
+    setManageGroupsPageOpen(true);
+    window.setTimeout(() => document.getElementById(`admin-permission-group-${focusedGroup.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0);
+  }, [focusGroupId, groups]);
 
   useEffect(() => {
     const current = accessUsers.find((item) => item.userId === selectedUserId);
@@ -298,6 +309,7 @@ const AdminAccessControl: React.FC<{ initialTab?: 'groups' | 'audit'; onOpenUser
                     return (
                       <React.Fragment key={group.id}>
                         <tr
+                          id={`admin-permission-group-${group.id}`}
                           onClick={() => { setSelectedGroup(group); setEditingGroup(false); toggleGroupExpanded(group.id); }}
                           className="h-9 cursor-pointer border-b border-slate-200 text-xs text-slate-700 transition hover:bg-slate-50"
                         >
