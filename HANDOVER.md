@@ -872,3 +872,48 @@ The custom `https://christianmatchghana.com/dev/` frontend was not updated becau
 ```
 
 Do not copy or commit the StormerHost credentials.
+
+## 18. Production rollback and corrected release flow — 2026-10-23
+
+The deployment boundary was corrected after confirming that the following Firebase Hosting URL is production:
+
+```text
+https://christian-match-ghana.web.app/
+```
+
+The development testing URL is the separate custom host:
+
+```text
+https://christianmatchghana.com/dev/
+```
+
+The accidental production release was rolled back:
+
+- Firebase Hosting restored from the pre-release local `frontend/dist.zip` artifact.
+- Functions introduced by the accidental release were deleted:
+  - `adminCreateDistributionGroup`
+  - `adminDeleteDistributionGroup`
+  - `adminGetDistributionMemberships`
+  - `adminListDistributionGroups`
+  - `adminPreviewDistributionGroup`
+  - `adminSendMessage`
+  - `adminUpdateDistributionGroup`
+  - `processOfflineMessageNotificationBatches`
+  - `syncDefaultMessageAudienceMembership`
+- Pre-release Functions were redeployed from source revision `6c035e1`.
+- Pre-release Firestore rules were restored.
+- Accidental Firestore indexes were removed with the pre-release index definition.
+
+The current release flow is now:
+
+```text
+Local source/emulators/PWA
+        ↓
+christianmatchghana.com/dev/  (development testing)
+        ↓ explicit approval
+christian-match-ghana.web.app/ (production)
+```
+
+Do not deploy a `/dev/`-base frontend build to the production Firebase root. Do not deploy to production while testing Admin, Payments, Notifications, or WebRTC calling.
+
+The custom development deploy remains blocked until `.deploy/stormerhost.env` has a non-empty `CMG_DEPLOY_HOST`. The value must be configured locally and must never be committed.
