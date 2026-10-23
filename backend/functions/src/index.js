@@ -1192,8 +1192,98 @@ async function syncAllExistingUsersToDefaultGroups() {
   for (let index = 0; index < users.length; index += 100) {
     await Promise.all(users.slice(index, index + 100).map((userDoc) => syncDefaultMembershipForUser(userDoc.id, userDoc.data() || {})));
   }
+  return users.length;
 }
 
+// Membership documents are a server-maintained index. Keep them synchronized
+// for every profile creation/update, regardless of whether the profile was
+// created by signup, an admin, or a retry after authentication.
+const AUDIENCE_MEMBERSHIP_FIELDS = [
+  'gender',
+  'country',
+  'location',
+  'city',
+  'isBlocked',
+  'status',
+];
+
+function audienceMembershipFieldsChanged(beforeData = {}, afterData = {}) {
+  return AUDIENCE_MEMBERSHIP_FIELDS.some((field) => !Object.is(beforeData[field], afterData[field]));
+}
+
+async function syncCurrentDefaultMembershipForUser(userId) {
+  const userRef = db.collection('users').doc(userId);
+  await db.runTransaction(async (transaction) => {
+    const userSnapshot = await transaction.get(userRef);
+    const userData = userSnapshot.exists ? userSnapshot.data() || {} : null;
+    const now = Timestamp.now();
+
+    for (const group of DEFAULT_DISTRIBUTION_GROUPS) {
+      const memberRef = db
+        .collection(DISTRIBUTION_GROUPS_COLLECTION)
+        .doc(group.id)
+        .collection('members')
+        .doc(userId);
+
+      if (userData && matchesDistributionCriteria(userData, group.criteria, userId)) {
+        transaction.set(memberRef, {
+          userId,
+          groupId: group.id,
+          source: 'default-criteria',
+          updatedAt: now,
+        }, { merge: true });
+      } else {
+        transaction.delete(memberRef);
+      }
+    }
+  });
+}
+
+async function deleteDefaultMembershipsForUser(userId) {
+  const batch = db.batch();
+  for (const group of DEFAULT_DISTRIBUTION_GROUPS) {
+    batch.delete(
+      db.collection(DISTRIBUTION_GROUPS_COLLECTION)
+        .doc(group.id)
+        .collection('members')
+        .doc(userId)
+    );
+  }
+  await batch.commit();
+}
+
+exports.syncUserDistributionMemberships = functions.firestore
+  .document('users/{userId}')
+  .onWrite(async (change, context) => {
+    const userId = context.params.userId;
+    const currentUserSnapshot = await db.collection('users').doc(userId).get();
+
+    // Always use the current profile, not the event payload. Firestore may
+    // deliver create/update/delete events close together; this prevents an
+    // older event from recreating memberships after the profile was deleted.
+    if (!currentUserSnapshot.exists) {
+      await deleteDefaultMembershipsForUser(userId);
+      return null;
+    }
+
+    if (change.before.exists && !audienceMembershipFieldsChanged(change.before.data() || {}, change.after.data() || {})) {
+      return null;
+    }
+
+    await ensureDefaultDistributionGroups();
+    await syncCurrentDefaultMembershipForUser(userId);
+    return null;
+  });
+
+// Keep deletion cleanup as a dedicated trigger as well. This is intentionally
+// separate from onWrite so a delete is always handled even if a burst of
+// profile events is delivered in a different order.
+exports.cleanupDeletedUserDistributionMemberships = functions.firestore
+  .document('users/{userId}')
+  .onDelete(async (snapshot, context) => {
+    await deleteDefaultMembershipsForUser(context.params.userId);
+    return null;
+  });
 
 
 function normalizeCriteriaList(value, max = 20) {
