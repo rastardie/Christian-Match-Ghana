@@ -32,3 +32,5 @@ UID=$(curl -s -X POST \
   "http://$HOST/identitytoolkit.googleapis.com/v1/accounts:delete?key=fake" \
   -H 'Content-Type: application/json' \
   -d "{\"localId\":\"$UID\"}" && echo "deleted $EMAIL ($UID)" || echo "no such local user"
+
+

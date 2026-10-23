@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
 # One-shot CMG PWA launcher.
-# Kills any previously running CMG Vite dev/preview servers (so stuck ports are
-# freed), then starts the local PWA in Chrome via start-cmg-pwa.sh.
+# Kills any previously running CMG Vite dev/preview servers, then starts the
+# local PWA in a standalone Chrome app window.
 # The Firebase emulators must already be running (use start-cmg-emulators.sh).
 #
 set -euo pipefail

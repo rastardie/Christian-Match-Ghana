@@ -1,4 +1,5 @@
-import { db } from '../firebase';
+import { db, functions } from '../firebase';
+import { httpsCallable } from 'firebase/functions';
 import { doc, setDoc, getDoc, updateDoc, deleteDoc, serverTimestamp, collection, getDocs, query, where } from 'firebase/firestore';
 import { User } from '../types';
 
@@ -250,9 +251,6 @@ export async function getAllUsers(currentUserId?: string, blockedUserIds: string
  */
 export async function deleteUserAccountAndData(): Promise<boolean> {
   try {
-    const { functions } = await import('../firebase');
-    const { httpsCallable } = await import('firebase/functions');
-    
     const deleteMyAccount = httpsCallable(functions, 'deleteMyAccount');
     await deleteMyAccount();
     console.log('✅ Successfully deleted user account and data via Cloud Function');
@@ -268,9 +266,6 @@ export async function deleteUserAccountAndData(): Promise<boolean> {
  */
 export async function checkSignupEligibility(email: string): Promise<{allowed: boolean; reason?: string}> {
   try {
-    const { functions } = await import('../firebase');
-    const { httpsCallable } = await import('firebase/functions');
-    
     const checkEligibility = httpsCallable(functions, 'checkSignupEligibility');
     const result = await checkEligibility({ email });
     return result.data as {allowed: boolean; reason?: string};
@@ -287,9 +282,6 @@ export async function checkSignupEligibility(email: string): Promise<{allowed: b
  */
 export async function claimFreePromo(): Promise<{ granted: boolean; reason?: string; eligibility?: string; promoEndsOn?: string }> {
   try {
-    const { functions } = await import('../firebase');
-    const { httpsCallable } = await import('firebase/functions');
-
     const claim = httpsCallable(functions, 'sendUnverifiedVerificationReminders');
     const result = await claim({ action: 'claimFreePromo' });
     return result.data as { granted: boolean; reason?: string; eligibility?: string; promoEndsOn?: string };

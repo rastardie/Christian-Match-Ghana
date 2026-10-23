@@ -449,53 +449,53 @@ body {
 
 .cmg-theme-sunrise {
   background-image:
-    url("../brand-reference/wallpapers/cmg-bg-sunrise-top.png"),
-    url("../brand-reference/wallpapers/cmg-bg-sunrise-bottom.png");
+    url("./assets/brand-reference/wallpapers/cmg-bg-sunrise-top.png"),
+    url("./assets/brand-reference/wallpapers/cmg-bg-sunrise-bottom.png");
 }
 .cmg-theme-heart {
   background-image:
-    url("../brand-reference/wallpapers/cmg-bg-heart-top.png"),
-    url("../brand-reference/wallpapers/cmg-bg-heart-bottom.png");
+    url("./assets/brand-reference/wallpapers/cmg-bg-heart-top.png"),
+    url("./assets/brand-reference/wallpapers/cmg-bg-heart-bottom.png");
 }
 .cmg-theme-cross {
   background-image:
-    url("../brand-reference/wallpapers/cmg-bg-cross-top.png"),
-    url("../brand-reference/wallpapers/cmg-bg-cross-bottom.png");
+    url("./assets/brand-reference/wallpapers/cmg-bg-cross-top.png"),
+    url("./assets/brand-reference/wallpapers/cmg-bg-cross-bottom.png");
 }
 .cmg-theme-dove {
   background-image:
-    url("../brand-reference/wallpapers/cmg-bg-dove-top.png"),
-    url("../brand-reference/wallpapers/cmg-bg-dove-bottom.png");
+    url("./assets/brand-reference/wallpapers/cmg-bg-dove-top.png"),
+    url("./assets/brand-reference/wallpapers/cmg-bg-dove-bottom.png");
 }
 .cmg-theme-globe {
   background-image:
-    url("../brand-reference/wallpapers/cmg-bg-globe-top.png"),
-    url("../brand-reference/wallpapers/cmg-bg-globe-bottom.png");
+    url("./assets/brand-reference/wallpapers/cmg-bg-globe-top.png"),
+    url("./assets/brand-reference/wallpapers/cmg-bg-globe-bottom.png");
 }
 .cmg-theme-leaf {
   background-image:
-    url("../brand-reference/wallpapers/cmg-bg-leaf-top.png"),
-    url("../brand-reference/wallpapers/cmg-bg-leaf-bottom.png");
+    url("./assets/brand-reference/wallpapers/cmg-bg-leaf-top.png"),
+    url("./assets/brand-reference/wallpapers/cmg-bg-leaf-bottom.png");
 }
 .cmg-theme-waves {
   background-image:
-    url("../brand-reference/wallpapers/cmg-bg-waves-top.png"),
-    url("../brand-reference/wallpapers/cmg-bg-waves-bottom.png");
+    url("./assets/brand-reference/wallpapers/cmg-bg-waves-top.png"),
+    url("./assets/brand-reference/wallpapers/cmg-bg-waves-bottom.png");
 }
 .cmg-theme-community {
   background-image:
-    url("../brand-reference/wallpapers/cmg-bg-community-top.png"),
-    url("../brand-reference/wallpapers/cmg-bg-community-bottom.png");
+    url("./assets/brand-reference/wallpapers/cmg-bg-community-top.png"),
+    url("./assets/brand-reference/wallpapers/cmg-bg-community-bottom.png");
 }
 .cmg-theme-city {
   background-image:
-    url("../brand-reference/wallpapers/cmg-bg-city-top.png"),
-    url("../brand-reference/wallpapers/cmg-bg-city-bottom.png");
+    url("./assets/brand-reference/wallpapers/cmg-bg-city-top.png"),
+    url("./assets/brand-reference/wallpapers/cmg-bg-city-bottom.png");
 }
 .cmg-theme-rings {
   background-image:
-    url("../brand-reference/wallpapers/cmg-bg-rings-top.png"),
-    url("../brand-reference/wallpapers/cmg-bg-rings-bottom.png");
+    url("./assets/brand-reference/wallpapers/cmg-bg-rings-top.png"),
+    url("./assets/brand-reference/wallpapers/cmg-bg-rings-bottom.png");
 }
 
 /* App views carry a bottom navigation bar, so only the top swoosh accent is
@@ -515,35 +515,35 @@ body {
   background-color: #fffaf1;
 }
 .cmg-view-surface[data-view="BROWSE"] {
-  background-image: url("../brand-reference/wallpapers/cmg-bg-community-top.png");
+  background-image: url("./assets/brand-reference/wallpapers/cmg-bg-community-top.png");
 }
 .cmg-view-surface[data-view="FRIENDS"] {
-  background-image: url("../brand-reference/wallpapers/cmg-bg-heart-top.png");
+  background-image: url("./assets/brand-reference/wallpapers/cmg-bg-heart-top.png");
 }
 .cmg-view-surface[data-view="CHAT"] {
-  background-image: url("../brand-reference/wallpapers/cmg-bg-waves-top.png");
+  background-image: url("./assets/brand-reference/wallpapers/cmg-bg-waves-top.png");
 }
 .cmg-view-surface[data-view="PROFILE"] {
-  background-image: url("../brand-reference/wallpapers/cmg-bg-rings-top.png");
+  background-image: url("./assets/brand-reference/wallpapers/cmg-bg-rings-top.png");
 }
 .cmg-view-surface[data-view="COMMUNITY"] {
-  background-image: url("../brand-reference/wallpapers/cmg-bg-cross-top.png");
+  background-image: url("./assets/brand-reference/wallpapers/cmg-bg-cross-top.png");
 }
 .cmg-view-surface[data-view="EDIT_PROFILE"] {
-  background-image: url("../brand-reference/wallpapers/cmg-bg-leaf-top.png");
+  background-image: url("./assets/brand-reference/wallpapers/cmg-bg-leaf-top.png");
 }
 
 /* Bottom ribbon + heart overlay for the Edit Profile screen. It sits above the
    scrolling form (foreground) so the form content scrolls beneath it. */
 .cmg-edit-bottom-ribbon {
   height: 12rem;
-  background: url("../brand-reference/wallpapers/cmg-bg-leaf-bottom.png") no-repeat bottom center / 100% auto;
+  background: url("./assets/brand-reference/wallpapers/cmg-bg-leaf-bottom.png") no-repeat bottom center / 100% auto;
 }
 
 /* Profile base ribbon overlay — reduced height so it reads above the bottom nav. */
 .cmg-profile-bottom-ribbon {
   height: 8rem;
-  background: url("../brand-reference/wallpapers/cmg-bg-rings-bottom.png") no-repeat bottom center / 100% auto;
+  background: url("./assets/brand-reference/wallpapers/cmg-bg-rings-bottom.png") no-repeat bottom center / 100% auto;
 }
 
 /* Shared base ribbon overlay for the other nav views (above the bottom nav). */
@@ -554,19 +554,19 @@ body {
   background-size: 100% auto;
 }
 .cmg-nav-bottom-ribbon[data-view="BROWSE"] {
-  background-image: url("../brand-reference/wallpapers/cmg-bg-community-bottom.png");
+  background-image: url("./assets/brand-reference/wallpapers/cmg-bg-community-bottom.png");
 }
 .cmg-nav-bottom-ribbon[data-view="FRIENDS"] {
-  background-image: url("../brand-reference/wallpapers/cmg-bg-heart-bottom.png");
+  background-image: url("./assets/brand-reference/wallpapers/cmg-bg-heart-bottom.png");
 }
 .cmg-nav-bottom-ribbon[data-view="CHAT"] {
-  background-image: url("../brand-reference/wallpapers/cmg-bg-waves-bottom.png");
+  background-image: url("./assets/brand-reference/wallpapers/cmg-bg-waves-bottom.png");
 }
 .cmg-nav-bottom-ribbon[data-view="COMMUNITY"] {
-  background-image: url("../brand-reference/wallpapers/cmg-bg-cross-bottom.png");
+  background-image: url("./assets/brand-reference/wallpapers/cmg-bg-cross-bottom.png");
 }
 .cmg-nav-bottom-ribbon[data-view="PROFILE"] {
-  background-image: url("../brand-reference/wallpapers/cmg-bg-rings-bottom.png");
+  background-image: url("./assets/brand-reference/wallpapers/cmg-bg-rings-bottom.png");
 }
 
 .cmg-auth-card::before,
@@ -723,25 +723,25 @@ body {
 /* Onboard-inspired landing typography, translated to CMG's existing palette. */
 @font-face {
   font-family: "CMG Roboto";
-  src: url("../fonts/Roboto-Regular.ttf") format("truetype");
+  src: url("./assets/fonts/Roboto-Regular.ttf") format("truetype");
   font-weight: 400;
   font-display: swap;
 }
 @font-face {
   font-family: "CMG Roboto";
-  src: url("../fonts/Roboto-Medium.ttf") format("truetype");
+  src: url("./assets/fonts/Roboto-Medium.ttf") format("truetype");
   font-weight: 500;
   font-display: swap;
 }
 @font-face {
   font-family: "CMG Roboto";
-  src: url("../fonts/Roboto-Bold.ttf") format("truetype");
+  src: url("./assets/fonts/Roboto-Bold.ttf") format("truetype");
   font-weight: 700;
   font-display: swap;
 }
 @font-face {
   font-family: "CMG Roboto";
-  src: url("../fonts/Roboto-Black.ttf") format("truetype");
+  src: url("./assets/fonts/Roboto-Black.ttf") format("truetype");
   font-weight: 900;
   font-display: swap;
 }
@@ -1282,7 +1282,7 @@ textarea::placeholder {
   height: 10rem;
   z-index: 0;
   pointer-events: none;
-  background: url("../brand-reference/wallpapers/cmg-bg-leaf-top.png") no-repeat top center / 100% auto;
+  background: url("./assets/brand-reference/wallpapers/cmg-bg-leaf-top.png") no-repeat top center / 100% auto;
 }
 
 .cmg-edit-profile-header,
@@ -1454,11 +1454,11 @@ textarea::placeholder {
 }
 
 .cmg-scroll-ribbon--sunrise {
-  background-image: url("../brand-reference/wallpapers/cmg-bg-sunrise-bottom.png");
+  background-image: url("./assets/brand-reference/wallpapers/cmg-bg-sunrise-bottom.png");
 }
 
 .cmg-scroll-ribbon--leaf {
-  background-image: url("../brand-reference/wallpapers/cmg-bg-leaf-bottom.png");
+  background-image: url("./assets/brand-reference/wallpapers/cmg-bg-leaf-bottom.png");
 }
 
 .cmg-scroll-ribbon.is-scrolling,
@@ -1488,11 +1488,11 @@ textarea::placeholder {
 }
 
 .cmg-scroll-top-ribbon--sunrise {
-  background-image: url("../brand-reference/wallpapers/cmg-bg-sunrise-top.png");
+  background-image: url("./assets/brand-reference/wallpapers/cmg-bg-sunrise-top.png");
 }
 
 .cmg-scroll-top-ribbon--leaf {
-  background-image: url("../brand-reference/wallpapers/cmg-bg-leaf-top.png");
+  background-image: url("./assets/brand-reference/wallpapers/cmg-bg-leaf-top.png");
 }
 
 .cmg-auth-panel.is-ribbon-scrolling .cmg-scroll-top-ribbon,
@@ -1527,19 +1527,19 @@ textarea::placeholder {
 }
 
 .cmg-app-frame[data-view="BROWSE"] {
-  background-image: url("../brand-reference/wallpapers/cmg-bg-community-top.png") !important;
+  background-image: url("./assets/brand-reference/wallpapers/cmg-bg-community-top.png") !important;
 }
 .cmg-app-frame[data-view="FRIENDS"] {
-  background-image: url("../brand-reference/wallpapers/cmg-bg-heart-top.png") !important;
+  background-image: url("./assets/brand-reference/wallpapers/cmg-bg-heart-top.png") !important;
 }
 .cmg-app-frame[data-view="CHAT"] {
-  background-image: url("../brand-reference/wallpapers/cmg-bg-waves-top.png") !important;
+  background-image: url("./assets/brand-reference/wallpapers/cmg-bg-waves-top.png") !important;
 }
 .cmg-app-frame[data-view="COMMUNITY"] {
-  background-image: url("../brand-reference/wallpapers/cmg-bg-cross-top.png") !important;
+  background-image: url("./assets/brand-reference/wallpapers/cmg-bg-cross-top.png") !important;
 }
 .cmg-app-frame[data-view="PROFILE"] {
-  background-image: url("../brand-reference/wallpapers/cmg-bg-rings-top.png") !important;
+  background-image: url("./assets/brand-reference/wallpapers/cmg-bg-rings-top.png") !important;
 }
 
 .cmg-nav-bottom-ribbon,
@@ -1587,7 +1587,7 @@ textarea::placeholder {
   height: 10rem;
   z-index: 0;
   pointer-events: none;
-  background: url("../brand-reference/wallpapers/cmg-bg-leaf-top.png") no-repeat top center / 100% auto;
+  background: url("./assets/brand-reference/wallpapers/cmg-bg-leaf-top.png") no-repeat top center / 100% auto;
   opacity: 1;
   transform: translateY(0);
   transition: transform 350ms ease, opacity 350ms ease;
@@ -1602,7 +1602,7 @@ textarea::placeholder {
   height: 11rem;
   z-index: 0;
   pointer-events: none;
-  background: url("../brand-reference/wallpapers/cmg-bg-leaf-bottom.png") no-repeat bottom center / 100% auto;
+  background: url("./assets/brand-reference/wallpapers/cmg-bg-leaf-bottom.png") no-repeat bottom center / 100% auto;
   opacity: 1;
   transform: translateY(0);
   transition: transform 350ms ease, opacity 350ms ease;
@@ -1708,7 +1708,7 @@ textarea::placeholder {
   height: var(--cmg-shared-top-ribbon-height, 10rem);
   z-index: 0;
   pointer-events: none;
-  background: url("../brand-reference/wallpapers/cmg-bg-leaf-top.png") no-repeat top center / 100% 100%;
+  background: url("./assets/brand-reference/wallpapers/cmg-bg-leaf-top.png") no-repeat top center / 100% 100%;
 }
 
 .cmg-auth-login-panel::after {
@@ -1720,7 +1720,7 @@ textarea::placeholder {
   height: var(--cmg-shared-bottom-ribbon-height, 11rem);
   z-index: 0;
   pointer-events: none;
-  background: url("../brand-reference/wallpapers/cmg-bg-leaf-bottom.png") no-repeat bottom center / 100% 100%;
+  background: url("./assets/brand-reference/wallpapers/cmg-bg-leaf-bottom.png") no-repeat bottom center / 100% 100%;
 }
 
 /* SINGLE SOURCE OF TRUTH: Login, Signup, and Edit Profile all render the same
@@ -1735,7 +1735,7 @@ textarea::placeholder {
   height: var(--cmg-shared-top-ribbon-height, 10rem);
   z-index: 0;
   pointer-events: none;
-  background: url("../brand-reference/wallpapers/cmg-bg-leaf-top.png") no-repeat top center / 100% 100%;
+  background: url("./assets/brand-reference/wallpapers/cmg-bg-leaf-top.png") no-repeat top center / 100% 100%;
   opacity: 1;
   transform: translateY(0);
   transition: transform 350ms ease, opacity 350ms ease;
@@ -1752,7 +1752,7 @@ textarea::placeholder {
   height: var(--cmg-shared-bottom-ribbon-height, 11rem);
   z-index: 0;
   pointer-events: none;
-  background: url("../brand-reference/wallpapers/cmg-bg-leaf-bottom.png") no-repeat bottom center / 100% 100%;
+  background: url("./assets/brand-reference/wallpapers/cmg-bg-leaf-bottom.png") no-repeat bottom center / 100% 100%;
   opacity: 1;
   transform: translateY(0);
   transition: transform 350ms ease, opacity 350ms ease;
@@ -1802,13 +1802,13 @@ textarea::placeholder {
 .cmg-benchmark-ribbon-top {
   top: 0;
   height: 10rem;
-  background: url("../brand-reference/wallpapers/cmg-bg-leaf-top.png") no-repeat top center / 100% auto;
+  background: url("./assets/brand-reference/wallpapers/cmg-bg-leaf-top.png") no-repeat top center / 100% auto;
 }
 
 .cmg-benchmark-ribbon-bottom {
   bottom: 0;
   height: 11rem;
-  background: url("../brand-reference/wallpapers/cmg-bg-leaf-bottom.png") no-repeat bottom center / 100% auto;
+  background: url("./assets/brand-reference/wallpapers/cmg-bg-leaf-bottom.png") no-repeat bottom center / 100% auto;
 }
 
 .cmg-auth-card:has(.cmg-auth-panel.is-ribbon-scrolling) .cmg-benchmark-ribbon-top,
@@ -1865,19 +1865,19 @@ textarea::placeholder {
 }
 
 .cmg-app-frame[data-view="BROWSE"]::before {
-  background-image: url("../brand-reference/wallpapers/cmg-bg-community-top.png");
+  background-image: url("./assets/brand-reference/wallpapers/cmg-bg-community-top.png");
 }
 .cmg-app-frame[data-view="FRIENDS"]::before {
-  background-image: url("../brand-reference/wallpapers/cmg-bg-heart-top.png");
+  background-image: url("./assets/brand-reference/wallpapers/cmg-bg-heart-top.png");
 }
 .cmg-app-frame[data-view="CHAT"]::before {
-  background-image: url("../brand-reference/wallpapers/cmg-bg-waves-top.png");
+  background-image: url("./assets/brand-reference/wallpapers/cmg-bg-waves-top.png");
 }
 .cmg-app-frame[data-view="COMMUNITY"]::before {
-  background-image: url("../brand-reference/wallpapers/cmg-bg-cross-top.png");
+  background-image: url("./assets/brand-reference/wallpapers/cmg-bg-cross-top.png");
 }
 .cmg-app-frame[data-view="PROFILE"]::before {
-  background-image: url("../brand-reference/wallpapers/cmg-bg-rings-top.png");
+  background-image: url("./assets/brand-reference/wallpapers/cmg-bg-rings-top.png");
 }
 
 .cmg-nav-bottom-ribbon,
@@ -2076,7 +2076,7 @@ textarea::placeholder {
   position: absolute;
   inset: 0 0 auto 0;
   height: var(--cmg-shared-top-ribbon-height);
-  background: url("../brand-reference/wallpapers/cmg-bg-community-top.png") no-repeat top center / 100% 100%;
+  background: url("./assets/brand-reference/wallpapers/cmg-bg-community-top.png") no-repeat top center / 100% 100%;
   opacity: 0.2;
   pointer-events: none;
   z-index: 0;
@@ -2085,7 +2085,7 @@ textarea::placeholder {
 
 .cmg-nav-bottom-ribbon[data-view="ADMIN"] {
   display: block !important;
-  background: url("../brand-reference/wallpapers/cmg-bg-community-bottom.png") no-repeat bottom center / 100% auto;
+  background: url("./assets/brand-reference/wallpapers/cmg-bg-community-bottom.png") no-repeat bottom center / 100% auto;
   opacity: 0.3 !important;
 }
 
@@ -2123,7 +2123,7 @@ textarea::placeholder {
   position: absolute;
   inset: 0 0 auto 0;
   height: var(--cmg-shared-top-ribbon-height);
-  background: url("../brand-reference/wallpapers/cmg-bg-community-top.png") no-repeat top left / 100% auto;
+  background: url("./assets/brand-reference/wallpapers/cmg-bg-community-top.png") no-repeat top left / 100% auto;
   opacity: 0.3;
   pointer-events: none;
   z-index: 0;
@@ -2205,4 +2205,83 @@ textarea::placeholder {
   .submenu-connected::after {
     transition: none;
   }
+}
+
+/* Subtle column separators aligned with the admin table header dividers. */
+.cmg-admin-compact-table tbody td + td {
+  border-left: 1px solid rgba(234, 88, 12, 0.16);
+}
+
+.cmg-admin-compact-table tbody tr:hover td + td {
+  border-left-color: rgba(234, 88, 12, 0.28);
+}
+
+/* Shared geometry for Users, Permissions, and Audiences tables. */
+.cmg-admin-compact-table thead tr {
+  height: 42px;
+}
+
+.cmg-admin-compact-table tbody tr {
+  height: 34px;
+}
+
+.cmg-admin-compact-table tbody td {
+  height: 34px;
+  box-sizing: border-box;
+}
+
+/* Prevent cell content, especially Users action buttons, from forcing taller rows. */
+.cmg-admin-compact-table tbody > tr > td:not([colspan]) {
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+}
+
+.cmg-admin-compact-table tbody > tr > td:not([colspan]) > button {
+  padding: 4px !important;
+}
+
+/* Keep every compact admin table cell left-aligned and vertically centered. */
+.cmg-admin-compact-table th,
+.cmg-admin-compact-table td {
+  text-align: left !important;
+  vertical-align: middle !important;
+}
+
+.cmg-admin-compact-table tbody td > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+/* Center checkbox, row number, and expand arrow as one left-aligned unit. */
+.cmg-admin-row-leading {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.cmg-admin-row-leading input,
+.cmg-admin-compact-table thead th > input {
+  margin: 0;
+  vertical-align: middle;
+}
+
+/* Compact table first-column spacing and 10% larger headings. */
+.cmg-admin-compact-table thead th {
+  font-size: 11px !important;
+}
+
+.cmg-admin-compact-table thead th:first-child > input {
+  margin-right: 8px !important;
+}
+.cmg-app-frame[data-view="ADMIN"] .cmg-admin-content-button {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.cmg-app-frame[data-view="ADMIN"] .cmg-admin-content-button > * {
+  min-width: 0;
 }

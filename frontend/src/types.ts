@@ -108,6 +108,7 @@ export interface User {
   // System Metadata
   phone?: string;
   smsNotificationsEnabled?: boolean;
+  whatsappNotificationsEnabled?: boolean;
   notificationPreferences?: NotificationPreferences;
   createdAt?: any;
   updatedAt?: any;
@@ -122,6 +123,7 @@ export interface NotificationPreferences {
   push: boolean;
   email: boolean;
   sms: boolean;
+  whatsapp: boolean;
   newChatMessages: boolean;
   connectionRequests: boolean;
   verificationReminders: boolean;
@@ -133,6 +135,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   push: true,
   email: true,
   sms: false,
+  whatsapp: false,
   newChatMessages: true,
   connectionRequests: true,
   verificationReminders: true,

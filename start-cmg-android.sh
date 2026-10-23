@@ -53,6 +53,15 @@ if [[ -z "$ANDROID_DEVICE" ]]; then
 fi
 
 cd "$FRONTEND_DIR"
+
+# Use the project-declared Node 22 runtime when Homebrew provides it.
+for node_bin in /opt/homebrew/opt/node@22/bin /usr/local/opt/node@22/bin; do
+  if [[ -x "$node_bin/node" ]]; then
+    export PATH="$node_bin:$PATH"
+    break
+  fi
+done
+
 printf '%s\n' 'Installing frontend dependencies…'
 npm ci
 

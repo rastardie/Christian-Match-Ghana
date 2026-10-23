@@ -49,6 +49,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Distribution-group definitions are server-owned. Admin clients use
+    // callable functions so criteria validation and audit logging cannot be bypassed.
+    match /adminDistributionGroups/{groupId} {
+      allow read, write: if false;
+    }
+
     match /adminAuditLogs/{logId} {
       allow read: if hasAdminPermission('audit.view');
       allow write: if false;
@@ -96,8 +102,34 @@ service cloud.firestore {
     // ============================================
     // MESSAGES COLLECTION
     // ============================================
+    function isChatParticipant(chatId) {
+      return isSignedIn() && (
+        isAdmin() || (
+          exists(/databases/$(database)/documents/chats/$(chatId)) &&
+          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants
+        )
+      );
+    }
+
     match /messages/{messageId} {
-      allow read, write: if isSignedIn(); // Simplified for now to ensure delivery
+      // A message can only be read by a participant in its chat.
+      allow read: if isChatParticipant(resource.data.chatId);
+
+      // The sender must be the authenticated Firebase user and must belong to
+      // the chat. This prevents a stale profile/session from writing messages
+      // under the wrong identity or into an unrelated conversation.
+      allow create: if isChatParticipant(request.resource.data.chatId) &&
+        request.resource.data.senderId == request.auth.uid;
+
+      // Message content and ownership are immutable. Participants may only
+      // update delivery/read state and reactions.
+      allow update: if isChatParticipant(resource.data.chatId) &&
+        request.resource.data.chatId == resource.data.chatId &&
+        request.resource.data.senderId == resource.data.senderId &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reactions']);
+
+      allow delete: if isChatParticipant(resource.data.chatId) &&
+        resource.data.senderId == request.auth.uid;
     }
     
     // ============================================
@@ -133,28 +165,48 @@ service cloud.firestore {
     // ============================================
     // CALLS COLLECTION
     // ============================================
+    function isCallParticipant(callId) {
+      return isSignedIn() && exists(/databases/$(database)/documents/calls/$(callId)) && (
+        request.auth.uid == get(/databases/$(database)/documents/calls/$(callId)).data.callerId ||
+        request.auth.uid == get(/databases/$(database)/documents/calls/$(callId)).data.receiverId
+      );
+    }
+
+    function validCallStatus(status) {
+      return status in ['ringing', 'accepted', 'connecting', 'connected', 'rejected', 'missed', 'ended', 'failed', 'expired'];
+    }
+
     match /calls/{callId} {
-      // Users can read calls where they are caller or receiver
-      allow read: if isSignedIn() && (
-        request.auth.uid == resource.data.callerId ||
-        request.auth.uid == resource.data.receiverId
-      );
-      
-      // Users can create calls where they are the caller
-      allow create: if isSignedIn() && 
-                       request.auth.uid == request.resource.data.callerId;
-      
-      // Users can update calls they are part of (to answer, end, etc)
-      allow update: if isSignedIn() && (
-        request.auth.uid == resource.data.callerId ||
-        request.auth.uid == resource.data.receiverId
-      );
-      
-      // Users can delete calls they are part of
-      allow delete: if isSignedIn() && (
-        request.auth.uid == resource.data.callerId ||
-        request.auth.uid == resource.data.receiverId
-      );
+      allow read: if isCallParticipant(callId);
+
+      allow create: if isSignedIn() &&
+        request.resource.data.callerId == request.auth.uid &&
+        request.resource.data.receiverId != request.auth.uid &&
+        request.resource.data.chatId is string &&
+        exists(/databases/$(database)/documents/chats/$(request.resource.data.chatId)) &&
+        request.auth.uid in get(/databases/$(database)/documents/chats/$(request.resource.data.chatId)).data.participants &&
+        request.resource.data.receiverId in get(/databases/$(database)/documents/chats/$(request.resource.data.chatId)).data.participants &&
+        request.resource.data.status == 'ringing' &&
+        validCallStatus(request.resource.data.status);
+
+      allow update: if isCallParticipant(callId) &&
+        request.resource.data.callerId == resource.data.callerId &&
+        request.resource.data.receiverId == resource.data.receiverId &&
+        request.resource.data.chatId == resource.data.chatId &&
+        validCallStatus(request.resource.data.status) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'offer', 'answer', 'acceptedAt', 'connectedAt', 'endedAt', 'expiresAt', 'failedAt'
+        ]);
+
+      allow delete: if isCallParticipant(callId);
+
+      match /candidates/{candidateId} {
+        allow read: if isCallParticipant(callId);
+        allow create: if isCallParticipant(callId) &&
+          request.resource.data.senderId == request.auth.uid &&
+          request.resource.data.keys().hasOnly(['senderId', 'candidate', 'sdpMid', 'sdpMLineIndex', 'usernameFragment', 'createdAt']);
+        allow delete: if isCallParticipant(callId);
+      }
     }
     
     // ============================================

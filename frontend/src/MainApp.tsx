@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-const AdminDashboard = React.lazy(() => import('./components/admin/AdminDashboard'));
+import AdminDashboard from './components/admin/AdminDashboard';
 
 const LandingPage = ({  onGetStarted,
   onSignIn,
@@ -196,9 +196,19 @@ const LandingPage = ({  onGetStarted,
   );
 };
 
-import { auth } from './firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { auth, db, functions } from './firebase';
+import { onAuthStateChanged, signOut, GoogleAuthProvider, OAuthProvider, signInWithPopup, setPersistence, browserLocalPersistence, browserSessionPersistence, signInWithEmailAndPassword, signInWithCustomToken, createUserWithEmailAndPassword, sendEmailVerification, reload, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
+import { httpsCallable } from 'firebase/functions';
+import { doc, onSnapshot, collection, query, where, getDocs, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { createSupportTicket, type SupportCategory, type SupportContactPreference } from './services/supportService';
+import { subscribeToCallStatus, subscribeToMessages, markMessagesAsRead, sendMessage, subscribeToChats, subscribeToIncomingCalls } from './services/chatService';
+import { subscribeToPrayerRequests, subscribeToComments, togglePray, addPrayerRequest, addComment } from './services/prayerService';
+import { getUserDocument, createUserDocument, updateUserDocument, getAllUsers, claimFreePromo, checkSignupEligibility } from './services/userService';
+import { setupPushNotifications } from './services/notificationService';
+import { loginWithPin, setUserPin } from './services/pinAuthService';
+import { uploadProfilePhoto, uploadCoverPhoto, uploadGalleryPhoto, uploadFile } from './services/fileStorageService';
 import { getCurrentAdminAccess } from './services/adminRbacService';
+import { startWebRtcCallSession } from './services/callService';
 import { App as CapacitorApp } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 import {
@@ -775,6 +785,8 @@ const CallView = ({
   partnerName,
   partnerImage,
   callId,
+  userId,
+  remoteUserId,
   isCaller,
 }: {
   isVideo: boolean;
@@ -783,192 +795,143 @@ const CallView = ({
   partnerName: string;
   partnerImage: string;
   callId?: string;
+  userId?: string;
+  remoteUserId?: string;
   isCaller?: boolean;
 }) => {
   const [isMuted, setIsMuted] = useState(false);
   const [isCameraOff, setIsCameraOff] = useState(!isVideo);
-  const [status, setStatus] = useState(isCaller ? "Calling..." : "Connecting...");
+  const [status, setStatus] = useState(isCaller ? 'Calling…' : 'Connecting…');
   const [elapsed, setElapsed] = useState(0);
-
-  const videoRef = useRef<HTMLVideoElement>(null);
-  
-  // Audio/media state
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  // Listen to call status
   useEffect(() => {
-    if (!callId) return;
+    if (localVideoRef.current) localVideoRef.current.srcObject = localStream;
+  }, [localStream]);
 
-    let unsubscribe: (() => void) | undefined;
+  useEffect(() => {
+    if (remoteVideoRef.current) remoteVideoRef.current.srcObject = remoteStream;
+    if (remoteAudioRef.current) remoteAudioRef.current.srcObject = remoteStream;
+  }, [remoteStream]);
 
-    const setupListener = async () => {
+  useEffect(() => {
+    if (!callId || !userId || !remoteUserId) return;
+    let cancelled = false;
+    let unsubscribeStatus: (() => void) | undefined;
+    let closePeer: (() => void) | undefined;
+
+    const start = async () => {
       try {
-        const { subscribeToCallStatus } = await import('./services/chatService');
-        unsubscribe = subscribeToCallStatus(callId, (newStatus: string) => {
-          console.log("📞 Call Status:", newStatus);
-          
-          if (newStatus === 'accepted') {
-            setStatus("Connected");
-            // Here you would initialize WebRTC connection
-          } else if (newStatus === 'rejected') {
-            setStatus("Call Declined");
-            setTimeout(onEnd, 2000);
-          } else if (newStatus === 'ended') {
-            setStatus("Call Ended");
-            setTimeout(onEnd, 1000);
-          }
-        });
-      } catch (error) {
-        console.error("Error subscribing to call status", error);
-      }
-    };
-
-    setupListener();
-
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
-  }, [callId, onEnd]);
-
-  // Timer for missed call (Only for caller)
-  useEffect(() => {
-    if (!isCaller || status === 'Connected') return; // Only caller handles timeout, limit if connected
-
-    const maxDuration = 60; // 60 seconds timeout
-    const interval = setInterval(() => {
-      setElapsed((prev) => {
-        if (prev >= maxDuration) {
-          clearInterval(interval);
-          if (status !== 'Connected') {
-             onMissed();
-             onEnd();
-          }
-          return prev;
-        }
-        return prev + 1;
-      });
-    }, 1000);
-    
-    return () => clearInterval(interval);
-  }, [onMissed, onEnd, isCaller, status]);
-
-  // Setup local media stream
-  useEffect(() => {
-    const startLocalStream = async () => {
-      try {
+        if (!navigator.mediaDevices?.getUserMedia) throw new Error('This PWA environment does not support microphone or camera access.');
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: true,
-          video: isVideo,
+          video: isVideo ? { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 360 } } : false,
         });
-        streamRef.current = stream;
-
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
+        if (cancelled) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
         }
-      } catch (err) {
-        console.error("Failed to access media devices:", err);
-        setStatus("Camera/Mic Error");
+        streamRef.current = stream;
+        setLocalStream(stream);
+        unsubscribeStatus = subscribeToCallStatus(callId, (callStatus: string) => {
+          if (callStatus === 'ringing') setStatus(isCaller ? 'Calling…' : 'Connecting…');
+          if (callStatus === 'accepted' || callStatus === 'connecting') setStatus('Connecting…');
+          if (['rejected', 'missed', 'expired'].includes(callStatus)) {
+            setStatus(callStatus === 'rejected' ? 'Call declined' : 'Call missed');
+            window.setTimeout(onEnd, 700);
+          }
+          if (callStatus === 'ended') {
+            setStatus('Call ended');
+            window.setTimeout(onEnd, 500);
+          }
+          if (callStatus === 'failed') {
+            setStatus('Connection failed');
+            window.setTimeout(onEnd, 1000);
+          }
+        });
+        closePeer = await startWebRtcCallSession({
+          callId,
+          userId,
+          remoteUserId,
+          isCaller: Boolean(isCaller),
+          localStream: stream,
+          onRemoteStream: setRemoteStream,
+          onStateChange: (connectionState) => {
+            if (connectionState === 'connected') setStatus('Connected');
+            else if (connectionState === 'reconnecting') setStatus('Reconnecting…');
+            else if (connectionState === 'failed') setStatus('Connection failed');
+            else if (connectionState === 'ended') setStatus('Call ended');
+          },
+          onError: (error) => {
+            console.error('[WebRTC] Call session error:', error);
+            setStatus('Connection problem');
+          },
+        });
+      } catch (error) {
+        console.error('Failed to start call media:', error);
+        setStatus(error instanceof DOMException && error.name === 'NotAllowedError' ? 'Microphone/camera permission denied' : 'Camera/mic unavailable');
       }
     };
 
-    startLocalStream();
-
+    void start();
     return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((t) => t.stop());
-      }
+      cancelled = true;
+      unsubscribeStatus?.();
+      closePeer?.();
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
     };
-  }, [isVideo]);
+  }, [callId, userId, remoteUserId, isCaller, isVideo]);
 
-  // Toggle Mute/Video tracks
   useEffect(() => {
     if (streamRef.current) {
-      streamRef.current.getAudioTracks().forEach(t => t.enabled = !isMuted);
-      streamRef.current.getVideoTracks().forEach(t => t.enabled = !isCameraOff);
+      streamRef.current.getAudioTracks().forEach((track) => { track.enabled = !isMuted; });
+      streamRef.current.getVideoTracks().forEach((track) => { track.enabled = !isCameraOff; });
     }
   }, [isMuted, isCameraOff]);
 
+  useEffect(() => {
+    if (!isCaller || status === 'Connected') return;
+    const interval = window.setInterval(() => {
+      setElapsed((current) => {
+        if (current >= 60) {
+          window.clearInterval(interval);
+          onMissed();
+          onEnd();
+          return current;
+        }
+        return current + 1;
+      });
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, [isCaller, status, onMissed, onEnd]);
+
   return (
-    <div className="fixed inset-0 z-[600] bg-gray-900 flex flex-col items-center justify-center animate-in fade-in duration-500">
-      <div className="absolute inset-0 overflow-hidden">
-        <img
-          src={partnerImage}
-          className="w-full h-full object-cover opacity-30 blur-xl scale-110"
-          alt="Background"
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/80"></div>
-      </div>
-
-      <div className="relative z-10 flex flex-col items-center gap-8 p-8 text-center w-full max-w-md mx-auto">
-        <div className="relative">
-          <div className="w-32 h-32 rounded-full border-4 border-white/10 p-1 relative z-10 overflow-hidden shadow-2xl">
-            <img
-              src={partnerImage}
-              className="w-full h-full object-cover rounded-full"
-              alt={partnerName}
-            />
-          </div>
-          <div className="absolute inset-0 bg-white/10 rounded-full animate-ping opacity-20 scale-110"></div>
-          <div className="absolute inset-0 bg-brand-orange/20 rounded-full animate-pulse opacity-20 scale-150 duration-1000"></div>
+    <div className="fixed inset-0 z-[600] flex flex-col bg-gray-950 text-white">
+      <audio ref={remoteAudioRef} autoPlay playsInline />
+      {isVideo && remoteStream ? (
+        <video ref={remoteVideoRef} autoPlay playsInline className="absolute inset-0 h-full w-full object-cover" />
+      ) : (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-b from-slate-900 to-black">
+          <img src={partnerImage} className="h-32 w-32 rounded-full object-cover opacity-90 shadow-2xl" alt={partnerName} />
         </div>
-
-        <div>
-          <h2 className="text-2xl font-black text-white uppercase tracking-tighter mb-2">
-            {partnerName}
-          </h2>
-          <p className="text-gray-300 text-sm font-bold uppercase tracking-widest animate-pulse">
-            {status}
-          </p>
-        </div>
-
-        {isVideo && (
-          <div className="w-40 aspect-[3/4] bg-black/50 rounded-2xl overflow-hidden shadow-2xl border border-white/10 relative backdrop-blur-sm">
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className={`w-full h-full object-cover transform scale-x-[-1] ${
-                isCameraOff ? "hidden" : ""
-              }`}
-            />
-            {isCameraOff && (
-              <div className="w-full h-full flex items-center justify-center text-gray-500">
-                <VideoOff size={24} />
-              </div>
-            )}
-            <div className="absolute bottom-2 right-2 w-3 h-3 bg-green-500 rounded-full border-2 border-black"></div>
-          </div>
-        )}
+      )}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-transparent to-black/85" />
+      <div className="relative z-10 flex items-start justify-between p-5">
+        <div><h2 className="text-xl font-black">{partnerName}</h2><p className="text-sm font-bold text-white/75">{status}{isCaller && status !== 'Connected' ? ` · ${elapsed}s` : ''}</p></div>
+        {isVideo && localStream && <video ref={localVideoRef} autoPlay muted playsInline className={`h-28 w-20 rounded-xl border border-white/30 object-cover shadow-xl ${isCameraOff ? 'hidden' : ''}`} />}
       </div>
-
-      <div className="absolute bottom-16 left-0 right-0 px-8 flex justify-center items-center gap-6 z-20">
-        <button
-          onClick={() => setIsMuted(!isMuted)}
-          className={`p-4 rounded-full backdrop-blur-xl border border-white/10 transition-all active:scale-95 ${
-            isMuted ? "bg-white text-gray-900" : "bg-white/10 text-white"
-          }`}
-        >
+      <div className="relative z-10 mt-auto flex items-center justify-center gap-6 px-6 pb-12">
+        <button type="button" onClick={() => setIsMuted((value) => !value)} aria-label={isMuted ? 'Unmute microphone' : 'Mute microphone'} className={`rounded-full p-4 ${isMuted ? 'bg-white text-gray-900' : 'bg-white/15 text-white'}`}>
           {isMuted ? <MicOff size={24} /> : <Mic size={24} />}
         </button>
-
-        <button
-          onClick={onEnd}
-          className="p-6 bg-red-500 text-white rounded-full shadow-2xl shadow-red-500/40 active:scale-90 transition-transform hover:bg-red-600"
-        >
-          <PhoneOff size={32} fill="currentColor" />
-        </button>
-
-        {isVideo && (
-          <button
-            onClick={() => setIsCameraOff(!isCameraOff)}
-            className={`p-4 rounded-full backdrop-blur-xl border border-white/10 transition-all active:scale-95 ${
-              isCameraOff ? "bg-white text-gray-900" : "bg-white/10 text-white"
-            }`}
-          >
-            {isCameraOff ? <VideoOff size={24} /> : <Video size={24} />}
-          </button>
-        )}
+        <button type="button" onClick={onEnd} aria-label="End call" className="rounded-full bg-red-500 p-6 shadow-xl shadow-red-500/30"><PhoneOff size={30} fill="currentColor" /></button>
+        {isVideo && <button type="button" onClick={() => setIsCameraOff((value) => !value)} aria-label={isCameraOff ? 'Turn camera on' : 'Turn camera off'} className={`rounded-full p-4 ${isCameraOff ? 'bg-white text-gray-900' : 'bg-white/15 text-white'}`}>{isCameraOff ? <VideoOff size={24} /> : <Video size={24} />}</button>}
       </div>
     </div>
   );
@@ -1120,8 +1083,6 @@ const AuthView = ({
   const resetVerificationFlow = async () => {
     setLoading(false);
     try {
-      const { auth } = await import('./firebase');
-      const { signOut } = await import('firebase/auth');
       await signOut(auth);
     } catch (error) {
       console.warn('Auth sign-out during verification reset failed:', error);
@@ -1188,17 +1149,6 @@ const AuthView = ({
     if (loading || socialBusy) return;
     setSocialBusy(providerName);
     try {
-      const { auth } = await import('./firebase');
-      const authModule = await import('firebase/auth');
-      const {
-        GoogleAuthProvider,
-        OAuthProvider,
-        signInWithPopup,
-        setPersistence,
-        browserLocalPersistence,
-        browserSessionPersistence,
-      } = authModule;
-
       try {
         await setPersistence(auth, keepSignedIn ? browserLocalPersistence : browserSessionPersistence);
       } catch (persistenceError) {
@@ -1218,7 +1168,6 @@ const AuthView = ({
       const result = await signInWithPopup(auth, provider);
       const firebaseUser = result.user;
 
-      const { getUserDocument, createUserDocument, claimFreePromo } = await import('./services/userService');
       let userData = await withTimeout(
         getUserDocument(firebaseUser.uid),
         15000,
@@ -1301,10 +1250,6 @@ const AuthView = ({
     if (loading || submitInProgressRef.current) return;
     submitInProgressRef.current = true;
 
-    // Import Firebase auth functions dynamically
-    const { auth } = await import('./firebase');
-    const { signInWithEmailAndPassword, signInWithCustomToken, createUserWithEmailAndPassword } = await import('firebase/auth');
-
     setLoading(true);
     const submittedEmail = biometricCredentialsRef.current?.email ?? email;
     const submittedPassword = biometricCredentialsRef.current?.password ?? password;
@@ -1314,8 +1259,6 @@ const AuthView = ({
         const detectedLoginMethod = /^\d{4,6}$/.test(submittedPassword) ? 'pin' : 'password';
         let resolvedLoginEmail = submittedEmail.trim();
         if (detectedLoginMethod === 'password' && !resolvedLoginEmail.includes('@')) {
-          const { httpsCallable } = await import('firebase/functions');
-          const { functions } = await import('./firebase');
           const resolveLoginIdentifier = httpsCallable(functions, 'resolveLoginIdentifier');
           const resolution = await withTimeout(
             resolveLoginIdentifier({ identifier: resolvedLoginEmail }),
@@ -1329,7 +1272,6 @@ const AuthView = ({
         console.log('🔐 Attempting login with:', submittedEmail);
         try {
           try {
-            const { setPersistence, browserLocalPersistence, browserSessionPersistence } = await import('firebase/auth');
             await setPersistence(auth, keepSignedIn ? browserLocalPersistence : browserSessionPersistence);
           } catch (persistenceError) {
             console.warn('Unable to set auth persistence:', persistenceError);
@@ -1337,7 +1279,6 @@ const AuthView = ({
           const userCredential = await withTimeout(
             detectedLoginMethod === 'pin'
               ? (async () => {
-                  const { loginWithPin } = await import('./services/pinAuthService');
                   const token = await loginWithPin(submittedEmail, submittedPassword);
                   if (!token) throw new Error('Invalid login credentials.');
                   return signInWithCustomToken(auth, token);
@@ -1382,8 +1323,6 @@ const AuthView = ({
           }
           
           // Load user from Firestore or create if doesn't exist
-          const { getUserDocument, createUserDocument, userDocumentExists } = await import('./services/userService');
-          
           let userData = await withTimeout(
             getUserDocument(firebaseUser.uid),
             15000,
@@ -1444,14 +1383,13 @@ const AuthView = ({
              onNotify("Your account has been blocked. Please contact support.", "error");
              setLoading(false);
              // Optionally sign out from Firebase auth to ensure clean state
-             await import('firebase/auth').then(({ signOut }) => signOut(auth));
+             await signOut(auth);
              return;
           }
 
           // Claim the free-access promo if eligible. The server independently verifies
           // email verification and cohort/new-member eligibility; the client only triggers it.
           try {
-            const { claimFreePromo } = await import('./services/userService');
             const promo = await withTimeout(
               claimFreePromo(),
               10000,
@@ -1550,7 +1488,6 @@ const AuthView = ({
           setSignupStage("creating");
           // Check if email is eligible for signup (10-day block check). Guard with a
           // timeout: if the callable function is slow/unavailable, allow signup to proceed.
-          const { checkSignupEligibility } = await import('./services/userService');
           let eligibility: { allowed: boolean; reason?: string } = { allowed: true };
           try {
             eligibility = await Promise.race([
@@ -1586,8 +1523,6 @@ const AuthView = ({
           // Create user document in Firestore. Guard with a timeout so a slow or
           // blocked Firestore write never leaves signup stuck on "Processing".
           // If this times out, login will recreate the document on first sign-in.
-          const { createUserDocument } = await import('./services/userService');
-
           const profileData = {
             id: firebaseUser.uid,
             email: email.trim(),
@@ -1630,7 +1565,6 @@ const AuthView = ({
               // profile write (which uses setDoc) can't overwrite the PIN hash.
               if (trimmedPin) {
                 try {
-                  const { setUserPin } = await import('./services/pinAuthService');
                   await setUserPin(trimmedPin);
                   console.log('✅ Optional PIN created at signup');
                 } catch (pinError) {
@@ -1643,7 +1577,6 @@ const AuthView = ({
             });
 
           setSignupStage("sending");
-          const { sendEmailVerification } = await import('firebase/auth');
           const actionCodeSettings = {
             url: authActionUrl,
             handleCodeInApp: false,
@@ -1708,9 +1641,6 @@ const AuthView = ({
 
       try {
         setLoading(true);
-        const { auth } = await import('./firebase');
-        const { sendEmailVerification } = await import('firebase/auth');
-        
         if (auth.currentUser) {
           const actionCodeSettings = {
             url: authActionUrl,
@@ -1757,8 +1687,6 @@ const AuthView = ({
       if (loading) return;
       try {
         setLoading(true);
-        const { auth } = await import('./firebase');
-        const { reload } = await import('firebase/auth');
         if (!auth.currentUser) {
           await resetVerificationFlow();
           return;
@@ -1888,8 +1816,6 @@ const AuthView = ({
     
     setLoading(true);
     try {
-      const { auth } = await import('./firebase');
-      const { sendPasswordResetEmail } = await import('firebase/auth');
       const actionCodeSettings = {
         url: authActionUrl,
         handleCodeInApp: false,
@@ -2544,7 +2470,6 @@ const OnboardingView = ({
 
     if (userId) {
       try {
-        const { updateUserDocument } = await import('./services/userService');
         await updateUserDocument(userId, { profileDraft: draftToSave });
         setDraftStatus("saved");
         return;
@@ -2951,7 +2876,6 @@ export const EditProfileView = ({
     }
 
     try {
-      const { updateUserDocument } = await import('./services/userService');
       await updateUserDocument(user.id, { profileDraft: draft });
       setDraftStatus("saved");
     } catch (error) {
@@ -3036,13 +2960,6 @@ export const EditProfileView = ({
     
     try {
       setLoading(true);
-      const { 
-        uploadProfilePhoto, 
-        uploadCoverPhoto, 
-        uploadGalleryPhoto 
-      } = await import('./services/fileStorageService');
-      
-      const { auth } = await import('./firebase');
       const userId = auth.currentUser?.uid || user.id || (user as any).uid;
       if (!userId) {
         throw new Error("Unable to resolve User ID. Please sign out and sign in again.");
@@ -3087,8 +3004,6 @@ export const EditProfileView = ({
   const uploadAutomaticPhoto = async (file: File, type: "profile" | "cover" | "gallery") => {
     try {
       setLoading(true);
-      const { uploadProfilePhoto, uploadCoverPhoto, uploadGalleryPhoto } = await import('./services/fileStorageService');
-      const { auth } = await import('./firebase');
       const userId = auth.currentUser?.uid || user.id || (user as any).uid;
       if (!userId) throw new Error("Unable to resolve User ID. Please sign out and sign in again.");
 
@@ -3214,9 +3129,6 @@ export const EditProfileView = ({
           age--;
         }
       }
-
-      // Import Firestore service
-      const { updateUserDocument } = await import('./services/userService');
 
       // Prepare updates for Firestore (using camelCase for Firestore)
       const updates: Partial<User> = {
@@ -4135,13 +4047,12 @@ const SettingsView = ({
 
   const updatePreference = async (key: keyof NotificationPreferences, value: boolean) => {
     if (key === "securityEmails") return;
-    if (key === "sms" && value && !canUseSms) return;
+    if ((key === "sms" || key === "whatsapp") && value && !canUseSms) return;
 
     const next = { ...preferences, [key]: value, securityEmails: true };
     setPreferences(next);
     setSaveState("saving");
     try {
-      const { updateUserDocument } = await import('./services/userService');
       await updateUserDocument(user.id, { notificationPreferences: next });
       onSave({ ...user, notificationPreferences: next });
       setSaveState("saved");
@@ -4162,7 +4073,6 @@ const SettingsView = ({
     setPinBusy(true);
     setPinMessage('');
     try {
-      const { setUserPin } = await import('./services/pinAuthService');
       await setUserPin(newPin, currentCredential);
       onSave({ ...user, hasPin: true });
       setPinMessage(user.hasPin ? 'PIN changed successfully.' : 'PIN enabled successfully.');
@@ -4189,8 +4099,6 @@ const SettingsView = ({
     }
     setPasswordBusy(true);
     try {
-      const { auth } = await import('./firebase');
-      const { EmailAuthProvider, reauthenticateWithCredential, updatePassword } = await import('firebase/auth');
       if (!auth.currentUser || !user.email) throw new Error('Your session has expired. Please sign in again.');
       const credential = EmailAuthProvider.credential(user.email, currentPassword);
       await reauthenticateWithCredential(auth.currentUser, credential);
@@ -4214,6 +4122,7 @@ const SettingsView = ({
     { key: "push", title: "Push notifications", description: "Receive alerts on this browser, PWA, or mobile app." },
     { key: "email", title: "Email notifications", description: "Receive non-security updates by email." },
     { key: "sms", title: "SMS notifications", description: canUseSms ? "Allow SMS alerts after an SMS gateway is configured." : "Add a valid telephone number before enabling SMS.", disabled: !canUseSms },
+    { key: "whatsapp", title: "WhatsApp notifications", description: canUseSms ? "Allow WhatsApp alerts after WhatsApp Business messaging is configured." : "Add a valid telephone number before enabling WhatsApp.", disabled: !canUseSms },
   ];
   const eventRows: Array<{ key: keyof NotificationPreferences; title: string }> = [
     { key: "newChatMessages", title: "New chat messages" },
@@ -4310,10 +4219,10 @@ const SupportView = ({
   user: User;
   onBack: () => void;
 }) => {
-  const [category, setCategory] = useState<import('./services/supportService').SupportCategory>('Other');
+  const [category, setCategory] = useState<SupportCategory>('Other');
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
-  const [preferredContact, setPreferredContact] = useState<import('./services/supportService').SupportContactPreference>('Either');
+  const [preferredContact, setPreferredContact] = useState<SupportContactPreference>('Either');
   const [submitting, setSubmitting] = useState(false);
   const [ticketReference, setTicketReference] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -4327,7 +4236,6 @@ const SupportView = ({
     setSubmitting(true);
     setError('');
     try {
-      const { createSupportTicket } = await import('./services/supportService');
       const ticket = await createSupportTicket({
         userId: user.id,
         userName: user.name,
@@ -4430,6 +4338,7 @@ const ProfileView = ({
   onOpenPayment,
   onOpenCommunity,
   onOpenSettings,
+  notificationCount,
   onOpenSupport,
   onRefresh,
 }: {
@@ -4441,6 +4350,7 @@ const ProfileView = ({
   onOpenPayment?: () => void;
   onOpenCommunity?: () => void;
   onOpenSettings?: () => void;
+  notificationCount?: number;
   onOpenSupport?: () => void;
   onRefresh?: () => void;
 }) => {
@@ -4589,12 +4499,20 @@ const ProfileView = ({
             <div className="flex gap-2">
               {onOpenSettings && (
                 <button
-                  title="Notifications"
-                  aria-label="Notifications"
+                  title={notificationCount ? `${notificationCount} unread message${notificationCount === 1 ? '' : 's'}` : 'Notifications'}
+                  aria-label={notificationCount ? `Notifications, ${notificationCount} unread message${notificationCount === 1 ? '' : 's'}` : 'Notifications'}
                   onClick={onOpenSettings}
-                  className="cmg-main-icon-button"
+                  className="cmg-main-icon-button relative"
                 >
                   <Bell size={18} />
+                  {!!notificationCount && (
+                    <span
+                      aria-live="polite"
+                      className="absolute -right-1 -top-1 min-w-4 rounded-full bg-brand-orange px-1 text-center text-[9px] font-black leading-4 text-white shadow-sm"
+                    >
+                      {notificationCount > 99 ? '99+' : notificationCount}
+                    </span>
+                  )}
                 </button>
               )}
               {onRefresh && (
@@ -4626,7 +4544,15 @@ const ProfileView = ({
             </div>
           </div>
 
-          <div className="cmg-profile-banner relative h-40 w-full overflow-hidden rounded-[2rem] shadow-[0_18px_44px_rgba(9,40,71,0.22)]"></div>
+          <div className="cmg-profile-banner relative h-40 w-full overflow-hidden rounded-[2rem] shadow-[0_18px_44px_rgba(9,40,71,0.22)]">
+            {user.photos?.[1] ? (
+              <img
+                src={user.photos[1]}
+                className="h-full w-full object-cover"
+                alt={`${firstName}'s cover`}
+              />
+            ) : null}
+          </div>
         </div>
 
         {/* Avatar overlapping the cover card. */}
@@ -5195,6 +5121,7 @@ const MessageThreadView = ({
   onOpenPayment?: () => void;
 }) => {
   const [messages, setMessages] = useState<Message[]>([]);
+  const [messageError, setMessageError] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [showMenu, setShowMenu] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
@@ -5222,8 +5149,6 @@ const MessageThreadView = ({
     let unsubscribe: (() => void) | undefined;
     void (async () => {
       try {
-        const { doc, onSnapshot } = await import('firebase/firestore');
-        const { db } = await import('./firebase');
         unsubscribe = onSnapshot(doc(db, 'users', thread.partnerId), (snapshot) => {
           if (snapshot.exists()) setPartnerProfile(snapshot.data() as User);
         });
@@ -5242,15 +5167,22 @@ const MessageThreadView = ({
   // Subscribe to real-time messages
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
+    setMessageError(null);
 
     const setupSubscription = async () => {
       try {
-        const { subscribeToMessages, markMessagesAsRead } = await import('./services/chatService');
-        
-        unsubscribe = subscribeToMessages(chatId, (updatedMessages: Message[]) => {
-          console.log('💬 Messages updated:', updatedMessages.length);
-          setMessages(updatedMessages);
-        });
+        unsubscribe = subscribeToMessages(
+          chatId,
+          (updatedMessages: Message[]) => {
+            console.log('💬 Messages updated:', updatedMessages.length);
+            setMessages(updatedMessages);
+            setMessageError(null);
+          },
+          (error) => {
+            console.error('❌ Error subscribing to messages:', error);
+            setMessageError('Unable to load this conversation. Refresh or return to Chats and try again.');
+          },
+        );
 
         // Mark messages as read when viewing
         if (currentUserId) {
@@ -5258,6 +5190,7 @@ const MessageThreadView = ({
         }
       } catch (error) {
         console.error('❌ Error subscribing to messages:', error);
+        setMessageError('Unable to load this conversation. Refresh or return to Chats and try again.');
       }
     };
 
@@ -5298,8 +5231,6 @@ const MessageThreadView = ({
     setShowAttachMenu(false);
 
     try {
-      const { sendMessage } = await import('./services/chatService');
-      
       let messageData: any = {
         text: messageText,
         type: customMessage?.type || 'text',
@@ -5307,7 +5238,6 @@ const MessageThreadView = ({
 
       // Handle File Uploads
       if (customMessage?.file) {
-        const { uploadFile } = await import('./services/fileStorageService');
         const fileType = customMessage.type === 'image' ? 'gallery_photo' : 'other'; // simple mapping
         
         // Notify uploading
@@ -5336,9 +5266,11 @@ const MessageThreadView = ({
       }
 
       await sendMessage(chatId, currentUserId, messageData);
+      setMessageError(null);
       console.log('✅ Message sent successfully');
     } catch (error) {
       console.error('❌ Error sending message:', error);
+      setMessageError(error instanceof Error ? error.message : 'Unable to send this message. Please try again.');
       if (!customMessage) {
         setInput(messageText); 
         setReplyingTo(currentReply);
@@ -5550,6 +5482,12 @@ const MessageThreadView = ({
           </button>
         </div>
       </div>
+
+      {messageError && (
+        <div className="mx-4 mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700" role="alert">
+          {messageError}
+        </div>
+      )}
 
       <div
         className="flex-1 overflow-y-auto p-4 space-y-6 hide-scrollbar"
@@ -6615,7 +6553,6 @@ const CommunityView = ({ user }: { user: User | null }) => {
 
       const setupSubscription = async () => {
         try {
-          const { subscribeToPrayerRequests } = await import('./services/prayerService');
           unsubscribe = subscribeToPrayerRequests(
             user?.id || '', 
             (updatedPrayers) => {
@@ -6647,7 +6584,6 @@ const CommunityView = ({ user }: { user: User | null }) => {
       let unsubscribe: (() => void) | undefined;
       const setupComments = async () => {
         try {
-          const { subscribeToComments } = await import('./services/prayerService');
           unsubscribe = subscribeToComments(selectedPrayer.id, (comments) => {
              setSelectedPrayer(prev => prev ? ({ ...prev, comments }) : null);
           });
@@ -6706,7 +6642,6 @@ const CommunityView = ({ user }: { user: User | null }) => {
   const handlePray = async (id: string, hasPrayed: boolean) => {
     if (!user) return;
     try {
-      const { togglePray } = await import('./services/prayerService');
       await togglePray(id, user.id, hasPrayed);
       // Optimistic update handled by real-time listener, but we can do a quick local toggle if needed
       // For now, rely on listener
@@ -6719,7 +6654,6 @@ const CommunityView = ({ user }: { user: User | null }) => {
     if (!newPrayerText.trim() || !user) return;
     
     try {
-      const { addPrayerRequest } = await import('./services/prayerService');
       await addPrayerRequest(user.id, user.name, newPrayerText);
       setNewPrayerText("");
       setShowAddPrayer(false);
@@ -6732,7 +6666,6 @@ const CommunityView = ({ user }: { user: User | null }) => {
     if (!commentText.trim() || !selectedPrayer || !user) return;
     
     try {
-      const { addComment } = await import('./services/prayerService');
       await addComment(selectedPrayer.id, user.id, user.name, commentText);
       setCommentText("");
     } catch (error) {
@@ -7072,11 +7005,6 @@ const FriendsView = ({
       try {
         setLoading(true);
         
-        // Import Firestore functions dynamically
-        const { collection, query, where, getDocs } = await import('firebase/firestore');
-        const { db } = await import('./firebase');
-        const { getUserDocument } = await import('./services/userService');
-        
         // Query chats where user is a participant
         const q = query(
           collection(db, 'chats'),
@@ -7222,17 +7150,12 @@ const ForcedPasswordChangeView: React.FC<{
 
     setBusy(true);
     try {
-      const { auth, db } = await import('./firebase');
-      const { updatePassword } = await import('firebase/auth');
-      const { doc, updateDoc, serverTimestamp } = await import('firebase/firestore');
       if (!auth.currentUser) throw new Error('Your session has expired. Please sign in again.');
       await updatePassword(auth.currentUser, newPassword);
       await updateDoc(doc(db, 'users', user.id), {
         mustChangePassword: false,
         updatedAt: serverTimestamp(),
       });
-      const { httpsCallable } = await import('firebase/functions');
-      const { functions } = await import('./firebase');
       await httpsCallable(functions, 'completeAdminPasswordChange')();
       onComplete({ ...user, mustChangePassword: false });
     } catch (changeError: any) {
@@ -7353,6 +7276,33 @@ const App = () => {
     return unsubscribe;
   }, []);
 
+  // Never allow a profile restored from localStorage to operate under a
+  // different Firebase Auth UID. This prevents messages being written with a
+  // stale senderId after account switching or a cached Dev build reload.
+  useEffect(() => {
+    if (!user?.id) return;
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (!firebaseUser || firebaseUser.uid === user.id) return;
+
+      console.error('Authenticated user does not match the active profile session.', {
+        authUid: firebaseUser.uid,
+        profileId: user.id,
+      });
+      localStorage.removeItem('cmg_demo_user');
+      localStorage.removeItem('cmg_current_view');
+      setActiveChatId(null);
+      setUser(null);
+      setCurrentView('AUTH');
+      setAuthMode('login');
+      setShowLanding(false);
+      setNotification({
+        message: 'Your session changed. Please sign in again before using Chat.',
+        type: 'error',
+      });
+    });
+    return unsubscribe;
+  }, [user?.id]);
+
   // Handle the native Android back button. Close overlays and nested views
   // first; exit only when the user is already at the app root.
   useEffect(() => {
@@ -7397,8 +7347,6 @@ const App = () => {
 
   const handleLogout = async () => {
     try {
-      const { auth } = await import("./firebase");
-      const { signOut } = await import("firebase/auth");
       await signOut(auth);
     } catch (error) {
       console.error("Firebase sign-out failed:", error);
@@ -7440,7 +7388,7 @@ const App = () => {
   const [currentCallId, setCurrentCallId] = useState<string | null>(null);
   const [incomingCall, setIncomingCall] = useState<any>(null);
   const [isCaller, setIsCaller] = useState(false);
-  const [callPartner, setCallPartner] = useState<{name: string, photo: string} | null>(null);
+  const [callPartner, setCallPartner] = useState<{id?: string, name: string, photo: string} | null>(null);
 
   // Subscribe to real-time chats
   useEffect(() => {
@@ -7458,8 +7406,6 @@ const App = () => {
 
     const setupSubscriptions = async () => {
       try {
-        const { subscribeToChats, subscribeToIncomingCalls } = await import('./services/chatService');
-        
         // Subscribe to incoming calls
         unsubscribeCalls = subscribeToIncomingCalls(user.id, (call: any) => {
              // Only set active incoming call if we are not already in a call
@@ -7532,7 +7478,6 @@ const App = () => {
     const fetchUsers = async () => {
       setIsLoadingUsers(true);
       try {
-        const { getAllUsers } = await import('./services/userService');
         const users = await getAllUsers(user.id, user.blockedUsers || [], user.gender);
         setAllUsers(users);
       } catch (error) {
@@ -7960,13 +7905,44 @@ const App = () => {
   const activeChat = activeChatId
     ? chats.find((c) => c.id === activeChatId)
     : null;
+  const unreadMessageCount = chats.reduce(
+    (total, chat) => total + Math.max(0, chat.unreadCount || 0),
+    0,
+  );
+  const unreadNotificationItems = chats
+    .filter((chat) => (chat.unreadCount || 0) > 0)
+    .map((chat) => ({
+      id: chat.id,
+      label: chat.partnerName || 'Unread conversation',
+      unreadCount: chat.unreadCount || 0,
+    }));
+  const markAllNotificationsRead = async () => {
+    if (!user?.id) return;
+    try {
+      await Promise.all(
+        unreadNotificationItems.map((item) => markMessagesAsRead(item.id, user.id)),
+      );
+    } catch (error) {
+      console.error('❌ Error marking all notifications as read:', error);
+      showNotify('Some messages could not be marked as read. Please try again.', 'error');
+      throw error;
+    }
+  };
+  const openNotificationChat = (chatId: string) => {
+    setActiveChatId(chatId);
+    setCurrentView('CHAT');
+  };
 
   return (
     <Layout
       currentView={currentView}
       onBack={handleUiBack}
       onLogout={handleLogout}
-      onNotifications={() => setCurrentView("SETTINGS")}
+      onNotifications={() => setCurrentView(unreadMessageCount > 0 ? "CHAT" : "SETTINGS")}
+      notificationCount={unreadMessageCount}
+      notificationItems={unreadNotificationItems}
+      onNotificationSelect={openNotificationChat}
+      onMarkAllNotificationsRead={markAllNotificationsRead}
       onRefresh={refreshCurrentPage}
       isSystemAdmin={hasAdminAccess}
       onAdmin={() => setCurrentView("ADMIN")}
@@ -8087,9 +8063,9 @@ const App = () => {
               const partnerName = activeChat.partnerName || "Partner";
               const partnerPhoto = activeChat.partnerPhoto || "";
               
-              const callId = await initiateCall(user.id, partnerId, user.name, user.photos?.[0] || "", video);
+              const callId = await initiateCall(user.id, partnerId, user.name, user.photos?.[0] || "", video, activeChat.id);
               setCurrentCallId(callId);
-              setCallPartner({ name: partnerName, photo: partnerPhoto });
+              setCallPartner({ id: partnerId, name: partnerName, photo: partnerPhoto });
               setCurrentView("CALL");
             } catch (error) {
               console.error("Failed to start call", error);
@@ -8141,6 +8117,8 @@ const App = () => {
           partnerName={activeChat?.partnerName || callPartner?.name || `Partner`}
           partnerImage={activeChat?.partnerPhoto || callPartner?.photo || `https://picsum.photos/400/600`}
           callId={currentCallId || undefined}
+          userId={user?.id}
+          remoteUserId={activeChat?.partnerId || callPartner?.id}
           isCaller={isCaller}
         />
       )}
@@ -8155,6 +8133,7 @@ const App = () => {
               await answerCall(incomingCall.id);
               
               setCurrentCallId(incomingCall.id);
+              setActiveChatId(incomingCall.chatId || null);
               setIsCallingVideo(incomingCall.isVideo);
               setIsCaller(false);
               
@@ -8169,6 +8148,7 @@ const App = () => {
               
               setIncomingCall(null);
               setCallPartner({
+                id: incomingCall.callerId,
                 name: incomingCall.callerName || "Caller",
                 photo: incomingCall.callerPhoto || ""
               });
@@ -8211,6 +8191,7 @@ const App = () => {
           onOpenPayment={() => setShowPaymentModal(true)}
           onOpenCommunity={() => setCurrentView("COMMUNITY")}
           onOpenSettings={() => setCurrentView("SETTINGS")}
+          notificationCount={unreadMessageCount}
           onOpenSupport={() => setCurrentView("SUPPORT")}
           onRefresh={refreshCurrentPage}
         />

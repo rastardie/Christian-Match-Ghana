@@ -9,11 +9,19 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# Use the project-declared Node 22 runtime when Homebrew provides it.
+for node_bin in /opt/homebrew/opt/node@22/bin /usr/local/opt/node@22/bin; do
+  if [[ -x "$node_bin/node" ]]; then
+    export PATH="$node_bin:$PATH"
+    break
+  fi
+done
+
 FIREBASE_BIN="backend/functions/node_modules/.bin/firebase"
 EMULATOR_DATA=".firebase-emulator-data"
 
 # Emulator + local dev/preview ports used by this project.
-PORTS=(4000 4400 4500 5001 8080 9099 9199 9299 9499 4173)
+PORTS=(4000 4400 4500 5001 8080 8085 9099 9199 9299 9499 4173)
 
 echo "==> Stopping any running Firebase emulators and local dev servers..."
 
@@ -51,6 +59,6 @@ echo "==> Starting Firebase emulators (staging)..."
 clear
 exec "${FIREBASE_BIN}" emulators:start \
   --project staging \
-  --only auth,firestore,storage,functions \
+  --only auth,firestore,storage,functions,pubsub \
   --import="${EMULATOR_DATA}" \
   --export-on-exit="${EMULATOR_DATA}"

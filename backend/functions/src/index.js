@@ -8,7 +8,7 @@ const crypto = require("crypto");
 const { promisify } = require("util");
 const scryptAsync = promisify(crypto.scrypt);
 const nodemailer = require("nodemailer");
-const { sendSmsNotification } = require("./smsService");
+const { queueOfflineMessageNotification, processOfflineMessageNotificationBatches } = require('./offlineNotificationService');
 const path = require("path");
 const { PERMISSIONS, DEFAULT_GROUPS, permissionsFromGroups } = require("./rbac");
 
@@ -50,14 +50,21 @@ async function getAdminAccess(uid) {
   return snapshot.exists ? snapshot.data() : null;
 }
 
-async function requireAdminPermission(context, permission) {
+async function requireAnyAdminPermission(context, requiredPermissions) {
   if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Authentication required.');
   if (isLegacySuperAdmin(context)) return { isSuperAdmin: true, permissions: PERMISSIONS };
   const access = await getAdminAccess(context.auth.uid);
-  if (!access || (!access.isSuperAdmin && !(access.permissions || []).includes(permission))) {
-    throw new functions.https.HttpsError('permission-denied', 'You do not have permission for this action.');
+  const permissions = access?.permissions || [];
+  const hasLegacyCompatiblePermission = requiredPermissions.includes('messages.groups.manage') && permissions.includes('messages.moderate');
+  const hasRequiredPermission = requiredPermissions.some((permission) => permissions.includes(permission));
+  if (!access || (!access.isSuperAdmin && !hasRequiredPermission && !hasLegacyCompatiblePermission)) {
+    throw new functions.https.HttpsError('permission-denied', 'You do not have permission to perform this action.');
   }
   return access;
+}
+
+async function requireAdminPermission(context, permission) {
+  return requireAnyAdminPermission(context, [permission]);
 }
 
 exports.setUserPin = functions.https.onCall(async (data, context) => {
@@ -487,152 +494,18 @@ exports.onMessageSent = functions.firestore
         }
       }
 
-      // 2. Send Email Notification if email is available
-      const email = userData.email;
-      if (notificationPreferences.email && notificationPreferences.newChatMessages && email) {
-        const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
-        const smtpPort = parseInt(process.env.SMTP_PORT || '465');
-        const smtpSecure = process.env.SMTP_SECURE === 'true' || smtpPort === 465;
-        const smtpUser = process.env.SMTP_USER;
-        const smtpPass = process.env.SMTP_PASS;
-        const appBaseUrl = process.env.APP_BASE_URL || 'https://christianmatchghana.com';
-
-        if (smtpUser && smtpPass) {
-          const transporter = nodemailer.createTransport({
-            host: smtpHost,
-            port: smtpPort,
-            secure: smtpSecure,
-            auth: {
-              user: smtpUser,
-              pass: smtpPass
-            }
-          });
-
-          const chatLink = `${appBaseUrl}?view=CHAT&chatId=${message.chatId}`;
-          const messageText = message.text || 'You have received a new message';
-
-          const mailOptions = {
-            from: `"Christian Match Ghana" <${smtpUser}>`,
-            to: email,
-            subject: `New message from ${senderName} on Christian Match Ghana`,
-            html: `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>New Message on Christian Match Ghana</title>
-  <style>
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background-color: #f4f5f7;
-      margin: 0;
-      padding: 0;
-      -webkit-font-smoothing: antialiased;
-    }
-    .container {
-      max-width: 600px;
-      margin: 40px auto;
-      background-color: #ffffff;
-      border-radius: 16px;
-      overflow: hidden;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-    }
-    .header {
-      background: linear-gradient(135deg, #ff7e5f, #feb47b);
-      padding: 30px 20px;
-      text-align: center;
-      color: #ffffff;
-    }
-    .header h1 {
-      margin: 0;
-      font-size: 24px;
-      font-weight: 700;
-    }
-    .content {
-      padding: 40px 30px;
-      color: #333333;
-      line-height: 1.6;
-    }
-    .greeting {
-      font-size: 18px;
-      font-weight: 600;
-      margin-bottom: 20px;
-    }
-    .message-box {
-      background-color: #f8f9fa;
-      border-left: 4px solid #ff7e5f;
-      padding: 15px 20px;
-      margin: 20px 0;
-      border-radius: 8px;
-      font-style: italic;
-      color: #555555;
-    }
-    .cta-container {
-      text-align: center;
-      margin: 30px 0;
-    }
-    .cta-button {
-      background-color: #ff7e5f;
-      color: #ffffff !important;
-      text-decoration: none;
-      padding: 12px 30px;
-      font-weight: bold;
-      border-radius: 25px;
-      display: inline-block;
-      box-shadow: 0 4px 8px rgba(255, 126, 95, 0.3);
-      text-align: center;
-    }
-    .footer {
-      background-color: #f8f9fa;
-      padding: 20px;
-      text-align: center;
-      font-size: 12px;
-      color: #777777;
-      border-top: 1px solid #eeeeee;
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h1>Christian Match Ghana</h1>
-    </div>
-    <div class="content">
-      <div class="greeting">Hello ${receiverName},</div>
-      <p>You have received a new message from <strong>${senderName}</strong>:</p>
-      <div class="message-box">
-        "${messageText}"
-      </div>
-      <p>Click the button below to view the chat and reply:</p>
-      <div class="cta-container">
-        <a href="${chatLink}" class="cta-button">Go to Chat</a>
-      </div>
-      <p>If you have any questions or need assistance, please feel free to reply to this email.</p>
-    </div>
-    <div class="footer">
-      <p>&copy; 2026 Christian Match Ghana Ltd. All rights reserved.</p>
-      <p>You are receiving this email because you registered on Christian Match Ghana.</p>
-    </div>
-  </div>
-</body>
-</html>
-            `
-          };
-
-          await transporter.sendMail(mailOptions);
-          console.log(`Email notification sent to ${email} successfully`);
-        } else {
-          console.warn("SMTP user/pass not configured in environment variables. Email notification skipped.");
-        }
-      } else {
-        console.warn(`No email found for receiver ${receiverId}`);
-      }
-
-      // SMS is intentionally opt-in and deferred until an SMS gateway adapter is supplied.
-      if (notificationPreferences.sms && notificationPreferences.newChatMessages && userData.phone) {
-        await sendSmsNotification({
-          to: userData.phone,
-          message: `New message from ${senderName} on Christian Match Ghana: ${message.text || 'Open the app to reply.'}`,
+      // Queue one offline digest window instead of sending email/SMS per message.
+      // The scheduled worker re-checks presence, unread state, preferences, and
+      // provider availability immediately before delivery.
+      if (notificationPreferences.newChatMessages && (userData.email || ((notificationPreferences.sms === true || notificationPreferences.whatsapp === true) && userData.phone))) {
+        await queueOfflineMessageNotification({
+          db,
+          recipientId: receiverId,
+          chatId: message.chatId,
+          messageId: context.params.messageId,
+          senderId,
+          senderName,
+          text: message.text,
         });
       }
 
@@ -641,6 +514,16 @@ exports.onMessageSent = functions.firestore
       console.error('Error sending message notifications:', error);
       return null;
     }
+  });
+
+// Process offline chat notification digests every five minutes. Each recipient
+// receives at most one email/SMS digest per 15-minute window.
+exports.processOfflineMessageNotificationBatches = functions.pubsub
+  .schedule('every 5 minutes')
+  .timeZone('Africa/Accra')
+  .onRun(async () => {
+    await processOfflineMessageNotificationBatches(db);
+    return null;
   });
 
 // ----------------------------------------------------------------------------
@@ -1234,3 +1117,395 @@ exports.sendUnverifiedVerificationReminders = functions
     nextPageToken: usersPage.pageToken || null
   };
 });
+
+// ----------------------------------------------------------------------------
+// ADMIN MESSAGE DISTRIBUTION GROUPS
+// ----------------------------------------------------------------------------
+
+const DISTRIBUTION_GROUPS_COLLECTION = 'adminDistributionGroups';
+const DEFAULT_DISTRIBUTION_GROUPS = [
+  {
+    id: 'all-cmg-users',
+    name: 'ALL-CMG-USERS',
+    description: 'All active Christian Match Ghana users.',
+    criteria: { mode: 'criteria', userIds: [], gender: [], country: [], locations: [], accountState: 'active' },
+  },
+  {
+    id: 'all-cmg-females',
+    name: 'ALL-CMG-FEMALES',
+    description: 'All active female Christian Match Ghana users.',
+    criteria: { mode: 'criteria', userIds: [], gender: ['female'], country: [], locations: [], accountState: 'active' },
+  },
+  {
+    id: 'all-cmg-males',
+    name: 'ALL-CMG-MALES',
+    description: 'All active male Christian Match Ghana users.',
+    criteria: { mode: 'criteria', userIds: [], gender: ['male'], country: [], locations: [], accountState: 'active' },
+  },
+];
+
+async function ensureDefaultDistributionGroups() {
+  const refs = DEFAULT_DISTRIBUTION_GROUPS.map((group) => db.collection(DISTRIBUTION_GROUPS_COLLECTION).doc(group.id));
+  const snapshots = await Promise.all(refs.map((ref) => ref.get()));
+  const batch = db.batch();
+  let changed = false;
+  snapshots.forEach((snapshot, index) => {
+    if (snapshot.exists) return;
+    const group = DEFAULT_DISTRIBUTION_GROUPS[index];
+    const now = FieldValue.serverTimestamp();
+    batch.set(refs[index], {
+      ...group,
+      system: true,
+      schemaVersion: 1,
+      createdBy: 'system',
+      createdAt: now,
+      updatedBy: 'system',
+      updatedAt: now,
+    });
+    changed = true;
+  });
+  if (changed) await batch.commit();
+}
+
+async function syncDefaultMembershipForUser(userId, userData = {}) {
+  const batch = db.batch();
+  const now = Timestamp.now();
+  for (const group of DEFAULT_DISTRIBUTION_GROUPS) {
+    const memberRef = db.collection(DISTRIBUTION_GROUPS_COLLECTION).doc(group.id).collection('members').doc(userId);
+    if (matchesDistributionCriteria(userData, group.criteria, userId)) {
+      batch.set(memberRef, {
+        userId,
+        groupId: group.id,
+        source: 'default-criteria',
+        updatedAt: now,
+      }, { merge: true });
+    } else {
+      batch.delete(memberRef);
+    }
+  }
+  await batch.commit();
+}
+
+async function syncAllExistingUsersToDefaultGroups() {
+  const usersSnapshot = await db.collection('users').get();
+  const users = usersSnapshot.docs;
+  for (let index = 0; index < users.length; index += 100) {
+    await Promise.all(users.slice(index, index + 100).map((userDoc) => syncDefaultMembershipForUser(userDoc.id, userDoc.data() || {})));
+  }
+}
+
+
+
+function normalizeCriteriaList(value, max = 20) {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value
+    .map((item) => String(item || '').trim().toLowerCase())
+    .filter(Boolean))].slice(0, max);
+}
+
+function normalizeDistributionCriteria(input = {}) {
+  const mode = input.mode === 'selected' ? 'selected' : 'criteria';
+  const gender = normalizeCriteriaList(input.gender).filter((value) => ['male', 'female'].includes(value));
+  const country = normalizeCriteriaList(input.country);
+  const locations = normalizeCriteriaList(input.locations);
+  const userIds = normalizeCriteriaList(input.userIds, 5000);
+  const accountState = ['active', 'blocked', 'any'].includes(String(input.accountState || '').toLowerCase())
+    ? String(input.accountState).toLowerCase()
+    : 'active';
+  return { mode, userIds, gender, country, locations, accountState };
+}
+
+function effectiveUserState(userData = {}) {
+  return userData.isBlocked === true || String(userData.status || '').trim().toLowerCase() === 'blocked'
+    ? 'blocked'
+    : 'active';
+}
+
+function normalizedCity(location) {
+  return String(location || '').split(',')[0].trim().toLowerCase();
+}
+
+function matchesDistributionCriteria(userData, criteria, userId = '') {
+  if (criteria.mode === 'selected') return criteria.userIds.includes(userId);
+  const normalizedGender = String(userData.gender || '').trim().toLowerCase();
+  const normalizedCountry = String(userData.country || '').trim().toLowerCase();
+  const city = normalizedCity(userData.location || userData.city);
+  const state = effectiveUserState(userData);
+  return (
+    (criteria.gender.length === 0 || criteria.gender.includes(normalizedGender)) &&
+    (criteria.country.length === 0 || criteria.country.includes(normalizedCountry)) &&
+    (criteria.locations.length === 0 || criteria.locations.includes(city)) &&
+    (criteria.accountState === 'any' || criteria.accountState === state)
+  );
+}
+
+async function evaluateDistributionGroup(criteria, previewLimit = 100) {
+  const usersSnapshot = await db.collection('users').get();
+  const matches = [];
+  usersSnapshot.forEach((userDoc) => {
+    const userData = userDoc.data() || {};
+    if (!matchesDistributionCriteria(userData, criteria, userDoc.id)) return;
+    if (matches.length < previewLimit) {
+      matches.push({
+        id: userDoc.id,
+        name: userData.name || 'Unnamed user',
+        gender: userData.gender || '',
+        country: userData.country || '',
+        location: userData.location || userData.city || '',
+        accountState: effectiveUserState(userData),
+      });
+    }
+  });
+  return { count: usersSnapshot.docs.filter((userDoc) => matchesDistributionCriteria(userDoc.data() || {}, criteria, userDoc.id)).length, preview: matches };
+}
+
+exports.adminListDistributionGroups = functions.https.onCall(async (data, context) => {
+  await requireAnyAdminPermission(context, ['messages.groups.manage', 'messages.send']);
+  await ensureDefaultDistributionGroups();
+  await syncAllExistingUsersToDefaultGroups();
+  const snapshot = await db.collection(DISTRIBUTION_GROUPS_COLLECTION).orderBy('name').get();
+  const groups = await Promise.all(snapshot.docs.map(async (groupDoc) => {
+    const group = groupDoc.data() || {};
+    const criteria = normalizeDistributionCriteria(group.criteria);
+    const evaluated = await evaluateDistributionGroup(criteria, 0);
+    return { id: groupDoc.id, ...group, criteria, memberCount: evaluated.count };
+  }));
+  return groups;
+});
+
+exports.adminCreateDistributionGroup = functions.https.onCall(async (data, context) => {
+  await requireAdminPermission(context, 'messages.groups.manage');
+  const name = String(data?.name || '').trim();
+  const description = String(data?.description || '').trim();
+  if (name.length < 2 || name.length > 80) {
+    throw new functions.https.HttpsError('invalid-argument', 'Group name must be between 2 and 80 characters.');
+  }
+  const criteria = normalizeDistributionCriteria(data?.criteria);
+  if (criteria.mode === 'selected' && criteria.userIds.length === 0) {
+    throw new functions.https.HttpsError('invalid-argument', 'Select at least one user for a custom distribution group.');
+  }
+  const now = FieldValue.serverTimestamp();
+  const groupRef = db.collection(DISTRIBUTION_GROUPS_COLLECTION).doc();
+  await groupRef.set({
+    name,
+    description: description.slice(0, 240),
+    schemaVersion: 1,
+    criteria,
+    createdBy: context.auth.uid,
+    createdAt: now,
+    updatedBy: context.auth.uid,
+    updatedAt: now,
+  });
+  await recordAdminAudit(context, 'admin.distribution_group.created', groupRef.id, { name, criteria });
+  return { id: groupRef.id, name, description, schemaVersion: 1, criteria };
+});
+
+exports.adminUpdateDistributionGroup = functions.https.onCall(async (data, context) => {
+  await requireAdminPermission(context, 'messages.groups.manage');
+  const groupId = String(data?.groupId || '').trim();
+  const name = String(data?.name || '').trim();
+  if (!groupId || name.length < 2 || name.length > 80) {
+    throw new functions.https.HttpsError('invalid-argument', 'A valid group ID and name are required.');
+  }
+  const groupRef = db.collection(DISTRIBUTION_GROUPS_COLLECTION).doc(groupId);
+  const existing = await groupRef.get();
+  if (!existing.exists) throw new functions.https.HttpsError('not-found', 'Distribution group not found.');
+  if (existing.data()?.system === true) throw new functions.https.HttpsError('failed-precondition', 'Default distribution groups are protected.');
+  const criteria = normalizeDistributionCriteria(data?.criteria);
+  if (criteria.mode === 'selected' && criteria.userIds.length === 0) {
+    throw new functions.https.HttpsError('invalid-argument', 'Select at least one user for a custom distribution group.');
+  }
+  const updates = {
+    name,
+    description: String(data?.description || '').trim().slice(0, 240),
+    criteria,
+    updatedBy: context.auth.uid,
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+  await groupRef.update(updates);
+  await recordAdminAudit(context, 'admin.distribution_group.updated', groupId, { name, criteria });
+  return { id: groupId, ...updates, criteria };
+});
+
+exports.adminDeleteDistributionGroup = functions.https.onCall(async (data, context) => {
+  await requireAdminPermission(context, 'messages.groups.manage');
+  const groupId = String(data?.groupId || '').trim();
+  if (!groupId) throw new functions.https.HttpsError('invalid-argument', 'A distribution group ID is required.');
+  const groupRef = db.collection(DISTRIBUTION_GROUPS_COLLECTION).doc(groupId);
+  const existing = await groupRef.get();
+  if (!existing.exists) throw new functions.https.HttpsError('not-found', 'Distribution group not found.');
+  if (existing.data()?.system === true) throw new functions.https.HttpsError('failed-precondition', 'Default distribution groups are protected.');
+  await groupRef.delete();
+  await recordAdminAudit(context, 'admin.distribution_group.deleted', groupId, { name: existing.data()?.name || '' });
+  return { id: groupId, deleted: true };
+});
+
+exports.adminPreviewDistributionGroup = functions.https.onCall(async (data, context) => {
+  await requireAdminPermission(context, 'messages.groups.manage');
+  let criteria = data?.criteria;
+  if (data?.groupId) {
+    const groupSnapshot = await db.collection(DISTRIBUTION_GROUPS_COLLECTION).doc(String(data.groupId)).get();
+    if (!groupSnapshot.exists) throw new functions.https.HttpsError('not-found', 'Distribution group not found.');
+    criteria = groupSnapshot.data()?.criteria;
+  }
+  const evaluated = await evaluateDistributionGroup(normalizeDistributionCriteria(criteria), 100);
+  return evaluated;
+});
+
+exports.adminSendMessage = functions.https.onCall(async (data, context) => {
+  await requireAnyAdminPermission(context, ['messages.send', 'messages.moderate']);
+  const text = String(data?.text || '').trim();
+  const recipientMode = ['all', 'selected', 'audience'].includes(data?.recipientMode)
+    ? data.recipientMode
+    : '';
+  if (!text || text.length > 2000) {
+    throw new functions.https.HttpsError('invalid-argument', 'Message text is required and must be 2,000 characters or fewer.');
+  }
+  if (!recipientMode) {
+    throw new functions.https.HttpsError('invalid-argument', 'Choose a valid message audience.');
+  }
+
+  await ensureDefaultDistributionGroups();
+  const usersSnapshot = await db.collection('users').get();
+  const userRecords = usersSnapshot.docs.map((userDoc) => ({
+    id: userDoc.id,
+    data: userDoc.data() || {},
+  }));
+  const activeUsers = userRecords.filter(({ id, data: userData }) =>
+    id !== context.auth.uid && effectiveUserState(userData) === 'active',
+  );
+
+  let recipients = activeUsers;
+  let audienceId = null;
+  if (recipientMode === 'selected') {
+    const userIds = Array.isArray(data?.userIds)
+      ? [...new Set(data.userIds.map((value) => String(value).trim()).filter(Boolean))].slice(0, 5000)
+      : [];
+    if (userIds.length === 0) {
+      throw new functions.https.HttpsError('invalid-argument', 'Select at least one active user.');
+    }
+    const selectedIds = new Set(userIds);
+    recipients = activeUsers.filter(({ id }) => selectedIds.has(id));
+  } else if (recipientMode === 'audience') {
+    audienceId = String(data?.audienceId || '').trim();
+    if (!audienceId) {
+      throw new functions.https.HttpsError('invalid-argument', 'Choose a saved audience.');
+    }
+    const audienceSnapshot = await db.collection(DISTRIBUTION_GROUPS_COLLECTION).doc(audienceId).get();
+    if (!audienceSnapshot.exists) {
+      throw new functions.https.HttpsError('not-found', 'The selected audience no longer exists.');
+    }
+    const criteria = normalizeDistributionCriteria(audienceSnapshot.data()?.criteria);
+    recipients = activeUsers.filter(({ id, data: userData }) => matchesDistributionCriteria(userData, criteria, id));
+  }
+
+  if (recipients.length === 0) {
+    throw new functions.https.HttpsError('failed-precondition', 'The selected audience has no active recipients.');
+  }
+  if (recipients.length > 5000) {
+    throw new functions.https.HttpsError('resource-exhausted', 'This audience is too large for one send. Use a smaller saved audience.');
+  }
+
+  const adminSnapshot = await db.collection('users').doc(context.auth.uid).get();
+  const adminData = adminSnapshot.exists ? adminSnapshot.data() || {} : {};
+  const adminName = adminData.name || context.auth.token.name || context.auth.token.email || 'CMG Admin';
+  const adminPhoto = Array.isArray(adminData.photos) ? adminData.photos[0] || '' : adminData.photo || '';
+  const broadcastId = crypto.randomUUID();
+  let sentCount = 0;
+
+  // Each recipient receives a normal two-party chat message. Bounded batches
+  // keep the operation under Firestore's commit write limit while allowing the
+  // existing message notification trigger to handle push and offline digests.
+  for (let index = 0; index < recipients.length; index += 200) {
+    const batch = db.batch();
+    const chunk = recipients.slice(index, index + 200);
+    chunk.forEach(({ id: recipientId, data: recipientData }) => {
+      const chatId = `dm_${[context.auth.uid, recipientId].sort().map((value) => encodeURIComponent(value)).join('__')}`;
+      const chatRef = db.collection('chats').doc(chatId);
+      const messageRef = db.collection('messages').doc();
+      const recipientName = recipientData.name || recipientData.email || 'CMG member';
+      const recipientPhoto = Array.isArray(recipientData.photos) ? recipientData.photos[0] || '' : recipientData.photo || '';
+      const participantDetails = {
+        [context.auth.uid]: { name: adminName, photo: adminPhoto },
+        [recipientId]: { name: recipientName, photo: recipientPhoto },
+      };
+      batch.set(chatRef, {
+        participants: [context.auth.uid, recipientId].sort(),
+        participantDetails,
+        lastMessage: text,
+        lastMessageTime: FieldValue.serverTimestamp(),
+        lastMessageSenderId: context.auth.uid,
+        [`unreadCount.${recipientId}`]: FieldValue.increment(1),
+        [`unreadCount.${context.auth.uid}`]: FieldValue.increment(0),
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      batch.set(messageRef, {
+        chatId,
+        senderId: context.auth.uid,
+        text,
+        type: 'text',
+        timestamp: FieldValue.serverTimestamp(),
+        status: 'sent',
+        reactions: {},
+        adminBroadcast: true,
+        broadcastId,
+        recipientMode,
+        audienceId,
+      });
+    });
+    await batch.commit();
+    sentCount += chunk.length;
+  }
+
+  await recordAdminAudit(context, 'admin.message.broadcast_sent', broadcastId, {
+    recipientMode,
+    audienceId,
+    resolvedCount: recipients.length,
+    sentCount,
+    textLength: text.length,
+  });
+
+  return {
+    broadcastId,
+    recipientMode,
+    audienceId: audienceId || undefined,
+    resolvedCount: recipients.length,
+    sentCount,
+    skippedCount: 0,
+  };
+});
+
+exports.adminGetDistributionMemberships = functions.https.onCall(async (data, context) => {
+  await requireAdminPermission(context, 'messages.groups.manage');
+  await ensureDefaultDistributionGroups();
+  await syncAllExistingUsersToDefaultGroups();
+  const userIds = Array.isArray(data?.userIds)
+    ? [...new Set(data.userIds.map((value) => String(value).trim()).filter(Boolean))].slice(0, 5000)
+    : [];
+  const membershipMap = Object.fromEntries(userIds.map((userId) => [userId, []]));
+  const groupsSnapshot = await db.collection(DISTRIBUTION_GROUPS_COLLECTION).orderBy('name').get();
+  for (const groupDoc of groupsSnapshot.docs) {
+    const membersSnapshot = await groupDoc.ref.collection('members').get();
+    membersSnapshot.forEach((memberDoc) => {
+      if (!membershipMap[memberDoc.id]) return;
+      membershipMap[memberDoc.id].push({ id: groupDoc.id, name: groupDoc.data()?.name || groupDoc.id });
+    });
+  }
+  return membershipMap;
+});
+
+
+// Keep the three default audiences explicitly synchronized whenever a user is
+// created, updated, blocked, unblocked, or deleted. This is membership data for
+// future broadcasts only; it does not send a message.
+exports.syncDefaultMessageAudienceMembership = functions.firestore
+  .document('users/{userId}')
+  .onWrite(async (change, context) => {
+    await ensureDefaultDistributionGroups();
+    await syncDefaultMembershipForUser(
+      context.params.userId,
+      change.after.exists ? (change.after.data() || {}) : {},
+    );
+    return null;
+  });

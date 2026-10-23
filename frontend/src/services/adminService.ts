@@ -1,5 +1,7 @@
 
-import { db, functions } from '../firebase';
+import { app, db, functions } from '../firebase';
+import { initializeApp, getApps } from 'firebase/app';
+import { getAuth, createUserWithEmailAndPassword, sendEmailVerification, signOut } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
 import { 
   collection, 
@@ -13,6 +15,8 @@ import {
   doc,
   deleteDoc,
   updateDoc,
+  setDoc,
+  serverTimestamp,
   getAggregateFromServer,
   sum
 } from 'firebase/firestore';
@@ -444,16 +448,11 @@ export async function getAnalyticsData(
  */
 export async function adminCreateUser(userData: any): Promise<{success: boolean, message: string, userId?: string}> {
   try {
-    const { initializeApp, getApp, getApps } = await import('firebase/app');
-    const { getAuth, createUserWithEmailAndPassword, sendEmailVerification, signOut } = await import('firebase/auth');
-    const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
-    const { app: mainApp, db } = await import('../firebase');
-
     // Retrieve or initialize secondary app
     const apps = getApps();
     let secondaryApp = apps.find(a => a.name === 'SecondaryApp');
     if (!secondaryApp) {
-      secondaryApp = initializeApp(mainApp.options, 'SecondaryApp');
+      secondaryApp = initializeApp(app.options, 'SecondaryApp');
     }
     
     const secondaryAuth = getAuth(secondaryApp);

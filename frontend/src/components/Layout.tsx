@@ -11,6 +11,12 @@ import { Compass, MessageCircle, User, Heart, Bell, RotateCcw, Power, ArrowLeft,
 import Logo from './Logo';
 
 
+interface NotificationItem {
+  id: string;
+  label: string;
+  unreadCount: number;
+}
+
 interface LayoutProps {
   children: React.ReactNode;
   currentView: ViewState;
@@ -18,18 +24,24 @@ interface LayoutProps {
   onBack?: () => void;
   onLogout?: () => void;
   onNotifications?: () => void;
+  notificationCount?: number;
+  notificationItems?: NotificationItem[];
+  onNotificationSelect?: (notificationId: string) => void;
+  onMarkAllNotificationsRead?: () => Promise<void>;
   onRefresh?: () => void;
   onAdmin?: () => void;
   isSystemAdmin?: boolean;
   hideNav?: boolean; 
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, onBack, onLogout, onNotifications, onRefresh, onAdmin, isSystemAdmin, hideNav }) => {
+const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, onBack, onLogout, onNotifications, notificationCount = 0, notificationItems = [], onNotificationSelect, onMarkAllNotificationsRead, onRefresh, onAdmin, isSystemAdmin, hideNav }) => {
   // Navigation is hidden during auth, onboarding, and specific deep-view states (like active calls)
-  const shouldShowNav = !hideNav && !['AUTH', 'ONBOARDING', 'EDIT_PROFILE'].includes(currentView);
+  const shouldShowNav = !hideNav && !['AUTH', 'ONBOARDING', 'EDIT_PROFILE', 'ADMIN'].includes(currentView);
   const shouldShowMainHeader = shouldShowNav && currentView !== 'PROFILE' && currentView !== 'ADMIN';
   const [ribbonScrolling, setRibbonScrolling] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  const [showNotificationMenu, setShowNotificationMenu] = useState(false);
+  const [markingAllNotificationsRead, setMarkingAllNotificationsRead] = useState(false);
   const userScrollIntentRef = useRef(false);
   const ribbonBoundaryTimerRef = useRef<number | undefined>(undefined);
 
@@ -74,7 +86,28 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
     }
   };
 
-  const frameClassName = `cmg-app-frame cmg-view-surface w-full max-w-md h-[100dvh] flex flex-col relative shadow-2xl overflow-hidden sm:rounded-[2rem] sm:h-[92vh] sm:my-6 sm:border sm:border-white/70 ${ribbonScrolling ? 'is-ribbon-scrolling' : ''}`;
+  const handleNotificationsClick = () => {
+    if (notificationCount > 0 && notificationItems.length > 0) {
+      setShowNotificationMenu((visible) => !visible);
+      return;
+    }
+    onNotifications?.();
+  };
+
+  const handleMarkAllNotificationsRead = async () => {
+    if (!onMarkAllNotificationsRead || markingAllNotificationsRead) return;
+    setMarkingAllNotificationsRead(true);
+    try {
+      await onMarkAllNotificationsRead();
+      setShowNotificationMenu(false);
+    } catch (error) {
+      console.error('Unable to mark all notifications as read:', error);
+    } finally {
+      setMarkingAllNotificationsRead(false);
+    }
+  };
+
+  const frameClassName = `cmg-app-frame cmg-view-surface w-full flex flex-col relative shadow-2xl overflow-hidden ${currentView === 'ADMIN' ? 'max-w-none h-[100dvh] sm:rounded-none sm:h-[100dvh] sm:my-0 sm:border-0' : 'max-w-md h-[100dvh] sm:rounded-[2rem] sm:h-[92vh] sm:my-6 sm:border sm:border-white/70'} ${ribbonScrolling ? 'is-ribbon-scrolling' : ''}`;
 
   return (
     <div className="cmg-app-backdrop flex justify-center min-h-screen font-sans">
@@ -119,12 +152,20 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
                 {onNotifications && (
                   <button
                     type="button"
-                    title="Notifications"
-                    aria-label="Notifications"
-                    onClick={onNotifications}
-                    className="cmg-main-icon-button"
+                    title={notificationCount > 0 ? `${notificationCount} unread message${notificationCount === 1 ? '' : 's'}` : 'Notifications'}
+                    aria-label={notificationCount > 0 ? `Notifications, ${notificationCount} unread message${notificationCount === 1 ? '' : 's'}` : 'Notifications'}
+                    onClick={handleNotificationsClick}
+                    className="cmg-main-icon-button relative"
                   >
                     <Bell size={18} />
+                    {notificationCount > 0 && (
+                      <span
+                        aria-live="polite"
+                        className="absolute -right-1 -top-1 min-w-4 rounded-full bg-brand-orange px-1 text-center text-[9px] font-black leading-4 text-white shadow-sm"
+                      >
+                        {notificationCount > 99 ? '99+' : notificationCount}
+                      </span>
+                    )}
                   </button>
                 )}
                 {onLogout && (
@@ -140,6 +181,50 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
                 )}
               </div>
             </div>
+            {showNotificationMenu && (
+              <>
+                <button
+                  type="button"
+                  aria-label="Close notifications"
+                  className="fixed inset-0 z-40 cursor-default"
+                  onClick={() => setShowNotificationMenu(false)}
+                />
+                <div className="absolute right-5 top-full z-50 mt-2 w-72 max-w-[calc(100%-2.5rem)] rounded-2xl border border-gray-100 bg-white p-3 shadow-2xl">
+                  <div className="flex items-center justify-between gap-3 px-2 pb-2">
+                    <h2 className="text-sm font-black text-gray-900">Notifications</h2>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-brand-orange">
+                      {notificationCount} unread
+                    </span>
+                  </div>
+                  <div className="max-h-64 space-y-1 overflow-y-auto">
+                    {notificationItems.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          setShowNotificationMenu(false);
+                          onNotificationSelect?.(item.id);
+                        }}
+                        className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-orange-50"
+                      >
+                        <span className="min-w-0 truncate text-xs font-bold text-gray-700">{item.label}</span>
+                        <span className="shrink-0 rounded-full bg-brand-orange px-2 py-0.5 text-[10px] font-black text-white">
+                          {item.unreadCount > 99 ? '99+' : item.unreadCount}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleMarkAllNotificationsRead}
+                    disabled={markingAllNotificationsRead}
+                    className="mt-2 w-full rounded-xl border border-brand-orange/20 px-3 py-2.5 text-xs font-black uppercase tracking-wider text-brand-orange transition hover:bg-orange-50 disabled:cursor-wait disabled:opacity-50"
+                  >
+                    {markingAllNotificationsRead ? 'Marking as read…' : 'Mark all as read'}
+                  </button>
+                </div>
+              </>
+            )}
           </header>
         )}
 

@@ -15,13 +15,14 @@ import {
   orderBy, 
   onSnapshot, 
   Timestamp,
-  serverTimestamp,
   limit,
+  serverTimestamp,
   setDoc,
   deleteDoc,
-  increment
+  increment,
+  writeBatch
 } from 'firebase/firestore';
-import { db } from '../firebase';
+import { auth, db } from '../firebase';
 import type { ChatThread, Message } from '../types';
 
 // Firestore collection names
@@ -80,6 +81,21 @@ interface MessageDocument {
 }
 
 /**
+ * Stable ID for a one-to-one chat. Legacy random-ID chats remain readable,
+ * while all newly-created conversations converge on one document.
+ */
+export function getCanonicalChatId(userId1: string, userId2: string): string {
+  return `dm_${[userId1, userId2].sort().map(encodeURIComponent).join('__')}`;
+}
+
+function timestampMillis(value: unknown): number {
+  const candidate = value as { toMillis?: () => number; seconds?: number } | null;
+  if (candidate?.toMillis) return candidate.toMillis();
+  if (typeof candidate?.seconds === 'number') return candidate.seconds * 1000;
+  return Number.MAX_SAFE_INTEGER;
+}
+
+/**
  * Create or get existing chat between two users
  */
 export async function createOrGetChat(
@@ -114,9 +130,16 @@ export async function createOrGetChat(
       updatedAt: Timestamp.now(),
     };
 
-    const chatRef = await addDoc(collection(db, CHATS_COLLECTION), chatData);
-    console.log('✅ Chat created:', chatRef.id);
-    return chatRef.id;
+    const chatId = getCanonicalChatId(currentUserId, partnerUserId);
+    const chatRef = doc(db, CHATS_COLLECTION, chatId);
+    const canonicalChat = await getDoc(chatRef);
+    if (canonicalChat.exists()) return chatId;
+
+    // setDoc on a deterministic ID is idempotent when both participants
+    // connect at the same time.
+    await setDoc(chatRef, chatData);
+    console.log('✅ Chat created:', chatId);
+    return chatId;
   } catch (error) {
     console.error('❌ Error creating chat:', error);
     throw error;
@@ -132,20 +155,28 @@ async function findChatBetweenUsers(
 ): Promise<string | null> {
   try {
     const participants = [userId1, userId2].sort();
-    
+    const canonicalChatId = getCanonicalChatId(userId1, userId2);
+
     const q = query(
       collection(db, CHATS_COLLECTION),
-      where('participants', '==', participants),
-      limit(1)
+      where('participants', '==', participants)
     );
 
     const snapshot = await getDocs(q);
-    
-    if (!snapshot.empty) {
-      return snapshot.docs[0].id;
-    }
-    
-    return null;
+
+    if (snapshot.empty) return null;
+    if (snapshot.docs.some((chat) => chat.id === canonicalChatId)) return canonicalChatId;
+
+    // Select legacy random-ID chats deterministically while they are being
+    // migrated, instead of letting Firestore's arbitrary first result differ
+    // between the two participants.
+    const legacyChats = [...snapshot.docs].sort((left, right) => {
+      const leftData = left.data() as Partial<ChatDocument>;
+      const rightData = right.data() as Partial<ChatDocument>;
+      const createdDifference = timestampMillis(leftData.createdAt) - timestampMillis(rightData.createdAt);
+      return createdDifference || left.id.localeCompare(right.id);
+    });
+    return legacyChats[0].id;
   } catch (error) {
     console.error('❌ Error finding chat:', error);
     return null;
@@ -178,7 +209,26 @@ export async function sendMessage(
   }
 ): Promise<string> {
   try {
-    // Create message document
+    const authenticatedUserId = auth.currentUser?.uid;
+    if (!authenticatedUserId || authenticatedUserId !== senderId) {
+      throw new Error('Your authenticated session does not match the active chat sender. Please sign in again.');
+    }
+
+    const chatRef = doc(db, CHATS_COLLECTION, chatId);
+    const chatDoc = await getDoc(chatRef);
+    if (!chatDoc.exists()) {
+      throw new Error('This conversation no longer exists. Return to Chats and open it again.');
+    }
+
+    const chatData = chatDoc.data() as ChatDocument;
+    if (!chatData.participants.includes(senderId)) {
+      throw new Error('You are not a participant in this conversation.');
+    }
+    const otherUserId = chatData.participants.find(id => id !== senderId);
+    if (!otherUserId) {
+      throw new Error('This conversation has no valid partner.');
+    }
+
     const messageData: any = {
       chatId,
       senderId,
@@ -196,30 +246,25 @@ export async function sendMessage(
     if (message.replyTo) messageData.replyTo = message.replyTo;
     if (message.location) messageData.location = message.location;
 
-    const messageRef = await addDoc(collection(db, MESSAGES_COLLECTION), messageData);
-    console.log('✅ Message sent:', messageRef.id);
+    // Commit the message and chat summary atomically so a successful send
+    // cannot leave an orphaned message or an unchanged conversation header.
+    const messageRef = doc(collection(db, MESSAGES_COLLECTION));
+    const batch = writeBatch(db);
+    batch.set(messageRef, messageData);
+    batch.update(chatRef, {
+      lastMessage: message.type === 'image' ? '📷 Photo' :
+                   message.type === 'file' ? '📎 File' :
+                   message.type === 'location' ? '📍 Location' :
+                   message.type === 'live_location' ? '🔴 Live Location' :
+                   message.text,
+      lastMessageTime: serverTimestamp(),
+      lastMessageSenderId: senderId,
+      [`unreadCount.${otherUserId}`]: increment(1),
+      updatedAt: serverTimestamp(),
+    });
 
-    // Update chat with last message
-    const chatRef = doc(db, CHATS_COLLECTION, chatId);
-    const chatDoc = await getDoc(chatRef);
-    
-    if (chatDoc.exists()) {
-      const chatData = chatDoc.data() as ChatDocument;
-      const otherUserId = chatData.participants.find(id => id !== senderId);
-      
-      await updateDoc(chatRef, {
-        lastMessage: message.type === 'image' ? '📷 Photo' : 
-                     message.type === 'file' ? '📎 File' :
-                     message.type === 'location' ? '📍 Location' :
-                     message.type === 'live_location' ? '🔴 Live Location' : 
-                     message.text,
-        lastMessageTime: serverTimestamp(),
-        lastMessageSenderId: senderId,
-        [`unreadCount.${otherUserId}`]: increment(1),
-        updatedAt: serverTimestamp(),
-      });
-    }
-
+    await batch.commit();
+    console.log('✅ Message sent:', messageRef.id, 'chat:', chatId, 'sender:', senderId);
     return messageRef.id;
   } catch (error) {
     console.error('❌ Error sending message:', error);
@@ -232,7 +277,8 @@ export async function sendMessage(
  */
 export function subscribeToMessages(
   chatId: string,
-  callback: (messages: Message[]) => void
+  callback: (messages: Message[]) => void,
+  onError?: (error: unknown) => void
 ): () => void {
   const q = query(
     collection(db, MESSAGES_COLLECTION),
@@ -264,6 +310,9 @@ export function subscribeToMessages(
     });
 
     callback(messages);
+  }, (error) => {
+    console.error('❌ Unable to subscribe to messages:', error);
+    onError?.(error);
   });
 
   return unsubscribe;
@@ -348,6 +397,7 @@ export async function markMessagesAsRead(chatId: string, userId: string): Promis
     console.log('✅ Messages marked as read');
   } catch (error) {
     console.error('❌ Error marking messages as read:', error);
+    throw error;
   }
 }
 
@@ -483,7 +533,8 @@ export async function initiateCall(
   receiverId: string,
   callerName: string,
   callerPhoto: string,
-  isVideo: boolean
+  isVideo: boolean,
+  chatId?: string,
 ): Promise<string> {
   try {
     const callData = {
@@ -491,9 +542,12 @@ export async function initiateCall(
       receiverId,
       callerName,
       callerPhoto,
+      chatId: chatId || null,
       isVideo,
+      protocolVersion: 1,
       status: 'ringing',
       createdAt: serverTimestamp(),
+      expiresAt: new Date(Date.now() + 60_000),
     };
     
     // Add to calls collection

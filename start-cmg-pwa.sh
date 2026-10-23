@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Start the CMG local PWA in Google Chrome only.
+# Start the CMG local PWA in a standalone Chrome app window.
 # Firebase emulators must already be running manually.
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -24,7 +24,7 @@ command -v curl >/dev/null 2>&1 || { printf 'curl is required.\n' >&2; exit 1; }
 command -v lsof >/dev/null 2>&1 || { printf 'lsof is required.\n' >&2; exit 1; }
 command -v open >/dev/null 2>&1 || { printf 'macOS open command is required.\n' >&2; exit 1; }
 
-for port in 9099 8080 5001 9199 4000; do
+for port in 9099 8080 5001 8085 9199 4000; do
   if ! lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
     cat >&2 <<EOF
 Local Firebase emulators are not all running.
@@ -33,7 +33,7 @@ Start them manually first in another Terminal:
   cd "$WORKSPACE_DIR"
   backend/functions/node_modules/.bin/firebase emulators:start \\
     --project staging \\
-    --only auth,firestore,storage,functions \\
+    --only auth,firestore,storage,functions,pubsub \\
     --import=.firebase-emulator-data \\
     --export-on-exit=.firebase-emulator-data
 EOF
@@ -42,6 +42,15 @@ EOF
 done
 
 cd "$FRONTEND_DIR"
+
+# Use the project-declared Node 22 runtime when Homebrew provides it.
+for node_bin in /opt/homebrew/opt/node@22/bin /usr/local/opt/node@22/bin; do
+  if [[ -x "$node_bin/node" ]]; then
+    export PATH="$node_bin:$PATH"
+    break
+  fi
+done
+
 printf '%s\n' 'Installing frontend dependencies…'
 npm ci
 
@@ -50,7 +59,7 @@ export VITE_FIREBASE_EMULATOR_HOST=127.0.0.1
 export VITE_LOCAL_TEST_FRESH_START=true
 export VITE_PUBLIC_APP_URL="http://127.0.0.1:${BROWSER_PORT}"
 
-printf 'Starting CMG PWA in Google Chrome at http://127.0.0.1:%s …\n' "$BROWSER_PORT"
+printf 'Starting CMG PWA app window at http://127.0.0.1:%s …\n' "$BROWSER_PORT"
 npm run dev -- --host 127.0.0.1 --port "$BROWSER_PORT" 2>&1 | tee "$VITE_LOG" &
 VITE_PID=$!
 printf '%s\n' "$VITE_PID" > "$VITE_PID_FILE"
@@ -69,7 +78,9 @@ for _ in {1..30}; do
   sleep 1
 done
 
-open -a 'Google Chrome' "http://127.0.0.1:${BROWSER_PORT}"
+# Open the PWA as a standalone Chrome app window. -n forces a fresh app
+# window so an existing normal Chrome window cannot absorb the launch.
+open -na 'Google Chrome' --args --app="http://127.0.0.1:${BROWSER_PORT}"
 printf 'CMG local PWA: http://127.0.0.1:%s\n' "$BROWSER_PORT"
 printf 'Vite log: %s\n' "$VITE_LOG"
 printf '%s\n' 'This Terminal remains active. Press Control+C to stop the PWA.'

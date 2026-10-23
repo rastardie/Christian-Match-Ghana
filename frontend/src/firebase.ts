@@ -4,7 +4,7 @@ import { getAuth, connectAuthEmulator } from 'firebase/auth';
 import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { getStorage, connectStorageEmulator } from 'firebase/storage';
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
-import { getMessaging, type Messaging } from 'firebase/messaging';
+import { getMessaging, isSupported as messagingSupported, type Messaging } from 'firebase/messaging';
 
 const requiredConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -45,6 +45,12 @@ if (useEmulators) {
   connectFunctionsEmulator(functions, emulatorHost, 5001);
 }
 
+if (typeof window !== 'undefined') {
+  console.info(
+    `[Firebase] project=${requiredConfig.projectId} mode=${useEmulators ? 'local-emulators' : 'online'}${useEmulators ? ` host=${emulatorHost}` : ''}`,
+  );
+}
+
 let analytics = null;
 if (typeof window !== 'undefined') {
   analyticsSupported().then((supported) => {
@@ -58,8 +64,8 @@ if (typeof window !== 'undefined') {
 
 let messaging: Messaging | null = null;
 if (typeof window !== 'undefined' && !useEmulators) {
-  import('firebase/messaging').then(async ({ isSupported }) => {
-    if (await isSupported()) {
+  messagingSupported().then((supported) => {
+    if (supported) {
       messaging = getMessaging(app);
     }
   }).catch(() => {

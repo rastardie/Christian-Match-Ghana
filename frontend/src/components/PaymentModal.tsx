@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Lock, CheckCircle, CreditCard, Shield } from 'lucide-react';
+import { Lock, CheckCircle, CreditCard, Shield, X } from 'lucide-react';
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -35,6 +35,12 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onSuccess,
   };
 
   const paystackPublicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
+
+  const dismiss = () => {
+    setProcessing(false);
+    setStep('SELECT');
+    onClose();
+  };
 
   const handlePay = (provider: 'paystack' | 'stripe') => {
     if (provider === 'paystack') {
@@ -95,8 +101,9 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onSuccess,
   }; 
 
   return (
-    <div className="absolute inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-2xl p-6 shadow-2xl transform transition-transform duration-300">
+    <div className="absolute inset-0 z-[100] flex items-end justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 sm:items-center">
+      <div className="relative w-full max-w-md transform rounded-t-3xl bg-white p-6 shadow-2xl transition-transform duration-300 sm:rounded-2xl">
+        <button type="button" onClick={dismiss} aria-label="Close payment" title="Close" className="absolute right-4 top-4 z-10 rounded-full p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"><X size={20} /></button>
         
         {step === 'SELECT' && (
           <div className="space-y-6">
@@ -203,9 +210,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onSuccess,
                 </button>
               )}
               
-              <button onClick={onClose} disabled={processing} className="w-full py-2 text-gray-400 hover:text-gray-500 font-bold text-xs uppercase tracking-wider">
-                Maybe Later
-              </button>
+              <button type="button" onClick={dismiss} className="w-full py-2 text-gray-400 hover:text-gray-500 font-bold text-xs uppercase tracking-wider">Cancel</button>
             </div>
 
             <div className="flex items-center justify-center gap-2 text-[10px] text-gray-400 font-bold">
@@ -222,6 +227,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onSuccess,
               <h3 className="text-lg font-bold text-gray-800">Processing Payment...</h3>
               <p className="text-sm text-gray-500">Please wait while we confirm your transaction.</p>
             </div>
+            <button type="button" onClick={dismiss} className="rounded-xl border border-gray-200 px-5 py-2 text-sm font-black text-gray-600 hover:bg-gray-50">Cancel</button>
           </div>
         )}
 
@@ -234,6 +240,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onSuccess,
               <h3 className="text-2xl font-bold text-gray-800">Payment Successful!</h3>
               <p className="text-sm text-gray-500 mt-1">Your messaging features are now fully unlocked.</p>
             </div>
+            <button type="button" onClick={dismiss} className="rounded-xl border border-gray-200 px-5 py-2 text-sm font-black text-gray-600 hover:bg-gray-50">Close</button>
           </div>
         )}
 

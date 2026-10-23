@@ -3,22 +3,33 @@ import { useNavigate } from 'react-router-dom';
 import { signOut, sendPasswordResetEmail, onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../../firebase';
 import { getDashboardStats, getAdminUsers, getAdminPrayers, getAdminReports, deleteUser, toggleBlockUser, getAdminConnections, getAdminPayments, getAnalyticsData, AnalyticsData, adminCreateUser } from '../../services/adminService';
-import { LayoutDashboard, Users, Shield, Activity, LogOut, MessageSquare, Heart, Trash2, Search, CheckCircle, XCircle, Link as LinkIcon, CreditCard, DollarSign, Calendar, MoreHorizontal, ChevronDown, RefreshCw, ClipboardList, Settings, Menu, Power, FileText, Printer, KeyRound, X } from 'lucide-react';
+import { LayoutDashboard, Users, Shield, Activity, LogOut, MessageSquare, Heart, Trash2, Search, CheckCircle, XCircle, Link as LinkIcon, CreditCard, DollarSign, Calendar, MoreHorizontal, ChevronDown, RefreshCw, ClipboardList, Settings, Menu, Power, FileText, Printer, KeyRound, X, Edit3, Send } from 'lucide-react';
 import { EditProfileView } from '../../MainApp';
 import { updateUserDocument } from '../../services/userService';
 import AdminAccessControl from './AdminAccessControl';
 import { AdminActionProvider, useAdminActionConfirmation } from './AdminActionConfirmation';
 
-import { getCurrentAdminAccess, listAdminAccessControl, assignAdminUserGroups } from '../../services/adminRbacService';
+import { getCurrentAdminAccess, listAdminAccessControl, assignAdminUserGroups, listAdminDistributionGroups, createAdminDistributionGroup, updateAdminDistributionGroup, deleteAdminDistributionGroup, previewAdminDistributionGroup, getAdminDistributionMemberships, adminSendMessage, type DistributionGroup, type DistributionGroupCriteria, type AdminMessageRecipientMode } from '../../services/adminRbacService';
+import type { User } from '../../types';
+type AdminReportKind = 'platform' | 'users' | 'moderation' | 'payments';
+
 const ADMIN_MENU_GROUPS = [
   { key: 'users', label: 'Users', icon: Users, items: [
     { key: 'users', label: 'Users' },
-    { key: 'access-control', label: 'Groups' },
+    { key: 'access-control', label: 'Permissions' },
+    { key: 'message-distribution-groups', label: 'Audiences' },
     { key: 'connections', label: 'Connections' },
     { key: 'prayers', label: 'Prayers' },
   ] },
-  { key: 'operations', label: 'Operations', icon: Activity, items: [
-    { key: 'moderation', label: 'Reports' },
+  { key: 'reports', label: 'Reports', icon: FileText, items: [
+    { key: 'reports', label: 'Analytics' },
+    { key: 'report-users', label: 'Users' },
+    { key: 'report-moderation', label: 'Moderate' },
+    { key: 'report-payments', label: 'Payments' },
+  ] },
+  { key: 'operations', label: 'Ops', icon: Activity, items: [
+    { key: 'moderation', label: 'Moderate' },
+    { key: 'messages', label: 'Messages' },
     { key: 'analytics', label: 'Analytics' },
   ] },
   { key: 'billing', label: 'Billing', icon: CreditCard, items: [
@@ -32,8 +43,8 @@ const ADMIN_MENU_GROUPS = [
 
 const ADMIN_NAV_STATE_KEY = 'cmg_admin_navigation_state';
 const ADMIN_NAV_TABS = new Set([
-  'overview', 'reports', 'users', 'access-control', 'connections', 'prayers',
-  'moderation', 'analytics', 'payments', 'audit-logs',
+  'overview', 'reports', 'report-users', 'report-moderation', 'report-payments', 'users', 'access-control', 'message-distribution-groups', 'connections', 'prayers',
+  'moderation', 'messages', 'analytics', 'payments', 'audit-logs',
 ]);
 
 function readAdminNavigationState(): { activeTab: string; selectedMenuGroup: string } {
@@ -41,9 +52,7 @@ function readAdminNavigationState(): { activeTab: string; selectedMenuGroup: str
   try {
     const stored = JSON.parse(window.sessionStorage.getItem(ADMIN_NAV_STATE_KEY) || '{}') as { activeTab?: string; selectedMenuGroup?: string };
     const activeTab = stored.activeTab && ADMIN_NAV_TABS.has(stored.activeTab) ? stored.activeTab : 'overview';
-    const selectedMenuGroup = activeTab === 'reports'
-      ? 'reports'
-      : ADMIN_MENU_GROUPS.find((group) => group.items.some((item) => item.key === activeTab))?.key || 'dashboard';
+    const selectedMenuGroup = ADMIN_MENU_GROUPS.find((group) => group.items.some((item) => item.key === activeTab))?.key || 'dashboard';
     return { activeTab, selectedMenuGroup };
   } catch {
     return { activeTab: 'overview', selectedMenuGroup: 'dashboard' };
@@ -65,6 +74,8 @@ const AdminDashboard: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
   const [refreshKey, setRefreshKey] = useState(0);
   const [showSignOutDialog, setShowSignOutDialog] = useState(false);
   const [highlightX, setHighlightX] = useState(50);
+  const [focusUserId, setFocusUserId] = useState<string | null>(null);
+  const [focusGroupId, setFocusGroupId] = useState<string | null>(null);
   const mainMenuRef = useRef<HTMLDivElement>(null);
   const activeButtonRef = useRef<HTMLButtonElement>(null);
   const submenuRef = useRef<HTMLDivElement>(null);
@@ -125,8 +136,7 @@ const AdminDashboard: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
   const selectTab = (tab: string) => {
     setActiveTab(tab);
     const owningGroup = ADMIN_MENU_GROUPS.find((group) => group.items.some((item) => item.key === tab));
-    if (tab === 'reports') setSelectedMenuGroup('reports');
-    else if (owningGroup) setSelectedMenuGroup(owningGroup.key);
+    if (owningGroup) setSelectedMenuGroup(owningGroup.key);
     setMobileMenuOpen(false);
   };
 
@@ -135,6 +145,18 @@ const AdminDashboard: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
     if (!group) return;
     setSelectedMenuGroup(group.key);
     selectTab(group.items[0].key);
+  };
+
+  const openAdminUser = (userId: string) => {
+    setFocusUserId(userId);
+    setFocusGroupId(null);
+    selectTab('users');
+  };
+
+  const openDistributionGroup = (groupId: string) => {
+    setFocusGroupId(groupId);
+    setFocusUserId(null);
+    selectTab('message-distribution-groups');
   };
 
   const selectDashboard = () => {
@@ -171,9 +193,15 @@ const AdminDashboard: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
       case 'overview':
         return <Overview />;
       case 'reports':
-        return <AdminReportsView />;
+        return <AdminReportsView key={activeTab} reportKind="platform" />;
+      case 'report-users':
+        return <AdminReportsView key={activeTab} reportKind="users" />;
+      case 'report-moderation':
+        return <AdminReportsView key={activeTab} reportKind="moderation" />;
+      case 'report-payments':
+        return <AdminReportsView key={activeTab} reportKind="payments" />;
       case 'users':
-        return <UsersView />;
+        return <UsersView focusUserId={focusUserId} onOpenGroup={openDistributionGroup} onOpenMessages={() => selectTab('messages')} />;
       case 'connections':
         return <ConnectionsView />;
       case 'payments':
@@ -182,10 +210,14 @@ const AdminDashboard: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
         return <PrayersView />;
       case 'moderation':
         return <ModerationView />;
+      case 'messages':
+        return <AdminMessagesView canSend={can('messages.send') || can('messages.moderate')} onManageAudiences={() => selectTab('message-distribution-groups')} />;
       case 'analytics':
         return <AnalyticsView />;
       case 'access-control':
-        return <AdminAccessControl initialTab="groups" />;
+        return <AdminAccessControl initialTab="groups" onOpenUser={openAdminUser} />;
+      case 'message-distribution-groups':
+        return <DistributionGroupsView focusGroupId={focusGroupId} onOpenUser={openAdminUser} />;
       case 'audit-logs':
         return <AdminAccessControl initialTab="audit" />;
       default:
@@ -237,15 +269,6 @@ const AdminDashboard: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
                   <LayoutDashboard size={16} />
                   Dashboard
                 </button>
-                <button
-                  type="button"
-                  ref={selectedMenuGroup === 'reports' ? activeButtonRef : undefined}
-                  onClick={() => selectTab('reports')}
-                  className={`flex min-h-7 w-28 flex-none whitespace-nowrap items-center justify-center gap-1.5 rounded-full border px-2 py-1 text-xs font-black transition ${selectedMenuGroup === 'reports' ? 'cmg-admin-menu-top-selected border-blue-400/80 bg-blue-500/30 text-white shadow-[0_0_18px_rgb(59_130_246_/_0.45)]' : 'border-white/25 bg-white/10 text-white/45 hover:border-white/55 hover:bg-white/20 hover:text-white/75'}`}
-                >
-                  <FileText size={16} />
-                  Reports
-                </button>
                 {ADMIN_MENU_GROUPS.map((group) => {
                   const GroupIcon = group.icon;
                   const isSelected = selectedMenuGroup === group.key;
@@ -272,15 +295,15 @@ const AdminDashboard: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
                     className="submenu-connected"
                     style={{ '--highlight-x': `${highlightX}px` } as React.CSSProperties}
                   >
-                    <div className="flex w-full flex-wrap justify-start gap-1.5">
+                    <div className="grid w-full grid-cols-2 gap-1.5 sm:grid-cols-3">
                       {selectedGroup.items.map((item) => (
                         <button
                           key={item.key}
                           type="button"
                           onClick={() => selectTab(item.key)}
-                          className={`flex min-h-7 flex-none whitespace-nowrap items-center justify-center rounded-full border px-3 py-1 text-xs font-black transition ${activeTab === item.key ? 'border-white/85 bg-white text-slate-950 shadow-md' : 'border-white/25 bg-white/15 text-white/75 hover:border-white/60 hover:bg-white/25 hover:text-white'}`}
+                          className={`flex min-h-7 w-full min-w-0 items-center justify-center rounded-full border px-3 py-1 text-xs font-black transition ${activeTab === item.key ? 'border-white/85 bg-white text-slate-950 shadow-md' : 'border-white/25 bg-white/15 text-white/75 hover:border-white/60 hover:bg-white/25 hover:text-white'}`}
                         >
-                          {item.label}
+                          <span className="truncate">{item.label}</span>
                         </button>
                       ))}
                     </div>
@@ -324,10 +347,8 @@ const reportDateValue = (value: any): Date | null => {
     return Number.isNaN(date.getTime()) ? null : date;
 };
 
-const AdminReportsView = () => {
-    type ReportKind = 'platform' | 'users' | 'moderation' | 'payments';
+const AdminReportsView = ({ reportKind }: { reportKind: AdminReportKind }) => {
     const today = new Date();
-    const [reportKind, setReportKind] = useState<ReportKind>('platform');
     const [startDate, setStartDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10));
     const [endDate, setEndDate] = useState(today.toISOString().slice(0, 10));
     const [generatedReport, setGeneratedReport] = useState<any>(null);
@@ -408,21 +429,8 @@ const AdminReportsView = () => {
         <div className="space-y-6">
             <div>
                 <h2 className="text-2xl font-black text-slate-900">Reports</h2>
-                <p className="mt-1 text-sm text-slate-500">Choose a suggested report or generate a custom report for any date range.</p>
+                <p className="mt-1 text-sm text-slate-500">Choose a report from the Reports menu, then generate it for any date range.</p>
             </div>
-            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <label className="block text-sm font-black text-slate-700" htmlFor="admin-report-type">Report type</label>
-                <p className="mt-1 text-xs text-slate-500">Choose a suggested report, then select the date range below.</p>
-                <div className="relative mt-3 w-full max-w-xl">
-                    <select id="admin-report-type" value={reportKind} onChange={(event) => { setReportKind(event.target.value as ReportKind); setGeneratedReport(null); }} className="w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 py-2 pr-10 text-sm font-black text-slate-800 focus:border-brand-orange focus:outline-none focus:ring-2 focus:ring-brand-orange/20">
-                        <option value="platform">Platform analytics</option>
-                        <option value="users">User activity</option>
-                        <option value="moderation">Moderation report</option>
-                        <option value="payments">Payments and revenue</option>
-                    </select>
-                    <ChevronDown size={21} strokeWidth={3} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-800" />
-                </div>
-            </section>
             <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="flex flex-wrap items-end gap-3">
                     <label className="text-xs font-black text-slate-600">From<input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} className="mt-1 block rounded-lg border border-slate-200 px-3 py-2 text-sm font-normal text-slate-700" /></label>
@@ -549,10 +557,12 @@ const Overview = () => {
   );
 };
 
-const UsersView = () => {
+const UsersView = ({ focusUserId, onOpenGroup, onOpenMessages }: { focusUserId?: string | null; onOpenGroup?: (groupId: string) => void; onOpenMessages?: () => void }) => {
     const { confirmAdminAction } = useAdminActionConfirmation();
     // Real Data
     const [users, setUsers] = useState<any[]>([]);
+    const [distributionMemberships, setDistributionMemberships] = useState<Record<string, Array<{ id: string; name: string }>>>({});
+    const [expandedUserIds, setExpandedUserIds] = useState<Set<string>>(new Set());
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -575,10 +585,23 @@ const UsersView = () => {
                 profileCompletion: 50 // Placeholder logic for completion
             }));
             setUsers(formattedUsers);
+            try {
+                const membershipMap = await getAdminDistributionMemberships(formattedUsers.map((user) => user.firestoreDocId || user.id));
+                setDistributionMemberships(membershipMap);
+            } catch (membershipError) {
+                console.warn('Unable to load distribution memberships:', membershipError);
+            }
             setLoading(false);
         };
         fetchUsers();
     }, []);
+    useEffect(() => {
+        if (!focusUserId || !users.some((user) => user.id === focusUserId || user.firestoreDocId === focusUserId)) return;
+        setExpandedUserIds((current) => new Set([...current, focusUserId]));
+        void openManageGroups([focusUserId]);
+        window.setTimeout(() => document.getElementById(`admin-user-${focusUserId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0);
+    }, [focusUserId, users]);
+
     const [openMenuId, setOpenMenuId] = useState<string | null>(null);
     const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
     const [selectedUser, setSelectedUser] = useState<any>(null); // State for the details modal
@@ -776,6 +799,7 @@ const UsersView = () => {
     const openManageGroups = async (userIds: string[] = [...selectedUserIds]) => {
         if (!userIds.length) return;
         setSelectedUserIds(new Set(userIds));
+        setSelectedUser(users.find((user) => userIds.includes(user.id)) || null);
         setGroupMembershipEditing(false);
         setManageGroupsBusy(true);
         try {
@@ -792,6 +816,13 @@ const UsersView = () => {
         } finally {
             setManageGroupsBusy(false);
         }
+    };
+
+    const closeManageGroups = () => {
+        setManageGroupsOpen(false);
+        setSelectedUser(null);
+        setSelectedUserIds(new Set());
+        setGroupMembershipEditing(false);
     };
 
     const toggleSelectedUsersGroup = (groupId: string, checked: boolean) => {
@@ -812,7 +843,7 @@ const UsersView = () => {
         setManageGroupsBusy(true);
         try {
             await Promise.all(Object.entries(userGroupAssignments).map(([userId, groupIds]) => assignAdminUserGroups(userId, groupIds)));
-            setManageGroupsOpen(false);
+            closeManageGroups();
             alert('Group assignments updated.');
         } catch (error) {
             alert('Unable to update group assignments.');
@@ -945,7 +976,14 @@ const UsersView = () => {
                 </div>
             )}
 
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden min-h-0">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden min-h-0">
+                <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
+                    <div className="min-w-0">
+                        <h3 className="flex items-center gap-2 font-black text-slate-800"><Users size={18} />Users</h3>
+                        <p className="mt-1 text-xs text-slate-500">Manage user profiles, account status, access, and administrative actions.</p>
+                    </div>
+                    <span className="shrink-0 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-bold text-slate-600">{users.length} users</span>
+                </div>
                 <div className="overflow-x-auto">
                     <table className="cmg-admin-compact-table min-w-[1076px] w-full table-fixed border-collapse text-left">
                         <colgroup>
@@ -958,9 +996,9 @@ const UsersView = () => {
                             <col style={{ width: userColumnWidths.joined }} />
                             <col style={{ width: userColumnWidths.actions }} />
                         </colgroup>
-                    <thead className="bg-slate-900 border-b border-brand-orange text-white">
+                    <thead className="bg-slate-900 text-[10px] font-black uppercase tracking-wide text-white">
                         <tr>
-                            <th style={{ width: userColumnWidths.number }} className="relative whitespace-nowrap px-3 py-2 text-center text-[10px] font-black uppercase tracking-wide text-white border-r-2 border-brand-orange"><input type="checkbox" aria-label="Select all users" checked={filteredUsers.length > 0 && filteredUsers.every((user) => selectedUserIds.has(user.id))} onChange={toggleAllUserSelection} onClick={(event) => event.stopPropagation()} className="mr-1 h-3.5 w-3.5 accent-orange-500" />#<span onMouseDown={(event) => resizeUserColumn('number', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                            <th style={{ width: userColumnWidths.number }} className="relative whitespace-nowrap px-3 py-2 text-left text-[10px] font-black uppercase tracking-wide text-white border-r-2 border-brand-orange"><input type="checkbox" aria-label="Select all users" checked={filteredUsers.length > 0 && filteredUsers.every((user) => selectedUserIds.has(user.id))} onChange={toggleAllUserSelection} onClick={(event) => event.stopPropagation()} className="mr-1 h-3.5 w-3.5 accent-orange-500" />#<span onMouseDown={(event) => resizeUserColumn('number', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
                             <th style={{ width: userColumnWidths.user }} className="relative px-3 py-2 text-[10px] font-black uppercase tracking-wide text-white border-r-2 border-brand-orange">User<span onMouseDown={(event) => resizeUserColumn('user', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
                             <th style={{ width: userColumnWidths.email }} className="relative px-3 py-2 text-[10px] font-black uppercase tracking-wide text-white border-r-2 border-brand-orange">Email<span onMouseDown={(event) => resizeUserColumn('email', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
                             <th style={{ width: userColumnWidths.telephone }} className="relative px-3 py-2 text-[10px] font-black uppercase tracking-wide text-white border-r-2 border-brand-orange">Telephone<span onMouseDown={(event) => resizeUserColumn('telephone', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
@@ -972,12 +1010,13 @@ const UsersView = () => {
                     </thead>
                     <tbody className="divide-y divide-slate-200">
                         {filteredUsers.map((user, userIndex) => (
+                            <React.Fragment key={user.id}>
                             <tr 
-                                key={user.id} 
-                                onClick={() => setSelectedUser(user)}
+                                id={`admin-user-${user.id}`}
+                                onClick={() => void openManageGroups([user.id])}
                                 className="h-9 border-b border-slate-200 text-xs hover:bg-slate-50 transition-colors group cursor-pointer"
                             >
-                                <td className="whitespace-nowrap px-3 py-1.5 text-center text-xs font-black text-slate-400"><input type="checkbox" aria-label={`Select ${user.name}`} checked={selectedUserIds.has(user.id)} onChange={(event) => toggleUserSelection(event, user.id)} onClick={(event) => event.stopPropagation()} className="mr-1 h-3.5 w-3.5 accent-orange-500" /><span className="inline-block truncate align-middle" style={{ maxWidth: 'calc(100% - 1.5rem)' }} title={String(userIndex + 1)}>{userIndex + 1}</span></td>
+                                <td className="whitespace-nowrap px-3 py-1.5 text-left text-xs font-black text-slate-400"><span className="cmg-admin-row-leading"><input type="checkbox" aria-label={`Select ${user.name}`} checked={selectedUserIds.has(user.id)} onChange={(event) => toggleUserSelection(event, user.id)} onClick={(event) => event.stopPropagation()} className="h-3.5 w-3.5 accent-orange-500" /><button type="button" aria-label={`${expandedUserIds.has(user.id) ? 'Collapse' : 'Expand'} groups for ${user.name}`} onClick={(event) => { event.stopPropagation(); setExpandedUserIds((current) => { const next = new Set(current); if (next.has(user.id)) next.delete(user.id); else next.add(user.id); return next; }); }} className="text-lg font-black leading-none text-brand-orange">{expandedUserIds.has(user.id) ? '▾' : '▸'}</button><span className="text-slate-400">{userIndex + 1}</span></span></td>
                                 <td className="px-3 py-1.5">
                                     <div className="flex items-center gap-2">
                                         <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 text-[9px] font-black">
@@ -1002,7 +1041,7 @@ const UsersView = () => {
                                     </span>
                                 </td>
                                 <td className="px-3 py-1.5 text-xs text-slate-500">{user.joined}</td>
-                                <td className="px-3 py-1.5 text-right relative">
+                                <td className="px-3 py-1.5 text-left relative">
                                     <button 
                                         onClick={(e) => toggleMenu(e, user.id)}
                                         className="text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-gray-100 rounded-full"
@@ -1058,12 +1097,46 @@ const UsersView = () => {
                                     )}
                                 </td>
                             </tr>
+                            {expandedUserIds.has(user.id) && (
+                                <tr className="border-b border-slate-200 bg-[#f7f9fc]">
+                                    <td colSpan={8} className="px-5 py-3">
+                                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2">
+                                            <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Groups for {user.name}</span>
+                                            <span className="text-xs font-bold text-slate-500">{(distributionMemberships[user.firestoreDocId || user.id] || []).length} group{(distributionMemberships[user.firestoreDocId || user.id] || []).length === 1 ? '' : 's'}</span>
+                                        </div>
+                                        <div className="mt-2 flex flex-wrap gap-2">
+                                            {(distributionMemberships[user.firestoreDocId || user.id] || []).length === 0 ? (
+                                                <span className="text-xs text-slate-500">No distribution groups assigned.</span>
+                                            ) : (distributionMemberships[user.firestoreDocId || user.id] || []).map((group) => (
+                                                <button key={group.id} type="button" onClick={() => onOpenGroup?.(group.id)} className="rounded-lg border border-orange-100 bg-orange-50 px-3 py-1.5 text-xs font-black text-orange-800 hover:bg-orange-100">{group.name}</button>
+                                            ))}
+                                        </div>
+                                    </td>
+                                </tr>
+                            )}
+                            </React.Fragment>
                         ))}
                     </tbody>
                     </table>
                 </div>
             </div>
             
+
+            {isEditingProfile && selectedUser && (
+                <div className="fixed inset-0 z-[300] overflow-y-auto bg-white">
+                    <EditProfileView
+                        user={selectedUser}
+                        onCancel={() => setIsEditingProfile(false)}
+                        onNotify={(message, type) => setMessage(`${type === 'error' ? 'Error: ' : ''}${message}`)}
+                        onSave={(updatedUser) => {
+                            setUsers((current) => current.map((user) => user.id === updatedUser.id ? { ...user, ...updatedUser, status: updatedUser.isBlocked ? 'Blocked' : 'Active' } : user));
+                            setSelectedUser((current: any) => current ? { ...current, ...updatedUser } : updatedUser);
+                            setIsEditingProfile(false);
+                            setMessage('User profile updated.');
+                        }}
+                    />
+                </div>
+            )}
 
              {/* Filter Menu Overlay */}
             {showFilterMenu && (
@@ -1074,14 +1147,14 @@ const UsersView = () => {
             )}
 
             {manageGroupsOpen && (
-                <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm animate-in fade-in duration-200">
                     <div className="w-full max-w-sm max-h-[85dvh] overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl">
                         <div className="flex items-start justify-between gap-3">
                             <div>
                                 <h2 className="text-xl font-black text-slate-900">{selectedUserIds.size === 1 ? 'Manage user' : 'Manage users'}</h2>
                                 <p className="mt-1 text-sm text-slate-500">Manage account actions and group membership for {selectedUserIds.size} selected user{selectedUserIds.size === 1 ? '' : 's'}.</p>
                             </div>
-                            <button type="button" onClick={() => setManageGroupsOpen(false)} className="text-2xl font-black text-slate-400">×</button>
+                            <button type="button" onClick={closeManageGroups} className="text-2xl font-black text-slate-400">×</button>
                         </div>
                         <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
                             <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">Managing</p>
@@ -1092,7 +1165,7 @@ const UsersView = () => {
                         <div className="mt-4">
                             <h3 className="text-xs font-black uppercase tracking-wide text-slate-500">Account actions</h3>
                             <div className="mt-2 grid grid-cols-2 gap-2">
-                                <button type="button" onClick={() => void handleBulkBlock(false)} disabled={allSelectedUsersActive || manageGroupsBusy} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-slate-100 px-3 py-2 text-xs font-black uppercase tracking-wide text-slate-700 shadow-sm transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-200 disabled:text-slate-400"><Power size={15} />Unlock {selectedUserIds.size === 1 ? 'user' : 'users'}</button>
+                                <button type="button" onClick={() => { setManageGroupsOpen(false); setIsEditingProfile(true); }} disabled={selectedUserIds.size !== 1} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-black uppercase tracking-wide text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"><Edit3 size={15} />Edit User</button>
                                 <button type="button" onClick={() => void handleBulkBlock(!allSelectedUsersBlocked)} disabled={manageGroupsBusy} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-black uppercase tracking-wide text-amber-800 shadow-sm transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-200 disabled:text-slate-400"><Power size={15} />{allSelectedUsersBlocked ? 'Enable' : 'Disable / lock'} {selectedUserIds.size === 1 ? 'user' : 'users'}</button>
                                 <button type="button" onClick={() => void handleBulkPasswordReset()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-blue-300 bg-blue-50 px-3 py-2 text-xs font-black uppercase tracking-wide text-blue-800 shadow-sm transition hover:bg-blue-100"><KeyRound size={15} />Reset password</button>
                                 <button type="button" onClick={() => void handleBulkDeleteUsers()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-xs font-black uppercase tracking-wide text-red-700 shadow-sm transition hover:bg-red-100"><Trash2 size={15} />Delete {selectedUserIds.size === 1 ? 'user' : 'users'}</button>
@@ -1116,7 +1189,7 @@ const UsersView = () => {
                             })}
                         </div>
                         <div className="mt-6 flex gap-3">
-                            <button type="button" onClick={() => setManageGroupsOpen(false)} className="flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm font-black text-slate-700">Cancel</button>
+                            <button type="button" onClick={closeManageGroups} className="flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm font-black text-slate-700">Cancel</button>
                             <button type="button" onClick={() => void saveSelectedUserGroups()} disabled={!groupMembershipEditing || manageGroupsBusy} className="flex-1 rounded-xl bg-brand-orange px-4 py-3 text-sm font-black text-white transition disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500">{manageGroupsBusy ? 'Saving…' : 'Save groups'}</button>
                         </div>
                     </div>
@@ -1222,7 +1295,7 @@ const UsersView = () => {
             )}
 
             {/* User Details Modal */}
-            {selectedUser && (
+            {selectedUser && !manageGroupsOpen && (
                 <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200">
                         {/* Header */}
@@ -1243,10 +1316,10 @@ const UsersView = () => {
                                 </div>
                                 <div className="flex gap-3 mb-1">
                                     <button 
-                                        onClick={() => window.location.href = `mailto:${selectedUser.email}?from=christianmatchghanaltd@gmail.com`}
+                                        onClick={() => { setSelectedUser(null); onOpenMessages?.(); }}
                                         className="px-4 py-2 bg-white border border-gray-200 text-gray-700 font-medium rounded-lg text-sm hover:bg-gray-50 shadow-sm"
                                     >
-                                        Message
+                                        Open Messages
                                     </button>
                                     <button 
                                         onClick={() => setIsEditingProfile(true)}
@@ -1591,6 +1664,208 @@ const ConnectionsView = () => {
                     </tbody>
                 </table>
             </div>
+        </div>
+    );
+};
+
+const AdminMessagesView: React.FC<{
+    canSend: boolean;
+    onManageAudiences: () => void;
+}> = ({ canSend, onManageAudiences }) => {
+    const { confirmAdminAction } = useAdminActionConfirmation();
+    const [connections, setConnections] = useState<any[]>([]);
+    const [availableUsers, setAvailableUsers] = useState<Array<User & { firestoreDocId: string; status?: string }>>([]);
+    const [audiences, setAudiences] = useState<DistributionGroup[]>([]);
+    const [recipientMode, setRecipientMode] = useState<AdminMessageRecipientMode>('all');
+    const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+    const [selectedAudienceId, setSelectedAudienceId] = useState('');
+    const [recipientSearch, setRecipientSearch] = useState('');
+    const [messageText, setMessageText] = useState('');
+    const [searchTerm, setSearchTerm] = useState('');
+    const [loading, setLoading] = useState(true);
+    const [audiencesLoading, setAudiencesLoading] = useState(true);
+    const [sending, setSending] = useState(false);
+    const [error, setError] = useState('');
+    const [sendStatus, setSendStatus] = useState('');
+
+    useEffect(() => {
+        let active = true;
+        const load = async () => {
+            const [groupResult, usersResult, connectionsResult] = await Promise.all([
+                listAdminDistributionGroups().catch((loadError) => {
+                    console.error('Unable to load message audiences:', loadError);
+                    return [] as DistributionGroup[];
+                }),
+                getAdminUsers().catch((loadError) => {
+                    console.error('Unable to load message recipients:', loadError);
+                    return [] as Array<User & { firestoreDocId: string }>;
+                }),
+                getAdminConnections().catch((loadError) => {
+                    console.error('Unable to load conversations:', loadError);
+                    return [] as any[];
+                }),
+            ]);
+            if (!active) return;
+            setAudiences(groupResult);
+            setAvailableUsers(usersResult);
+            setConnections(connectionsResult);
+            setAudiencesLoading(false);
+            setLoading(false);
+            if (!selectedAudienceId && groupResult[0]) setSelectedAudienceId(groupResult[0].id);
+        };
+        void load();
+        return () => {
+            active = false;
+        };
+    }, []);
+
+    const isActiveRecipient = (user: User & { status?: string }) =>
+        user.isBlocked !== true && String(user.status || '').toLowerCase() !== 'blocked';
+    const activeUsers = availableUsers.filter((user) =>
+        isActiveRecipient(user) && (user.firestoreDocId || user.id) !== auth.currentUser?.uid,
+    );
+    const selectedAudience = audiences.find((audience) => audience.id === selectedAudienceId);
+    const filteredUsers = availableUsers.filter((user) => {
+        const term = recipientSearch.trim().toLowerCase();
+        if (!term) return true;
+        return [user.name, user.email, user.location, user.gender]
+            .some((value) => String(value || '').toLowerCase().includes(term));
+    });
+    const filteredConnections = connections.filter((connection) => {
+        const term = searchTerm.trim().toLowerCase();
+        if (!term) return true;
+        return [connection.userA, connection.userB, connection.lastMessage]
+            .some((value) => String(value || '').toLowerCase().includes(term));
+    });
+    const audienceCriteriaSummary = (audience: DistributionGroup) => audience.criteria?.mode === 'selected'
+        ? `Custom users · ${audience.memberCount ?? audience.criteria.userIds?.length ?? 0} members`
+        : [
+            audience.criteria?.gender?.length ? `Gender: ${audience.criteria.gender.join(', ')}` : '',
+            audience.criteria?.country?.length ? `Country: ${audience.criteria.country.join(', ')}` : '',
+            audience.criteria?.locations?.length ? `Location: ${audience.criteria.locations.join(', ')}` : '',
+            `State: ${audience.criteria?.accountState || 'active'}`,
+        ].filter(Boolean).join(' · ');
+
+    const toggleUser = (userId: string) => {
+        setSelectedUserIds((current) => {
+            const next = new Set(current);
+            if (next.has(userId)) next.delete(userId);
+            else next.add(userId);
+            return next;
+        });
+    };
+
+    const selectRecipientMode = (mode: AdminMessageRecipientMode) => {
+        setRecipientMode(mode);
+        setError('');
+        setSendStatus('');
+        if (mode === 'audience' && !selectedAudienceId && audiences[0]) setSelectedAudienceId(audiences[0].id);
+    };
+
+    const handleSend = async () => {
+        const text = messageText.trim();
+        if (!canSend) {
+            setError('Your admin account does not have permission to send broadcast messages.');
+            return;
+        }
+        if (!text) {
+            setError('Enter a message before sending.');
+            return;
+        }
+        if (recipientMode === 'selected' && selectedUserIds.size === 0) {
+            setError('Select at least one user.');
+            return;
+        }
+        if (recipientMode === 'audience' && !selectedAudienceId) {
+            setError('Choose a saved audience.');
+            return;
+        }
+        const recipientDescription = recipientMode === 'all'
+            ? `all ${activeUsers.length} active users`
+            : recipientMode === 'selected'
+                ? `${selectedUserIds.size} selected users`
+                : `${selectedAudience?.name || 'the selected audience'} (${selectedAudience?.memberCount ?? 0} members)`;
+        const confirmed = await confirmAdminAction({
+            title: 'Send admin message?',
+            description: `Send this message to ${recipientDescription}. This will create a conversation message for each active recipient.`,
+        });
+        if (!confirmed) return;
+        setSending(true);
+        setError('');
+        setSendStatus('');
+        try {
+            const result = await adminSendMessage({
+                text,
+                recipientMode,
+                ...(recipientMode === 'selected' ? { userIds: [...selectedUserIds] } : {}),
+                ...(recipientMode === 'audience' ? { audienceId: selectedAudienceId } : {}),
+            });
+            setSendStatus(`Message sent to ${result.sentCount} user${result.sentCount === 1 ? '' : 's'}.`);
+            setMessageText('');
+        } catch (sendError: any) {
+            setError(sendError?.message || 'Unable to send the admin message.');
+        } finally {
+            setSending(false);
+        }
+    };
+
+    return (
+        <div className="space-y-6">
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                <div className="border-b border-slate-100 pb-5">
+                    <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+                        <h3 className="text-xl font-black leading-tight text-slate-900 sm:text-2xl">Send message to users</h3>
+                        <button type="button" onClick={onManageAudiences} className="shrink-0 self-start rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-black text-slate-700 transition hover:border-slate-300 hover:bg-slate-50">Manage audiences</button>
+                    </div>
+                    <p className="mt-4 w-full max-w-none text-base leading-7 text-slate-600">Use this page to send one controlled message to all active users, individual recipients, or a saved audience. Recipients are resolved securely when you send, and delivery uses the existing in-app, push, email, SMS, and WhatsApp notification pipeline where configured.</p>
+                    <div className="mt-4 grid gap-3 rounded-xl border border-blue-100 bg-blue-50/70 p-4 text-sm text-slate-700 sm:grid-cols-3">
+                        <div><strong className="block text-slate-900">All users</strong><span>Reach every active member.</span></div>
+                        <div><strong className="block text-slate-900">Selected users</strong><span>Choose individual recipients.</span></div>
+                        <div><strong className="block text-slate-900">Saved audience</strong><span>Reuse a managed audience definition.</span></div>
+                    </div>
+                </div>
+
+                {!canSend && <div className="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">Your account can view Messages, but does not have the message-sending permission.</div>}
+                {(error || sendStatus) && <div className={`mt-4 rounded-xl px-4 py-3 text-sm font-semibold ${error ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>{error || sendStatus}</div>}
+
+                <div className="mt-5 grid gap-3 md:grid-cols-3">
+                    {([
+                        { mode: 'all' as const, title: 'All users', detail: `${activeUsers.length} active recipients` },
+                        { mode: 'selected' as const, title: 'Selected users', detail: `${selectedUserIds.size} selected` },
+                        { mode: 'audience' as const, title: 'Saved audience', detail: selectedAudience ? `${selectedAudience.name} · ${selectedAudience.memberCount ?? 0} members` : 'Choose an audience' },
+                    ]).map((option) => (
+                        <button key={option.mode} type="button" onClick={() => selectRecipientMode(option.mode)} className={`cmg-admin-content-button min-w-0 rounded-xl border p-4 text-left transition ${recipientMode === option.mode ? 'border-brand-orange bg-orange-50 ring-2 ring-brand-orange/20' : 'border-slate-200 hover:border-slate-300'}`}>
+                            <span className="flex min-w-0 items-start justify-between gap-2"><span className="min-w-0 break-words text-sm font-black leading-tight text-slate-900">{option.title}</span><span className={`mt-0.5 h-3 w-3 shrink-0 rounded-full border-2 ${recipientMode === option.mode ? 'border-brand-orange bg-brand-orange' : 'border-slate-300'}`} /></span>
+                            <span className="mt-1 block break-words text-xs font-semibold leading-5 text-slate-500">{option.detail}</span>
+                        </button>
+                    ))}
+                </div>
+
+                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    {recipientMode === 'all' && <p className="text-sm text-slate-600">The server will resolve all active users at send time and exclude the sending administrator.</p>}
+                    {recipientMode === 'selected' && (
+                        <div>
+                            <div className="mb-3 flex flex-col justify-between gap-2 sm:flex-row sm:items-center"><div><h4 className="text-sm font-black text-slate-800">Select recipients</h4><p className="text-xs text-slate-500">Blocked users are skipped securely by the server.</p></div><span className="text-xs font-black text-brand-orange">{selectedUserIds.size} selected</span></div>
+                            <div className="relative mb-3"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} /><input type="search" value={recipientSearch} onChange={(event) => setRecipientSearch(event.target.value)} placeholder="Search users by name, email, location, or gender" className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm" /></div>
+                            <div className="max-h-52 space-y-1 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2">{filteredUsers.length === 0 ? <p className="p-3 text-sm text-slate-500">No users found.</p> : filteredUsers.map((user) => { const userId = user.firestoreDocId || user.id; return <label key={userId} className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 hover:bg-orange-50"><input type="checkbox" checked={selectedUserIds.has(userId)} onChange={() => toggleUser(userId)} className="h-4 w-4 accent-orange-500" /><span className="min-w-0"><span className="block truncate text-sm font-bold text-slate-800">{user.name || 'Unnamed user'}</span><span className="block truncate text-xs text-slate-500">{user.email || 'No email'} · {user.location || user.country || 'No location'}</span></span>{!isActiveRecipient(user) && <span className="ml-auto text-[10px] font-black uppercase text-red-500">Blocked</span>}</label>; })}</div>
+                        </div>
+                    )}
+                    {recipientMode === 'audience' && <div><h4 className="text-sm font-black text-slate-800">Choose a saved audience</h4><p className="mt-1 text-xs text-slate-500">Audience membership and recipient eligibility are resolved on the server when you send.</p><div className="mt-3 grid gap-2 md:grid-cols-2">{audiencesLoading ? <p className="text-sm text-slate-500">Loading audiences…</p> : audiences.length === 0 ? <p className="text-sm text-slate-500">No saved audiences available.</p> : audiences.map((audience) => <button key={audience.id} type="button" onClick={() => setSelectedAudienceId(audience.id)} className={`cmg-admin-content-button min-w-0 rounded-lg border p-3 text-left ${selectedAudienceId === audience.id ? 'border-brand-orange bg-orange-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}><div className="flex min-w-0 items-start justify-between gap-2"><span className="min-w-0 break-words text-sm font-black leading-tight text-slate-800">{audience.name}</span><span className="shrink-0 text-xs font-black text-brand-orange">{audience.memberCount ?? 0}</span></div><p className="mt-1 break-words text-[11px] leading-4 text-slate-500">{audience.description || audienceCriteriaSummary(audience)}</p><p className="mt-1 break-words text-[10px] leading-4 text-slate-400">{audienceCriteriaSummary(audience)}</p></button>)}</div></div>}
+                </div>
+
+                <div className="mt-4">
+                    <div className="mb-2 flex items-center justify-between gap-3"><label htmlFor="admin-message-text" className="text-sm font-black text-slate-800">Message</label><span className="text-xs text-slate-400">{messageText.length}/2000</span></div>
+                    <textarea id="admin-message-text" value={messageText} onChange={(event) => setMessageText(event.target.value.slice(0, 2000))} rows={5} placeholder="Write the message users should receive…" className="w-full resize-y rounded-xl border border-slate-200 p-3 text-sm text-slate-800 focus:border-brand-orange focus:outline-none focus:ring-2 focus:ring-brand-orange/20" />
+                </div>
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-slate-500">The existing notification pipeline will handle in-app, push, and configured offline digest channels.</p><button type="button" onClick={() => void handleSend()} disabled={sending || !canSend || !messageText.trim()} className="inline-flex items-center gap-2 rounded-xl bg-brand-orange px-5 py-2.5 text-sm font-black text-white shadow-sm hover:bg-brand-orange/90 disabled:cursor-not-allowed disabled:opacity-50"><Send size={16} />{sending ? 'Sending…' : 'Send message'}</button></div>
+            </section>
+
+            <section className="rounded-xl border border-gray-200 bg-white shadow-sm">
+                <div className="flex flex-col justify-between gap-4 border-b border-gray-200 p-5 sm:flex-row sm:items-center"><div><h3 className="font-black text-gray-800">Recent conversations</h3><p className="text-sm text-gray-500">Monitor conversation summaries after admin messages are sent.</p></div><div className="relative w-full sm:w-72"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} /><input type="search" placeholder="Search conversations..." value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} className="w-full rounded-lg border border-gray-200 py-2 pl-9 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-brand-orange/20" /></div></div>
+                {loading ? <div className="p-8 text-center text-sm text-gray-500">Loading conversations...</div> : filteredConnections.length === 0 ? <div className="p-8 text-center text-sm text-gray-500">No conversations found.</div> : <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left"><thead className="border-b border-gray-200 bg-gray-50"><tr><th className="px-6 py-4 text-sm font-semibold text-gray-600">Conversation</th><th className="px-6 py-4 text-sm font-semibold text-gray-600">Latest message</th><th className="px-6 py-4 text-sm font-semibold text-gray-600">Last activity</th><th className="px-6 py-4 text-right text-sm font-semibold text-gray-600">Status</th></tr></thead><tbody className="divide-y divide-gray-100">{filteredConnections.map((connection) => <tr key={connection.id} className="hover:bg-gray-50"><td className="px-6 py-4"><div className="font-medium text-gray-900">{connection.userA}</div><div className="text-xs text-gray-500">with {connection.userB}</div></td><td className="max-w-[360px] truncate px-6 py-4 text-sm text-gray-600" title={connection.lastMessage}>{connection.lastMessage || 'No messages yet'}</td><td className="px-6 py-4 text-sm text-gray-500">{connection.date}</td><td className="px-6 py-4 text-right"><span className="inline-flex rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">Active</span></td></tr>)}</tbody></table></div>}
+            </section>
+
+            <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><div className="mb-3 flex items-center justify-between gap-3"><div><h3 className="font-black text-slate-800">Available saved audiences</h3><p className="text-sm text-slate-500">These are the audiences available for this message. Select one above or manage its membership.</p></div><span className="rounded-md bg-slate-50 px-2 py-1 text-xs font-black text-slate-600">{audiences.length} audiences</span></div>{audiencesLoading ? <p className="text-sm text-slate-500">Loading audiences…</p> : audiences.length === 0 ? <p className="text-sm text-slate-500">No saved audiences available.</p> : <div className="grid gap-2 md:grid-cols-2">{audiences.map((audience) => <button key={audience.id} type="button" onClick={() => { setSelectedAudienceId(audience.id); setRecipientMode('audience'); }} className={`cmg-admin-content-button min-w-0 rounded-xl border p-3 text-left ${selectedAudienceId === audience.id && recipientMode === 'audience' ? 'border-brand-orange bg-orange-50' : 'border-slate-200 hover:bg-slate-50'}`}><div className="flex min-w-0 items-start justify-between gap-2"><span className="min-w-0 break-words text-sm font-black leading-tight text-slate-800">{audience.name}</span><span className="shrink-0 text-xs font-black text-brand-orange">{audience.memberCount ?? 0}</span></div><p className="mt-1 break-words text-xs leading-4 text-slate-500">{audience.description || audienceCriteriaSummary(audience)}</p><p className="mt-1 break-words text-[11px] leading-4 text-slate-400">{audienceCriteriaSummary(audience)}</p></button>)}</div>}</section>
         </div>
     );
 };
@@ -2089,3 +2364,386 @@ const StatCard = ({ title, value, change, isNegative, icon }: { title: string, v
 );
 
 export default AdminDashboard;
+
+
+type DistributionGroupForm = {
+    name: string;
+    description: string;
+    criteria: DistributionGroupCriteria;
+};
+
+const emptyDistributionCriteria = (): DistributionGroupCriteria => ({
+    mode: 'criteria',
+    userIds: [],
+    gender: [],
+    country: [],
+    locations: [],
+    accountState: 'active',
+});
+
+const DistributionGroupsView = ({ focusGroupId, onOpenUser }: { focusGroupId?: string | null; onOpenUser?: (userId: string) => void }) => {
+    const { confirmAdminAction } = useAdminActionConfirmation();
+    const [manageAudiencePageOpen, setManageAudiencePageOpen] = useState(false);
+    const [groups, setGroups] = useState<DistributionGroup[]>([]);
+    const [availableUsers, setAvailableUsers] = useState<Array<any>>([]);
+    const [userSearch, setUserSearch] = useState('');
+    const [usersLoading, setUsersLoading] = useState(false);
+    const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(new Set());
+    const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set());
+    const [groupColumnWidths, setGroupColumnWidths] = useState({ number: 70, name: 210, description: 250, members: 100, criteria: 260, type: 110, actions: 130 });
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState('');
+    const [status, setStatus] = useState('');
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [form, setForm] = useState<DistributionGroupForm>({ name: '', description: '', criteria: emptyDistributionCriteria() });
+    const [preview, setPreview] = useState<{ count: number; preview: Array<Record<string, string>> } | null>(null);
+
+    const loadGroups = async () => {
+        setLoading(true);
+        setError('');
+        try {
+            setGroups(await listAdminDistributionGroups());
+        } catch (loadError: any) {
+            setError(loadError?.message || 'Unable to load distribution groups.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        void loadGroups();
+    }, []);
+
+    useEffect(() => {
+        if (form.criteria.mode !== 'selected' || availableUsers.length > 0) return;
+        setUsersLoading(true);
+        void getAdminUsers()
+            .then((users) => setAvailableUsers(users))
+            .catch((loadError: any) => setError(loadError?.message || 'Unable to load users.'))
+            .finally(() => setUsersLoading(false));
+    }, [form.criteria.mode, availableUsers.length]);
+
+    useEffect(() => {
+        if (!focusGroupId || !groups.some((group) => group.id === focusGroupId)) return;
+        setExpandedGroupIds((current) => new Set([...current, focusGroupId]));
+        window.setTimeout(() => document.getElementById(`distribution-group-${focusGroupId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0);
+    }, [focusGroupId, groups]);
+
+    const resizeGroupColumn = (column: keyof typeof groupColumnWidths, event: React.MouseEvent<HTMLSpanElement>) => {
+        event.preventDefault();
+        const startX = event.clientX;
+        const startWidth = groupColumnWidths[column];
+        const handleMove = (moveEvent: MouseEvent) => {
+            const nextWidth = Math.max(80, startWidth + moveEvent.clientX - startX);
+            setGroupColumnWidths((current) => ({ ...current, [column]: nextWidth }));
+        };
+        const handleUp = () => {
+            window.removeEventListener('mousemove', handleMove);
+            window.removeEventListener('mouseup', handleUp);
+        };
+        window.addEventListener('mousemove', handleMove);
+        window.addEventListener('mouseup', handleUp);
+    };
+
+    const toggleAudienceExpanded = async (group: DistributionGroup) => {
+        setExpandedGroupIds((current) => {
+            const next = new Set(current);
+            if (next.has(group.id)) next.delete(group.id);
+            else next.add(group.id);
+            return next;
+        });
+        if (group.criteria?.mode === 'selected' && availableUsers.length === 0 && !usersLoading) {
+            setUsersLoading(true);
+            try {
+                setAvailableUsers(await getAdminUsers());
+            } catch (loadError: any) {
+                setError(loadError?.message || 'Unable to load selected audience users.');
+            } finally {
+                setUsersLoading(false);
+            }
+        }
+    };
+
+    const toggleAudienceSelection = (event: React.ChangeEvent<HTMLInputElement>, groupId: string) => {
+        event.stopPropagation();
+        setSelectedGroupIds((current) => {
+            const next = new Set(current);
+            if (event.target.checked) next.add(groupId);
+            else next.delete(groupId);
+            return next;
+        });
+    };
+
+    const audienceCriteriaSummary = (group: DistributionGroup) => group.criteria?.mode === 'selected'
+        ? `Custom users: ${group.criteria?.userIds?.length || group.memberCount || 0}`
+        : `Gender: ${criterionLabel(group.criteria?.gender)} · Country: ${criterionLabel(group.criteria?.country)} · Location: ${criterionLabel(group.criteria?.locations)} · State: ${group.criteria?.accountState || 'active'}`;
+
+    const resetForm = () => {
+        setEditingId(null);
+        setForm({ name: '', description: '', criteria: emptyDistributionCriteria() });
+        setPreview(null);
+        setUserSearch('');
+        setStatus('');
+    };
+
+    const closeAudienceManager = () => {
+        resetForm();
+        setManageAudiencePageOpen(false);
+    };
+
+    const updateCriterion = (key: keyof DistributionGroupCriteria, value: string) => {
+        setForm((current) => ({
+            ...current,
+            criteria: {
+                ...current.criteria,
+                [key]: key === 'accountState' ? value : (value ? [value.trim().toLowerCase()] : []),
+            } as DistributionGroupCriteria,
+        }));
+        setPreview(null);
+    };
+
+    const setAudienceMode = (mode: 'criteria' | 'selected') => {
+        setForm((current) => ({
+            ...current,
+            criteria: {
+                ...current.criteria,
+                mode,
+                userIds: mode === 'selected' ? (current.criteria.userIds || []) : [],
+            },
+        }));
+        setPreview(null);
+    };
+
+    const toggleSelectedUser = (userId: string) => {
+        setForm((current) => {
+            const selected = new Set(current.criteria.userIds || []);
+            if (selected.has(userId)) selected.delete(userId);
+            else selected.add(userId);
+            return { ...current, criteria: { ...current.criteria, mode: 'selected', userIds: [...selected] } };
+        });
+        setPreview(null);
+    };
+
+    const editGroup = (group: DistributionGroup) => {
+        setEditingId(group.id);
+        setForm({
+            name: group.name,
+            description: group.description || '',
+            criteria: {
+                mode: group.criteria?.mode || (group.criteria?.userIds?.length ? 'selected' : 'criteria'),
+                userIds: group.criteria?.userIds || [],
+                gender: group.criteria?.gender || [],
+                country: group.criteria?.country || [],
+                locations: group.criteria?.locations || [],
+                accountState: group.criteria?.accountState || 'active',
+            },
+        });
+        setPreview(null);
+        setStatus('');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const saveGroup = async (event: React.FormEvent) => {
+        event.preventDefault();
+        if (!form.name.trim()) {
+            setError('Enter a name for this distribution group.');
+            return;
+        }
+        const confirmed = await confirmAdminAction({
+            title: editingId ? 'Update distribution group?' : 'Create distribution group?',
+            description: editingId
+                ? `Confirm the audience changes for ${form.name || 'this distribution group'}.`
+                : `Confirm creation of the ${form.name || 'new'} message distribution group.`,
+        });
+        if (!confirmed) return;
+        setSaving(true);
+        setError('');
+        setStatus('');
+        try {
+            const successMessage = editingId ? 'Distribution group updated.' : 'Distribution group created.';
+            if (editingId) {
+                await updateAdminDistributionGroup({ groupId: editingId, ...form });
+            } else {
+                await createAdminDistributionGroup(form);
+            }
+            resetForm();
+            setStatus(successMessage);
+            await loadGroups();
+        } catch (saveError: any) {
+            setError(saveError?.message || 'Unable to save distribution group.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const previewGroup = async () => {
+        setError('');
+        try {
+            setPreview(await previewAdminDistributionGroup({ criteria: form.criteria }));
+        } catch (previewError: any) {
+            setError(previewError?.message || 'Unable to preview this audience.');
+        }
+    };
+
+    const removeGroup = async (group: DistributionGroup) => {
+        const confirmed = await confirmAdminAction({
+            title: 'Delete distribution group?',
+            description: `Permanently delete the ${group.name} audience definition.`,
+        });
+        if (!confirmed) return;
+        setError('');
+        try {
+            await deleteAdminDistributionGroup(group.id);
+            setStatus('Distribution group deleted.');
+            if (editingId === group.id) resetForm();
+            await loadGroups();
+        } catch (deleteError: any) {
+            setError(deleteError?.message || 'Unable to delete distribution group.');
+        }
+    };
+
+    const criterionLabel = (values?: string[]) => values?.length ? values.join(', ') : 'Any';
+    const selectedUserIds = form.criteria.userIds || [];
+    const visibleUsers = availableUsers.filter((user) => {
+        const term = userSearch.trim().toLowerCase();
+        if (!term) return true;
+        return [user.name, user.email, user.location, user.gender]
+            .some((value) => String(value || '').toLowerCase().includes(term));
+    });
+
+    return (
+        <div className="flex flex-col space-y-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <h3 className="text-lg font-semibold text-gray-800">Message Distribution Groups</h3>
+                    <p className="text-sm text-gray-500">Reusable audiences for future admin messages.</p>
+                </div>
+                <button type="button" onClick={() => { resetForm(); setManageAudiencePageOpen(true); }} className="rounded-xl bg-brand-orange px-4 py-2 text-sm font-black text-white shadow-sm hover:bg-brand-orange/90">Manage Audience</button>
+            </div>
+
+            {(error || status) && (
+                <div className={`rounded-xl px-4 py-3 text-sm font-semibold ${error ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`} role="status">
+                    {error || status}
+                </div>
+            )}
+
+            {manageAudiencePageOpen && (
+            <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+            <form onSubmit={saveGroup} className="max-h-[90dvh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+                <div className="mb-5 flex items-center justify-between gap-3">
+                    <div>
+                        <h4 className="font-bold text-gray-800">{editingId ? 'Edit distribution group' : 'Create distribution group'}</h4>
+                        <p className="text-xs text-gray-500">Audience membership is calculated from current user profiles.</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button type="button" onClick={closeAudienceManager} aria-label="Close audience editor" title="Close" className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700">×</button>
+                        <button type="button" onClick={closeAudienceManager} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-600">Back to Audiences</button>
+                    </div>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                    <label className="text-sm font-semibold text-gray-700">Group name<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="All males" className="mt-1 w-full rounded-lg border border-gray-200 p-2.5 font-normal" maxLength={80} /></label>
+                    <label className="text-sm font-semibold text-gray-700">Description<input value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Active male members" className="mt-1 w-full rounded-lg border border-gray-200 p-2.5 font-normal" maxLength={240} /></label>
+                    <label className="text-sm font-semibold text-gray-700 md:col-span-2">Audience type<select value={form.criteria.mode || 'criteria'} onChange={(event) => setAudienceMode(event.target.value as 'criteria' | 'selected')} className="mt-1 w-full rounded-lg border border-gray-200 p-2.5 font-normal"><option value="criteria">Profile criteria (gender, country, city)</option><option value="selected">Selected users (custom audience)</option></select></label>
+                    {form.criteria.mode !== 'selected' ? (
+                        <>
+                            <label className="text-sm font-semibold text-gray-700">Gender<select value={form.criteria.gender[0] || ''} onChange={(event) => updateCriterion('gender', event.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 p-2.5 font-normal"><option value="">Any gender</option><option value="male">Male</option><option value="female">Female</option></select></label>
+                            <label className="text-sm font-semibold text-gray-700">Country<select value={form.criteria.country[0] || ''} onChange={(event) => updateCriterion('country', event.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 p-2.5 font-normal"><option value="">Any country</option><option value="ghana">Ghana</option><option value="international">International</option></select></label>
+                            <label className="text-sm font-semibold text-gray-700">City / location<input value={form.criteria.locations[0] || ''} onChange={(event) => updateCriterion('locations', event.target.value)} placeholder="Accra or Kumasi" className="mt-1 w-full rounded-lg border border-gray-200 p-2.5 font-normal" /></label>
+                            <label className="text-sm font-semibold text-gray-700">Account state<select value={form.criteria.accountState} onChange={(event) => updateCriterion('accountState', event.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 p-2.5 font-normal"><option value="active">Active users only</option><option value="blocked">Blocked users only</option><option value="any">Any account state</option></select></label>
+                        </>
+                    ) : (
+                        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 md:col-span-2">
+                            <div className="mb-3 flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
+                                <div><h5 className="font-bold text-gray-800">Select users for this custom audience</h5><p className="text-xs text-gray-500">Selected users can be diverse by gender, city, country, or any other profile field.</p></div>
+                                <span className="text-sm font-black text-brand-blue">{selectedUserIds.length} selected</span>
+                            </div>
+                            <input type="search" value={userSearch} onChange={(event) => setUserSearch(event.target.value)} placeholder="Search by name, email, location, or gender" className="mb-3 w-full rounded-lg border border-gray-200 bg-white p-2.5 text-sm" />
+                            <div className="max-h-64 space-y-1 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2">
+                                {usersLoading ? <p className="p-3 text-sm text-gray-500">Loading users…</p> : visibleUsers.length === 0 ? <p className="p-3 text-sm text-gray-500">No users found.</p> : visibleUsers.map((user) => {
+                                    const userId = user.firestoreDocId || user.id;
+                                    const checked = selectedUserIds.includes(userId);
+                                    return <label key={userId} className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 hover:bg-orange-50"><input type="checkbox" checked={checked} onChange={() => toggleSelectedUser(userId)} className="h-4 w-4 accent-brand-orange" /><span className="min-w-0"><span className="block truncate text-sm font-bold text-gray-800">{user.name || 'Unnamed user'}</span><span className="block truncate text-xs text-gray-500">{user.email || 'No email'} · {user.location || user.country || 'No location'}</span></span></label>;
+                                })}
+                            </div>
+                        </div>
+                    )}
+                </div>
+                <div className="mt-5 flex flex-wrap items-center gap-3">
+                    <button type="submit" disabled={saving} className="rounded-lg bg-brand-orange px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{saving ? 'Saving…' : editingId ? 'Update group' : 'Create group'}</button>
+                    <button type="button" onClick={() => void previewGroup()} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50">Preview audience</button>
+                    <button type="button" onClick={closeAudienceManager} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-bold text-gray-600 hover:bg-gray-50">Cancel</button>
+                    {preview && <span className="text-sm font-bold text-brand-blue">{preview.count} matching user{preview.count === 1 ? '' : 's'}</span>}
+                </div>
+            </form>
+            </div>
+            )}
+
+            <section className="order-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+                    <div>
+                        <h4 className="font-black text-slate-800">Saved audiences</h4>
+                        <p className="mt-1 text-xs text-slate-500">Expand an audience to review its criteria or selected users.</p>
+                    </div>
+                    <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-bold text-slate-600">{groups.length} audiences</span>
+                </div>
+                {selectedGroupIds.size > 0 && (
+                    <div className="flex flex-wrap items-center gap-2 border-b border-orange-200 bg-orange-50 px-4 py-2 text-xs">
+                        <strong>{selectedGroupIds.size} selected</strong>
+                        <button type="button" onClick={() => setExpandedGroupIds((current) => new Set([...current, ...selectedGroupIds]))} className="rounded-lg bg-white px-3 py-1.5 font-black text-slate-700">Expand selected</button>
+                        <button type="button" onClick={() => setSelectedGroupIds(new Set())} className="ml-auto rounded-lg px-3 py-1.5 font-black text-slate-500">Clear</button>
+                    </div>
+                )}
+                {loading ? <div className="p-6 text-sm text-slate-500">Loading audiences…</div> : groups.length === 0 ? <div className="p-6 text-sm text-slate-500">No distribution groups created yet.</div> : (
+                    <div className="overflow-x-auto">
+                        <table className="cmg-admin-compact-table min-w-[960px] w-full table-fixed border-collapse text-left">
+                            <colgroup>
+                                <col style={{ width: groupColumnWidths.number }} />
+                                <col style={{ width: groupColumnWidths.name }} />
+                                <col style={{ width: groupColumnWidths.description }} />
+                                <col style={{ width: groupColumnWidths.members }} />
+                                <col style={{ width: groupColumnWidths.criteria }} />
+                                <col style={{ width: groupColumnWidths.type }} />
+                                <col style={{ width: groupColumnWidths.actions }} />
+                            </colgroup>
+                            <thead className="bg-slate-900 text-[10px] font-black uppercase tracking-wide text-white">
+                                <tr>
+                                    <th style={{ width: groupColumnWidths.number }} className="relative whitespace-nowrap border-r-2 border-brand-orange px-2 py-2 text-left"><input type="checkbox" aria-label="Select all audiences" checked={groups.length > 0 && groups.every((group) => selectedGroupIds.has(group.id))} onChange={(event) => setSelectedGroupIds(event.target.checked ? new Set(groups.map((group) => group.id)) : new Set())} className="mr-1 h-3.5 w-3.5 accent-orange-500" />#<span onMouseDown={(event) => resizeGroupColumn('number', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                                    <th style={{ width: groupColumnWidths.name }} className="relative border-r-2 border-brand-orange px-3 py-2">Audience<span onMouseDown={(event) => resizeGroupColumn('name', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                                    <th style={{ width: groupColumnWidths.description }} className="relative border-r-2 border-brand-orange px-3 py-2">Description<span onMouseDown={(event) => resizeGroupColumn('description', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                                    <th style={{ width: groupColumnWidths.members }} className="relative border-r-2 border-brand-orange px-3 py-2">Members<span onMouseDown={(event) => resizeGroupColumn('members', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                                    <th style={{ width: groupColumnWidths.criteria }} className="relative border-r-2 border-brand-orange px-3 py-2">Criteria<span onMouseDown={(event) => resizeGroupColumn('criteria', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                                    <th style={{ width: groupColumnWidths.type }} className="relative px-3 py-2">Type<span onMouseDown={(event) => resizeGroupColumn('type', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                                    <th style={{ width: groupColumnWidths.actions }} className="relative px-3 py-2">Actions<span onMouseDown={(event) => resizeGroupColumn('actions', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {groups.map((group, groupIndex) => {
+                                    const expanded = expandedGroupIds.has(group.id);
+                                    const selectedUserIdsForGroup = group.criteria?.userIds || [];
+                                    const selectedUsers = availableUsers.filter((user) => selectedUserIdsForGroup.includes(user.firestoreDocId || user.id));
+                                    return (
+                                        <React.Fragment key={group.id}>
+                                            <tr id={`distribution-group-${group.id}`} onClick={() => void toggleAudienceExpanded(group)} className="h-9 cursor-pointer border-b border-slate-200 text-xs text-slate-700 transition hover:bg-slate-50">
+                                                <td className="whitespace-nowrap px-2 py-1.5 text-left text-xs font-black text-slate-400"><span className="cmg-admin-row-leading"><input type="checkbox" aria-label={`Select ${group.name}`} checked={selectedGroupIds.has(group.id)} onChange={(event) => toggleAudienceSelection(event, group.id)} onClick={(event) => event.stopPropagation()} className="h-3.5 w-3.5 accent-orange-500" /><span className="text-slate-400">{groupIndex + 1}</span><span aria-hidden className="text-lg font-black leading-none text-brand-orange">{expanded ? '▾' : '▸'}</span></span></td>
+                                                <td className="px-3 py-1.5 font-black text-slate-900">{group.name}</td>
+                                                <td className="max-w-[260px] truncate px-3 py-1.5">{group.description || '—'}</td>
+                                                <td className="px-3 py-1.5 font-bold">{group.memberCount ?? 0}</td>
+                                                <td className="max-w-[300px] truncate px-3 py-1.5" title={audienceCriteriaSummary(group)}>{audienceCriteriaSummary(group)}</td>
+                                                <td className="px-3 py-1.5"><span className="rounded px-2 py-1 text-[10px] font-black text-slate-600 bg-slate-100">{group.system ? 'SYSTEM' : group.criteria?.mode === 'selected' ? 'CUSTOM' : 'DYNAMIC'}</span></td>
+                                                <td className="px-3 py-1.5 text-left"><button type="button" onClick={(event) => { event.stopPropagation(); setManageAudiencePageOpen(true); editGroup(group); }} className="rounded-lg bg-slate-900 px-2.5 py-1.5 text-[10px] font-black text-white hover:bg-slate-700">Manage Audience</button></td>
+                                            </tr>
+                                            {expanded && (
+                                                <tr className="border-b border-slate-200 bg-[#f7f9fc]"><td colSpan={7} className="px-5 py-3"><div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2"><span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Details for {group.name}</span><div className="flex items-center gap-2"><span className="text-xs font-bold text-slate-500">{group.memberCount ?? 0} members</span><button type="button" disabled={group.system} onClick={(event) => { event.stopPropagation(); setManageAudiencePageOpen(true); editGroup(group); }} className="rounded-lg bg-slate-900 px-2 py-1 text-[10px] font-black text-white disabled:cursor-not-allowed disabled:opacity-40">{group.system ? 'SYSTEM' : 'Edit'}</button>{!group.system && <button type="button" onClick={(event) => { event.stopPropagation(); void removeGroup(group); }} className="rounded-lg bg-red-50 px-2 py-1 text-[10px] font-black text-red-700">Delete</button>}</div></div>{group.criteria?.mode === 'selected' ? (usersLoading ? <p className="py-4 text-xs text-slate-500">Loading selected users…</p> : selectedUsers.length === 0 ? <p className="py-4 text-xs text-slate-500">Selected user details are not loaded yet.</p> : <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{selectedUsers.map((user) => <button key={user.firestoreDocId || user.id} type="button" onClick={() => onOpenUser?.(user.firestoreDocId || user.id)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-left hover:bg-orange-50"><div className="text-xs font-bold text-slate-800">{user.name || 'Unnamed user'}</div><div className="truncate text-[10px] text-slate-500">{user.email || 'No email'} · {user.location || user.country || 'No location'}</div></button>)}</div>) : <div className="mt-2 rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-600">{audienceCriteriaSummary(group)}<div className="mt-1 text-[10px] text-slate-400">This audience updates automatically as user profiles change.</div></div>}</td></tr>
+                                            )}
+                                        </React.Fragment>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </section>
+        </div>
+    );
+};

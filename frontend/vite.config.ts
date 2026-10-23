@@ -19,6 +19,28 @@ export default defineConfig(({ mode }) => {
       },
       publicDir: 'public', // Ensures .htaccess and _redirects are copied
       plugins: [react()],
+      build: {
+        rollupOptions: {
+          output: {
+            manualChunks(id) {
+              if (id.includes('/src/components/')) {
+                return 'components';
+              }
+              if (id.includes('/src/services/')) {
+                return 'services';
+              }
+              if (id.includes('/node_modules/firebase/')) {
+                const packageName = id.split('/node_modules/firebase/')[1]?.split('/')[0];
+                return packageName ? `firebase-${packageName}` : 'firebase';
+              }
+              if (id.includes('/node_modules/lucide-react/')) {
+                return 'icons';
+              }
+              return undefined;
+            }
+          }
+        }
+      },
       define: {
         'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
         'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),

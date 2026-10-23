@@ -4,7 +4,7 @@ import { doc, getDoc } from 'firebase/firestore';
 
 export const ADMIN_PERMISSION_CATALOG = [
   'users.view', 'users.create', 'users.edit', 'users.suspend', 'users.delete',
-  'messages.view', 'messages.moderate', 'notifications.manage',
+  'messages.view', 'messages.send', 'messages.moderate', 'messages.groups.manage', 'notifications.manage',
   'notifications.email.send', 'notifications.sms.send', 'subscriptions.manage',
   'payments.view', 'groups.manage', 'permissions.manage', 'settings.manage', 'audit.view',
 ] as const;
@@ -62,4 +62,87 @@ export async function getCurrentAdminAccess(): Promise<{ isSuperAdmin: boolean; 
   if (!snapshot.exists()) return { isSuperAdmin: false, permissions: [] };
   const data = snapshot.data();
   return { isSuperAdmin: data.isSuperAdmin === true, permissions: Array.isArray(data.permissions) ? data.permissions : [] };
+}
+
+export interface DistributionGroupCriteria {
+  mode?: 'criteria' | 'selected';
+  userIds?: string[];
+  gender: string[];
+  country: string[];
+  locations: string[];
+  accountState: 'active' | 'blocked' | 'any';
+}
+
+export interface DistributionGroup {
+  id: string;
+  name: string;
+  description?: string;
+  criteria: DistributionGroupCriteria;
+  memberCount?: number;
+  system?: boolean;
+  createdAt?: any;
+  updatedAt?: any;
+}
+
+export async function listAdminDistributionGroups(): Promise<DistributionGroup[]> {
+  const call = httpsCallable(functions, 'adminListDistributionGroups');
+  return (await call()).data as DistributionGroup[];
+}
+
+export async function createAdminDistributionGroup(input: {
+  name: string;
+  description?: string;
+  criteria: DistributionGroupCriteria;
+}): Promise<DistributionGroup> {
+  const call = httpsCallable(functions, 'adminCreateDistributionGroup');
+  return (await call(input)).data as DistributionGroup;
+}
+
+export async function updateAdminDistributionGroup(input: {
+  groupId: string;
+  name: string;
+  description?: string;
+  criteria: DistributionGroupCriteria;
+}): Promise<DistributionGroup> {
+  const call = httpsCallable(functions, 'adminUpdateDistributionGroup');
+  return (await call(input)).data as DistributionGroup;
+}
+
+export async function deleteAdminDistributionGroup(groupId: string): Promise<{ id: string; deleted: boolean }> {
+  const call = httpsCallable(functions, 'adminDeleteDistributionGroup');
+  return (await call({ groupId })).data as { id: string; deleted: boolean };
+}
+
+export async function previewAdminDistributionGroup(input: {
+  groupId?: string;
+  criteria?: DistributionGroupCriteria;
+}): Promise<{ count: number; preview: Array<Record<string, string>> }> {
+  const call = httpsCallable(functions, 'adminPreviewDistributionGroup');
+  return (await call(input)).data as { count: number; preview: Array<Record<string, string>> };
+}
+
+export async function getAdminDistributionMemberships(userIds: string[]): Promise<Record<string, Array<{ id: string; name: string }>>> {
+  const call = httpsCallable(functions, 'adminGetDistributionMemberships');
+  return (await call({ userIds })).data as Record<string, Array<{ id: string; name: string }>>;
+}
+
+export type AdminMessageRecipientMode = 'all' | 'selected' | 'audience';
+
+export interface AdminSendMessageResult {
+  broadcastId: string;
+  recipientMode: AdminMessageRecipientMode;
+  audienceId?: string;
+  resolvedCount: number;
+  sentCount: number;
+  skippedCount: number;
+}
+
+export async function adminSendMessage(input: {
+  text: string;
+  recipientMode: AdminMessageRecipientMode;
+  userIds?: string[];
+  audienceId?: string;
+}): Promise<AdminSendMessageResult> {
+  const call = httpsCallable(functions, 'adminSendMessage');
+  return (await call(input)).data as AdminSendMessageResult;
 }

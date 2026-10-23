@@ -1,10 +1,10 @@
 # Christian Match Ghana — Handover and Continuation Guide
 
-**Last updated:** 2026-10-18
+**Last updated:** 2026-10-22
 **Workspace:** `/Users/andrewstardie/Documents/TUTS/TESTS/cm/cmg-rebuilt`
 **Branch:** `sync/cmg-local-2026-10-13`
 **Remote:** `origin` → `https://github.com/rastardie/Christian-Match-Ghana.git`
-**Last pushed commit:** `c5a60b2 chore: add Vite client typings`
+**Last pushed commit:** `6c035e1 build: add explicit Firebase staging build`
 
 ## 1. Current system snapshot
 
@@ -68,15 +68,15 @@ The current feature branch has been pushed successfully:
 ```text
 Branch:  sync/cmg-local-2026-10-13
 Remote:  origin
-HEAD:    c5a60b2d7d971fcd119b5a88d9f9da244dcb9e1e
+HEAD:    6c035e1b05f70f63d536596a93d28440e9b27da
 ```
 
 Recent commits:
 
 ```text
-c5a60b2 chore: add Vite client typings
-05f47e1 feat: complete CMG admin, auth, and UI enhancements
-7006c81 feat: update staging app UX and landing experience
+6c035e1 build: add explicit Firebase staging build
+08edbf1 feat: refine measured admin submenu highlight
+a841221 feat: finish admin controls and responsive tables
 ```
 
 The working tree intentionally still contains local/generated files that were not committed:
@@ -134,54 +134,58 @@ The `.firebaserc` aliases are:
 
 ### Successfully deployed to staging
 
-The following deployment completed successfully on 2026-10-16:
+The current staging release has been deployed to the development Firebase project:
 
 ```text
-Firestore rules and indexes
-Storage rules
-Firebase Hosting
+Project:       christian-match-ghana
+Hosting:       https://christian-match-ghana.web.app
+Dev web URL:   https://christianmatchghana.com/dev
 ```
 
-Hosting found the current `frontend/dist` build and released it at:
+Firestore rules/indexes and Hosting were deployed successfully. Firebase Functions were subsequently deployed successfully after creating the required `SMTP_PASS` Secret Manager version.
 
-```text
-https://christian-match-ghana.web.app
-```
+The staging Functions deployment includes the Admin RBAC callables, PIN functions, account deletion functions, notification triggers, signup eligibility, and the verification reminder function.
 
-### Functions deployment blocker
+### Staging SMTP secret
 
-Functions deployment was attempted but stopped during secret validation because the staging project is missing a version of:
+The staging project now contains Secret Manager secret version 1 for:
 
 ```text
 SMTP_PASS
 ```
 
-The Functions code was not bypassed or partially forced into deployment. Until the secret is configured, the newer backend features are not live:
+The secret value is not stored in Git, `.env`, the frontend ZIP, or this handover. The App Engine service account has `roles/secretmanager.secretAccessor` for the secret.
 
-- Admin RBAC callables
-- Administrator creation
-- Username resolver
-- PIN setup/change/login
-- Forced administrator password-change completion
-- Notification changes
+Do not copy this staging secret to production. Production uses the separate Firebase project `christianmatch-app` and must be configured independently.
 
-After the correct staging SMTP password is available, configure it without recording it in Git:
+### Explicit staging build and deploy
+
+The frontend must be built with the staging mode before deploying to the dev/staging project:
 
 ```bash
-firebase functions:secrets:set SMTP_PASS \
-  --project christian-match-ghana
+cd /Users/andrewstardie/Documents/TUTS/TESTS/cm/cmg-rebuilt/frontend
+npm run build:staging
 ```
 
-Then deploy Functions:
+`build:staging` runs:
 
 ```bash
-firebase deploy --only functions \
-  --project christian-match-ghana \
-  --non-interactive
+vite build --mode staging-web
+node scripts/generate-messaging-sw.mjs --mode=staging-web
 ```
 
-Review all existing Functions secrets before deployment. Never copy production secrets into staging.
+This embeds:
 
+```text
+VITE_FIREBASE_PROJECT_ID=christian-match-ghana
+VITE_BASE_PATH=/dev/
+```
+
+Never use the default production build when deploying the staging frontend. The production build targets `christianmatch-app`.
+
+### Functions deployment history
+
+Functions deployment was previously blocked because `SMTP_PASS` did not exist. That blocker was resolved on 2026-10-20 and the full Functions deployment completed successfully. The previous blocker text in older sections of this document is historical only.
 ### Realtime Database blocker
 
 The project does not yet have a Realtime Database instance. Database rules are present in:
@@ -300,7 +304,7 @@ Email confirmation: Not required
 First login: Forced password change
 ```
 
-The live account has **not yet been created**, because Functions deployment is blocked by the missing `SMTP_PASS` secret. Do not place the initial password in source, this handover, logs, or a deployment archive. After Functions deployment, create it from the existing Super Admin Access Control panel or through the protected callable.
+The staging project contains the `ladmin` Admin access record. Do not place any administrator password in source, this handover, logs, or a deployment archive. Verify the account through the protected Admin flow during staging smoke tests.
 
 ## 7. Authentication and PIN support
 
@@ -334,7 +338,7 @@ setUserPin
 loginWithPin
 ```
 
-PIN login will remain unavailable in staging until the Functions deployment blocker is resolved.
+PIN login is deployed in staging and should be included in staging smoke tests.
 
 ### Forced password change
 
@@ -439,24 +443,23 @@ node_modules/.bin/vite build --mode staging-web
 node scripts/generate-messaging-sw.mjs --mode=staging-web
 ```
 
-The current Desktop package from the latest build is expected at:
+The current Desktop package from the latest staging build is expected at:
 
 ```text
-/Users/andrewstardie/Desktop/cmg-dev-dist.zip
+/Users/andrewstardie/Desktop/cmg-dev-dist-new.zip
 ```
 
-The package is large because it includes the promo video. Do not commit `frontend/dist.zip` unless explicitly required.
+The package is a root-level deployable archive. Upload its contents to the Stormerhost `/dev/` web root; do not create a nested `dist/` directory. It contains the current staging assets and `firebase-messaging-sw.js` configured for `christian-match-ghana`.
 
 ## 11. Holistic future add-ons
 
 ### P0 — unblock and stabilize the current release
 
-1. Configure the staging `SMTP_PASS` secret and deploy Functions.
+1. Completed: configured the staging `SMTP_PASS` secret and deployed Functions.
 2. Create the Realtime Database instance intentionally, document its region, and deploy database rules.
-3. Create `ladmin` only after the protected Functions are deployed.
-4. Test password login, username login, PIN login, forced password change, Admin Portal access, and logout with staging accounts.
-5. Add a staging smoke-test script that checks Auth, Firestore, Storage, Functions, Hosting, and Rules.
-6. Add Firebase billing budgets and email alerts before inviting testers.
+3. Test password login, username login, PIN login, forced password change, Admin Portal access, and logout with staging accounts.
+4. Add a staging smoke-test script that checks Auth, Firestore, Storage, Functions, Hosting, and Rules.
+5. Add Firebase billing budgets and email alerts before inviting testers.
 
 ### P1 — security and trust
 
@@ -511,15 +514,12 @@ The package is large because it includes the promo video. Do not commit `fronten
 
 ```text
 [ ] Verify no Ecobank credential is selected or used.
-[ ] Configure staging SMTP_PASS without committing it.
-[ ] Deploy Functions to christian-match-ghana.
+[x] Configure staging SMTP_PASS and deploy Functions.
 [ ] Decide and create the Realtime Database region/instance.
-[ ] Deploy database rules.
-[ ] Create ladmin through the protected Super Admin flow.
 [ ] Test ladmin password login, forced password change, username login, and PIN setup.
 [ ] Test regular Admin boundaries and audit records.
 [ ] Run staging smoke tests.
-[ ] Confirm Hosting URL and, separately, cPanel /dev deployment if needed.
+[ ] Confirm Hosting URL and Stormerhost /dev deployment after each manual upload.
 [ ] Keep firebase-export-*, frontend/dist.zip, and tmp/ out of Git.
 ```
 
@@ -555,3 +555,132 @@ backend/functions/node_modules/.bin/firebase deploy \
 ```
 
 Never use production aliases or modify `christianmatch-app` without a separate explicit production request.
+
+## 14. Latest verified state — 2026-10-20
+
+### Environment mapping
+
+All current development work is first deployed to staging/dev:
+
+```text
+Local emulator/dev project: christian-match-ghana
+Staging/dev web project:    christian-match-ghana
+Production project:        christianmatch-app
+```
+
+The production project was not modified during the latest Admin work. Use the separate production environment configuration only for a deliberate production promotion after staging approval.
+
+### Admin frontend work completed
+
+The current Admin frontend includes:
+
+- Admin menu access for users with effective `adminUsers` permissions/groups.
+- Persistent selected Admin menu/submenu state across refresh.
+- Dashboard, Reports, Users, Operations, Billing, and System navigation.
+- Users and Groups compact adjustable tables with non-wrapping checkbox/row-number columns.
+- Complete user action menus and status-aware Enable/Disable actions.
+- Locked group membership controls until `Add user(s) to group` is selected.
+- Admin action confirmation with password/PIN detection and biometric confirmation with a fingerprint icon.
+- Admin close/cancel navigation back to the main application.
+- Measured menu-to-submenu glow alignment with the outlined N-shaped bridge removed and reduced border thickness/height.
+
+### Build/deployment verification
+
+The latest staging ZIP was rebuilt from the current source and verified to contain:
+
+```text
+assets/index-DII-FHWl.js
+assets/index-DtGmNcmH.css
+Firebase target: christian-match-ghana
+Base path: /dev/
+```
+
+The live dev URL was verified to reference those same assets:
+
+```text
+https://christianmatchghana.com/dev/
+```
+
+The current fresh archive is:
+
+```text
+/Users/andrewstardie/Desktop/cmg-dev-dist-new.zip
+```
+
+The local PWA is not served from the ZIP. `start-cmg-pwa.sh` runs Vite directly from `frontend/src` and overrides Firebase connections to the local emulators. The staging ZIP uses the same source build but connects to the remote dev project.
+
+### Current release identifiers
+
+```text
+Git branch:  sync/cmg-local-2026-10-13
+Git commit: 6c035e1 build: add explicit Firebase staging build
+Hosting:    https://christian-match-ghana.web.app
+Dev URL:    https://christianmatchghana.com/dev/
+```
+
+The current repository still has intentionally untracked generated/local files:
+
+```text
+firebase-export-*/
+frontend/dist.zip
+```
+
+Do not add these to Git unless explicitly required.
+
+## 15. Continuation update — 2026-10-22
+
+### Local launcher behavior
+
+The local launchers are intentionally separate:
+
+```text
+Backend:  start-cmg-emulators.sh
+PWA:      run-cmg-pwa.sh → start-cmg-pwa.sh → Vite + Google Chrome only
+Android:  run-cmg-android.sh → start-cmg-android.sh → Capacitor APK + Android Studio
+```
+
+`run-cmg-pwa.sh` must not be used as an Android launcher. It requires the Auth, Firestore, Functions, Storage, and Emulator UI ports to be running, then starts Vite on a free local browser port and opens Chrome. Use `clear`, not the mistyped `clar`, in the shell command:
+
+```bash
+clear && /Users/andrewstardie/Documents/TUTS/TESTS/cm/cmg-rebuilt/run-cmg-pwa.sh
+```
+
+### Android runner verification
+
+The Android runner was verified after the latest source changes:
+
+```text
+Device: emulator-5554
+Application ID: com.cmg.christianmatch
+Result: debug APK built, installed, and launched successfully
+Android Studio: project opened by the launcher
+```
+
+The Android launcher now selects the Homebrew Node 22 runtime when available. The Firebase Functions emulator launcher, PWA launcher, and Android launcher use the same Node 22 selection logic. The declared Functions runtime remains Node.js 22.
+
+### Build and dependency fixes
+
+The following local build issues were corrected:
+
+- Moved the wallpaper and Roboto font source copies into `frontend/src/assets/` and updated `frontend/src/index.css` so Vite bundles them instead of leaving unresolved public-relative paths.
+- Added Vite manual chunking for Firebase, application components, services, and icons.
+- Removed the circular `components → admin → components` chunk split.
+- Consolidated redundant runtime dynamic imports that produced Vite mixed static/dynamic import warnings.
+- Added the exact `uuid` 11.1.1 npm override for the Capacitor CLI development dependency chain.
+- Updated `frontend/package-lock.json`; `npm audit --offline` reports zero vulnerabilities.
+
+Validated after these changes:
+
+```text
+frontend: npm run build                         passed
+frontend: node_modules/.bin/tsc --noEmit        passed
+backend:  node --check src/index.js             passed
+backend:  node --check src/rbac.js               passed
+Android:  run-cmg-android.sh                    passed
+```
+
+The remaining npm output is a non-security upstream deprecation notice for `node-domexception@1.0.0`, pulled through `@google/genai → google-auth-library → gaxios → node-fetch → fetch-blob`. It does not block the build or APK runner.
+
+### Release boundary reminder
+
+No production Firebase deployment, frontend archive release, Git commit, or GitHub push was performed for these local fixes. Production project `christianmatch-app` remains untouched. The generated emulator exports, `frontend/dist.zip`, and temporary build outputs must remain out of Git unless deliberately reviewed and requested.

@@ -21,6 +21,32 @@ const AdminLogin = () => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
+  const openAdminInsideApp = async () => {
+    const firebaseUser = auth.currentUser;
+    if (!firebaseUser) throw new Error('Your session has expired. Please sign in again.');
+    const accessSnapshot = await getDoc(doc(db, 'adminUsers', firebaseUser.uid));
+    const accessData = accessSnapshot.exists() ? accessSnapshot.data() : {};
+    const isLegacySuperAdmin = firebaseUser.email === 'christianmatchghanaltd@gmail.com' || firebaseUser.email === 'admin@example.com';
+    const isAdmin = isLegacySuperAdmin || accessData.isSuperAdmin === true || accessData.isSystemAdmin === true || (Array.isArray(accessData.permissions) && accessData.permissions.length > 0);
+    if (!isAdmin) throw new Error('This account does not have administrator access.');
+    const profileSnapshot = await getDoc(doc(db, 'users', firebaseUser.uid));
+    const profile = profileSnapshot.exists() ? profileSnapshot.data() : {};
+    localStorage.setItem('cmg_demo_user', JSON.stringify({
+      ...profile,
+      ...accessData,
+      id: firebaseUser.uid,
+      email: firebaseUser.email || accessData.email,
+      isSystemAdmin: accessData.isSystemAdmin === true || isLegacySuperAdmin,
+      isSuperAdmin: accessData.isSuperAdmin === true || isLegacySuperAdmin,
+      isPremium: true,
+      subscriptionStatus: 'active',
+      mustChangePassword: false,
+    }));
+    localStorage.setItem('cmg_current_view', 'ADMIN');
+    sessionStorage.setItem('cmg_preserve_session_on_reload', 'true');
+    navigate('/', { replace: true });
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
@@ -54,26 +80,8 @@ const AdminLogin = () => {
         setMustChangePassword(true);
         return;
       }
-      if (accessData.isSystemAdmin === true) {
-        const profileSnapshot = await getDoc(doc(db, 'users', auth.currentUser?.uid || ''));
-        const profile = profileSnapshot.exists() ? profileSnapshot.data() : {};
-        localStorage.setItem('cmg_demo_user', JSON.stringify({
-          ...profile,
-          ...accessData,
-          id: auth.currentUser?.uid,
-          email: auth.currentUser?.email || accessData.email,
-          isSystemAdmin: true,
-          isSuperAdmin: true,
-          isPremium: true,
-          subscriptionStatus: 'active',
-          mustChangePassword: false,
-        }));
-        localStorage.removeItem('cmg_current_view');
-        sessionStorage.setItem('cmg_preserve_session_on_reload', 'true');
-        navigate('/');
-        return;
-      }
-      navigate('/admin');
+      await openAdminInsideApp();
+      return;
     } catch (err: any) {
       console.error("Login failed", err);
       if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
@@ -104,7 +112,7 @@ const AdminLogin = () => {
       if (!auth.currentUser) throw new Error('Your session has expired. Please sign in again.');
       await updatePassword(auth.currentUser, newPassword);
       await httpsCallable(functions, 'completeAdminPasswordChange')();
-      navigate('/admin');
+      await openAdminInsideApp();
     } catch (err: any) {
       setError(err?.message || 'Unable to update the temporary password.');
     } finally {
