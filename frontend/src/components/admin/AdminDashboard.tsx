@@ -16,8 +16,7 @@ type AdminReportKind = 'platform' | 'users' | 'moderation' | 'payments';
 const ADMIN_MENU_GROUPS = [
   { key: 'users', label: 'Users', icon: Users, items: [
     { key: 'users', label: 'Users' },
-    { key: 'access-control', label: 'Permissions' },
-    { key: 'message-distribution-groups', label: 'Audiences' },
+    { key: 'groups', label: 'Groups' },
     { key: 'connections', label: 'Connections' },
     { key: 'prayers', label: 'Prayers' },
   ] },
@@ -43,7 +42,7 @@ const ADMIN_MENU_GROUPS = [
 
 const ADMIN_NAV_STATE_KEY = 'cmg_admin_navigation_state';
 const ADMIN_NAV_TABS = new Set([
-  'overview', 'reports', 'report-users', 'report-moderation', 'report-payments', 'users', 'access-control', 'message-distribution-groups', 'connections', 'prayers',
+  'overview', 'reports', 'report-users', 'report-moderation', 'report-payments', 'users', 'groups', 'access-control', 'message-distribution-groups', 'connections', 'prayers',
   'moderation', 'messages', 'analytics', 'payments', 'audit-logs',
 ]);
 
@@ -51,7 +50,8 @@ function readAdminNavigationState(): { activeTab: string; selectedMenuGroup: str
   if (typeof window === 'undefined') return { activeTab: 'overview', selectedMenuGroup: 'dashboard' };
   try {
     const stored = JSON.parse(window.sessionStorage.getItem(ADMIN_NAV_STATE_KEY) || '{}') as { activeTab?: string; selectedMenuGroup?: string };
-    const activeTab = stored.activeTab && ADMIN_NAV_TABS.has(stored.activeTab) ? stored.activeTab : 'overview';
+    const requestedTab = stored.activeTab && ADMIN_NAV_TABS.has(stored.activeTab) ? stored.activeTab : 'overview';
+    const activeTab = requestedTab === 'access-control' || requestedTab === 'message-distribution-groups' ? 'groups' : requestedTab;
     const selectedMenuGroup = ADMIN_MENU_GROUPS.find((group) => group.items.some((item) => item.key === activeTab))?.key || 'dashboard';
     return { activeTab, selectedMenuGroup };
   } catch {
@@ -159,14 +159,14 @@ const AdminDashboard: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
     setFocusGroupId(groupId);
     setFocusUserId(null);
     setFocusPermissionGroupId(null);
-    selectTab('message-distribution-groups');
+    selectTab('groups');
   };
 
   const openPermissionGroup = (groupId: string) => {
     setFocusPermissionGroupId(groupId);
     setFocusUserId(null);
     setFocusGroupId(null);
-    selectTab('access-control');
+    selectTab('groups');
   };
 
   const selectDashboard = () => {
@@ -221,9 +221,11 @@ const AdminDashboard: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
       case 'moderation':
         return <ModerationView />;
       case 'messages':
-        return <AdminMessagesView canSend={can('messages.send') || can('messages.moderate')} onManageAudiences={() => selectTab('message-distribution-groups')} />;
+        return <AdminMessagesView canSend={can('messages.send') || can('messages.moderate')} onManageAudiences={() => selectTab('groups')} />;
       case 'analytics':
         return <AnalyticsView />;
+      case 'groups':
+        return <GroupsView focusGroupId={focusGroupId} focusPermissionGroupId={focusPermissionGroupId} onOpenUser={openAdminUser} />;
       case 'access-control':
         return <AdminAccessControl initialTab="groups" focusGroupId={focusPermissionGroupId} onOpenUser={openAdminUser} />;
       case 'message-distribution-groups':
@@ -567,6 +569,147 @@ const Overview = () => {
   );
 };
 
+type UnifiedGroupRow = {
+    id: string;
+    name: string;
+    description?: string;
+    type: 'Security Group' | 'Distribution Group';
+    memberCount: number;
+    system?: boolean;
+};
+
+const GroupsView = ({ focusGroupId, focusPermissionGroupId, onOpenUser }: { focusGroupId?: string | null; focusPermissionGroupId?: string | null; onOpenUser?: (userId: string) => void }) => {
+    const [groups, setGroups] = useState<UnifiedGroupRow[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+    const [workspace, setWorkspace] = useState<'all' | 'security' | 'distribution'>('all');
+    const [securityFocusGroupId, setSecurityFocusGroupId] = useState<string | null>(focusPermissionGroupId || null);
+    const [distributionFocusGroupId, setDistributionFocusGroupId] = useState<string | null>(focusGroupId || null);
+    const [groupColumnWidths, setGroupColumnWidths] = useState({ number: 60, name: 220, type: 180, description: 300, members: 100, actions: 120 });
+
+    const loadGroups = async () => {
+        setLoading(true);
+        setError('');
+        const [securityResult, distributionResult] = await Promise.allSettled([
+            listAdminAccessControl(),
+            listAdminDistributionGroups(),
+        ]);
+        const merged: UnifiedGroupRow[] = [];
+        if (securityResult.status === 'fulfilled') {
+            const access = securityResult.value;
+            access.groups.forEach((group) => merged.push({
+                id: group.id,
+                name: group.name,
+                description: group.description,
+                type: 'Security Group',
+                memberCount: access.users.filter((user) => (user.groupIds || []).includes(group.id)).length,
+                system: group.system,
+            }));
+        } else {
+            setError(securityResult.reason?.message || 'Unable to load security groups.');
+        }
+        if (distributionResult.status === 'fulfilled') {
+            distributionResult.value.forEach((group) => merged.push({
+                id: group.id,
+                name: group.name,
+                description: group.description,
+                type: 'Distribution Group',
+                memberCount: group.memberCount || 0,
+                system: group.system,
+            }));
+        } else {
+            setError((current) => current || distributionResult.reason?.message || 'Unable to load distribution groups.');
+        }
+        setGroups(merged.sort((left, right) => left.name.localeCompare(right.name)));
+        setLoading(false);
+    };
+
+    useEffect(() => { void loadGroups(); }, []);
+
+    useEffect(() => {
+        if (focusPermissionGroupId) {
+            setSecurityFocusGroupId(focusPermissionGroupId);
+            setWorkspace('security');
+        }
+    }, [focusPermissionGroupId]);
+
+    useEffect(() => {
+        if (focusGroupId) {
+            setDistributionFocusGroupId(focusGroupId);
+            setWorkspace('distribution');
+        }
+    }, [focusGroupId]);
+
+    const resizeGroupColumn = (column: keyof typeof groupColumnWidths, event: React.MouseEvent<HTMLSpanElement>) => {
+        event.preventDefault();
+        const startX = event.clientX;
+        const startWidth = groupColumnWidths[column];
+        const handleMove = (moveEvent: MouseEvent) => {
+            const nextWidth = Math.max(80, startWidth + moveEvent.clientX - startX);
+            setGroupColumnWidths((current) => ({ ...current, [column]: nextWidth }));
+        };
+        const handleUp = () => {
+            window.removeEventListener('mousemove', handleMove);
+            window.removeEventListener('mouseup', handleUp);
+        };
+        window.addEventListener('mousemove', handleMove);
+        window.addEventListener('mouseup', handleUp);
+    };
+
+    const openGroup = (group: UnifiedGroupRow) => {
+        if (group.type === 'Security Group') {
+            setSecurityFocusGroupId(group.id);
+            setWorkspace('security');
+        } else {
+            setDistributionFocusGroupId(group.id);
+            setWorkspace('distribution');
+        }
+    };
+
+    if (workspace === 'security') {
+        return <div className="space-y-4"><button type="button" onClick={() => setWorkspace('all')} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-black text-slate-700">← Back to Groups</button><AdminAccessControl initialTab="groups" focusGroupId={securityFocusGroupId} onOpenUser={onOpenUser} /></div>;
+    }
+    if (workspace === 'distribution') {
+        return <div className="space-y-4"><button type="button" onClick={() => setWorkspace('all')} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-black text-slate-700">← Back to Groups</button><DistributionGroupsView focusGroupId={distributionFocusGroupId} onOpenUser={onOpenUser} /></div>;
+    }
+
+    return (
+        <div className="space-y-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <div><h2 className="text-2xl font-black text-slate-900">Groups</h2><p className="mt-1 text-sm text-slate-500">Manage security and distribution groups from one workspace.</p></div>
+                <button type="button" onClick={() => void loadGroups()} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700"><RefreshCw size={16} />Refresh</button>
+            </div>
+            {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</p>}
+            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3"><div><h3 className="flex items-center gap-2 font-black text-slate-800"><Shield size={18} />Groups</h3><p className="mt-1 text-xs text-slate-500">Select a group to review or edit it in its existing management workspace.</p></div><span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-bold text-slate-600">{groups.length} groups</span></div>
+                {loading ? <p className="px-4 py-6 text-sm text-slate-500">Loading groups…</p> : (
+                    <div className="overflow-x-auto">
+                        <table className="cmg-admin-compact-table min-w-[980px] w-full table-fixed border-collapse text-left">
+                            <colgroup><col style={{ width: groupColumnWidths.number }} /><col style={{ width: groupColumnWidths.name }} /><col style={{ width: groupColumnWidths.type }} /><col style={{ width: groupColumnWidths.description }} /><col style={{ width: groupColumnWidths.members }} /><col style={{ width: groupColumnWidths.actions }} /></colgroup>
+                            <thead className="bg-slate-900 text-[10px] font-black uppercase tracking-wide text-white"><tr>
+                                <th style={{ width: groupColumnWidths.number }} className="relative px-2 py-2">#<span onMouseDown={(event) => resizeGroupColumn('number', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                                <th style={{ width: groupColumnWidths.name }} className="relative px-3 py-2">Group name<span onMouseDown={(event) => resizeGroupColumn('name', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                                <th style={{ width: groupColumnWidths.type }} className="relative px-3 py-2">Group Type<span onMouseDown={(event) => resizeGroupColumn('type', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                                <th style={{ width: groupColumnWidths.description }} className="relative px-3 py-2">Description<span onMouseDown={(event) => resizeGroupColumn('description', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                                <th style={{ width: groupColumnWidths.members }} className="relative px-3 py-2">Members<span onMouseDown={(event) => resizeGroupColumn('members', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                                <th style={{ width: groupColumnWidths.actions }} className="relative px-3 py-2">Actions<span onMouseDown={(event) => resizeGroupColumn('actions', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                            </tr></thead>
+                            <tbody>{groups.map((group, index) => <tr key={`${group.type}-${group.id}`} className="h-9 cursor-pointer border-b border-slate-200 text-xs text-slate-700 transition hover:bg-slate-50" onClick={() => openGroup(group)}>
+                                <td className="px-2 py-1.5 font-black text-slate-400">{index + 1}</td>
+                                <td className="px-3 py-1.5"><button type="button" onClick={(event) => { event.stopPropagation(); openGroup(group); }} className="font-black text-slate-900 underline decoration-orange-200 underline-offset-2 hover:text-brand-orange">{group.name}</button></td>
+                                <td className="px-3 py-1.5"><span className={`rounded px-2 py-1 text-[10px] font-black ${group.type === 'Security Group' ? 'bg-blue-50 text-blue-700' : 'bg-orange-50 text-orange-700'}`}>{group.type}</span></td>
+                                <td className="truncate px-3 py-1.5">{group.description || '—'}</td>
+                                <td className="px-3 py-1.5 font-bold">{group.memberCount}</td>
+                                <td className="px-3 py-1.5"><button type="button" onClick={(event) => { event.stopPropagation(); openGroup(group); }} className="rounded-lg bg-slate-900 px-2.5 py-1.5 text-[10px] font-black text-white hover:bg-slate-700">Manage</button></td>
+                            </tr>)}</tbody>
+                        </table>
+                    </div>
+                )}
+            </section>
+        </div>
+    );
+};
+
 const UsersView = ({ focusUserId, onOpenGroup, onOpenPermissionGroup, onOpenMessages }: { focusUserId?: string | null; onOpenGroup?: (groupId: string) => void; onOpenPermissionGroup?: (groupId: string) => void; onOpenMessages?: () => void }) => {
     const { confirmAdminAction } = useAdminActionConfirmation();
     // Real Data
@@ -634,6 +777,7 @@ const UsersView = ({ focusUserId, onOpenGroup, onOpenPermissionGroup, onOpenMess
     const [isEditingProfile, setIsEditingProfile] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [userColumnWidths, setUserColumnWidths] = useState({ number: 72, user: 220, email: 200, firestoreId: 180, telephone: 140, role: 120, status: 120, joined: 140, actions: 84 });
+    const [userGroupColumnWidths, setUserGroupColumnWidths] = useState({ number: 60, group: 260, type: 180 });
 
     const resizeUserColumn = (column: keyof typeof userColumnWidths, event: React.MouseEvent<HTMLSpanElement>) => {
         event.preventDefault();
@@ -650,7 +794,23 @@ const UsersView = ({ focusUserId, onOpenGroup, onOpenPermissionGroup, onOpenMess
         window.addEventListener('mousemove', handleMove);
         window.addEventListener('mouseup', handleUp);
     };
-    
+
+    const resizeUserGroupColumn = (column: keyof typeof userGroupColumnWidths, event: React.MouseEvent<HTMLSpanElement>) => {
+        event.preventDefault();
+        const startX = event.clientX;
+        const startWidth = userGroupColumnWidths[column];
+        const handleMove = (moveEvent: MouseEvent) => {
+            const nextWidth = Math.max(80, startWidth + moveEvent.clientX - startX);
+            setUserGroupColumnWidths((current) => ({ ...current, [column]: nextWidth }));
+        };
+        const handleUp = () => {
+            window.removeEventListener('mousemove', handleMove);
+            window.removeEventListener('mouseup', handleUp);
+        };
+        window.addEventListener('mousemove', handleMove);
+        window.addEventListener('mouseup', handleUp);
+    };
+
     // Filter & Add User State
     const [showFilterMenu, setShowFilterMenu] = useState(false);
     const [filterStatus, setFilterStatus] = useState<'All' | 'Active' | 'Blocked'>('All');
@@ -1140,12 +1300,17 @@ const UsersView = ({ focusUserId, onOpenGroup, onOpenPermissionGroup, onOpenMess
                                             <p className="py-3 text-xs text-slate-500">No groups assigned.</p>
                                         ) : (
                                             <div className="mt-3 overflow-x-auto">
-                                                <table className="min-w-[500px] w-full text-left text-xs">
+                                                <table className="min-w-[500px] w-full table-fixed text-left text-xs">
+                                                    <colgroup>
+                                                        <col style={{ width: userGroupColumnWidths.number }} />
+                                                        <col style={{ width: userGroupColumnWidths.group }} />
+                                                        <col style={{ width: userGroupColumnWidths.type }} />
+                                                    </colgroup>
                                                     <thead className="text-[10px] font-black uppercase tracking-wide text-slate-500">
                                                         <tr>
-                                                            <th className="w-12 border-b border-slate-200 px-3 py-2">#</th>
-                                                            <th className="border-b border-slate-200 px-3 py-2">Group</th>
-                                                            <th className="border-b border-slate-200 px-3 py-2">Type</th>
+                                                            <th style={{ width: userGroupColumnWidths.number }} className="relative w-12 border-b border-slate-200 px-3 py-2">#<span onMouseDown={(event) => resizeUserGroupColumn('number', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                                                            <th style={{ width: userGroupColumnWidths.group }} className="relative border-b border-slate-200 px-3 py-2">Group<span onMouseDown={(event) => resizeUserGroupColumn('group', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                                                            <th style={{ width: userGroupColumnWidths.type }} className="relative border-b border-slate-200 px-3 py-2">Type<span onMouseDown={(event) => resizeUserGroupColumn('type', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
@@ -2445,6 +2610,9 @@ const DistributionGroupsView = ({ focusGroupId, onOpenUser }: { focusGroupId?: s
     const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(new Set());
     const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set());
     const [groupColumnWidths, setGroupColumnWidths] = useState({ number: 70, name: 210, description: 250, members: 100, criteria: 260, type: 110, actions: 130 });
+    const [audienceMemberColumnWidths, setAudienceMemberColumnWidths] = useState({ number: 70, user: 220, email: 240, location: 180, status: 120 });
+    const [audienceMembers, setAudienceMembers] = useState<Record<string, Array<any>>>({});
+    const [audienceMembersLoading, setAudienceMembersLoading] = useState<Set<string>>(new Set());
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
@@ -2500,22 +2668,43 @@ const DistributionGroupsView = ({ focusGroupId, onOpenUser }: { focusGroupId?: s
         window.addEventListener('mouseup', handleUp);
     };
 
+    const resizeAudienceMemberColumn = (column: keyof typeof audienceMemberColumnWidths, event: React.MouseEvent<HTMLSpanElement>) => {
+        event.preventDefault();
+        const startX = event.clientX;
+        const startWidth = audienceMemberColumnWidths[column];
+        const handleMove = (moveEvent: MouseEvent) => {
+            const nextWidth = Math.max(80, startWidth + moveEvent.clientX - startX);
+            setAudienceMemberColumnWidths((current) => ({ ...current, [column]: nextWidth }));
+        };
+        const handleUp = () => {
+            window.removeEventListener('mousemove', handleMove);
+            window.removeEventListener('mouseup', handleUp);
+        };
+        window.addEventListener('mousemove', handleMove);
+        window.addEventListener('mouseup', handleUp);
+    };
+
     const toggleAudienceExpanded = async (group: DistributionGroup) => {
+        const willExpand = !expandedGroupIds.has(group.id);
         setExpandedGroupIds((current) => {
             const next = new Set(current);
             if (next.has(group.id)) next.delete(group.id);
             else next.add(group.id);
             return next;
         });
-        if (group.criteria?.mode === 'selected' && availableUsers.length === 0 && !usersLoading) {
-            setUsersLoading(true);
-            try {
-                setAvailableUsers(await getAdminUsers());
-            } catch (loadError: any) {
-                setError(loadError?.message || 'Unable to load selected audience users.');
-            } finally {
-                setUsersLoading(false);
-            }
+        if (!willExpand || audienceMembers[group.id] || audienceMembersLoading.has(group.id)) return;
+        setAudienceMembersLoading((current) => new Set([...current, group.id]));
+        try {
+            const result = await previewAdminDistributionGroup({ groupId: group.id });
+            setAudienceMembers((current) => ({ ...current, [group.id]: result.preview || [] }));
+        } catch (loadError: any) {
+            setError(loadError?.message || 'Unable to load audience members.');
+        } finally {
+            setAudienceMembersLoading((current) => {
+                const next = new Set(current);
+                next.delete(group.id);
+                return next;
+            });
         }
     };
 
@@ -2787,9 +2976,57 @@ const DistributionGroupsView = ({ focusGroupId, onOpenUser }: { focusGroupId?: s
                                                 <td className="px-3 py-1.5"><span className="rounded px-2 py-1 text-[10px] font-black text-slate-600 bg-slate-100">{group.system ? 'SYSTEM' : group.criteria?.mode === 'selected' ? 'CUSTOM' : 'DYNAMIC'}</span></td>
                                                 <td className="px-3 py-1.5 text-left"><button type="button" onClick={(event) => { event.stopPropagation(); setManageAudiencePageOpen(true); editGroup(group); }} className="rounded-lg bg-slate-900 px-2.5 py-1.5 text-[10px] font-black text-white hover:bg-slate-700">Manage Audience</button></td>
                                             </tr>
-                                            {expanded && (
-                                                <tr className="border-b border-slate-200 bg-[#f7f9fc]"><td colSpan={7} className="px-5 py-3"><div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2"><span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Details for {group.name}</span><div className="flex items-center gap-2"><span className="text-xs font-bold text-slate-500">{group.memberCount ?? 0} members</span><button type="button" disabled={group.system} onClick={(event) => { event.stopPropagation(); setManageAudiencePageOpen(true); editGroup(group); }} className="rounded-lg bg-slate-900 px-2 py-1 text-[10px] font-black text-white disabled:cursor-not-allowed disabled:opacity-40">{group.system ? 'SYSTEM' : 'Edit'}</button>{!group.system && <button type="button" onClick={(event) => { event.stopPropagation(); void removeGroup(group); }} className="rounded-lg bg-red-50 px-2 py-1 text-[10px] font-black text-red-700">Delete</button>}</div></div>{group.criteria?.mode === 'selected' ? (usersLoading ? <p className="py-4 text-xs text-slate-500">Loading selected users…</p> : selectedUsers.length === 0 ? <p className="py-4 text-xs text-slate-500">Selected user details are not loaded yet.</p> : <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{selectedUsers.map((user) => <button key={user.firestoreDocId || user.id} type="button" onClick={() => onOpenUser?.(user.firestoreDocId || user.id)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-left hover:bg-orange-50"><div className="text-xs font-bold text-slate-800">{user.name || 'Unnamed user'}</div><div className="truncate text-[10px] text-slate-500">{user.email || 'No email'} · {user.location || user.country || 'No location'}</div></button>)}</div>) : <div className="mt-2 rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-600">{audienceCriteriaSummary(group)}<div className="mt-1 text-[10px] text-slate-400">This audience updates automatically as user profiles change.</div></div>}</td></tr>
-                                            )}
+                                            {expanded && (() => {
+                                                const members = audienceMembers[group.id] || [];
+                                                const membersLoading = audienceMembersLoading.has(group.id);
+                                                return (
+                                                <tr className="border-b border-slate-200 bg-[#f7f9fc]">
+                                                    <td colSpan={7} className="px-5 py-3">
+                                                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2">
+                                                            <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Users in {group.name}</span>
+                                                            <div className="flex items-center gap-2"><span className="text-xs font-bold text-slate-500">{group.memberCount ?? 0} members{members.length > 0 && members.length < (group.memberCount ?? 0) ? ` · showing ${members.length}` : ''}</span><button type="button" disabled={group.system} onClick={(event) => { event.stopPropagation(); setManageAudiencePageOpen(true); editGroup(group); }} className="rounded-lg bg-slate-900 px-2 py-1 text-[10px] font-black text-white disabled:cursor-not-allowed disabled:opacity-40">{group.system ? 'SYSTEM' : 'Edit'}</button>{!group.system && <button type="button" onClick={(event) => { event.stopPropagation(); void removeGroup(group); }} className="rounded-lg bg-red-50 px-2 py-1 text-[10px] font-black text-red-700">Delete</button>}</div>
+                                                        </div>
+                                                        {membersLoading ? (
+                                                            <p className="py-4 text-xs text-slate-500">Loading audience users…</p>
+                                                        ) : members.length === 0 ? (
+                                                            <p className="py-4 text-xs text-slate-500">No users are currently in this audience.</p>
+                                                        ) : (
+                                                            <div className="mt-2 overflow-x-auto">
+                                                                <table className="min-w-[830px] w-full table-fixed text-left text-xs">
+                                                                    <colgroup>
+                                                                        <col style={{ width: audienceMemberColumnWidths.number }} />
+                                                                        <col style={{ width: audienceMemberColumnWidths.user }} />
+                                                                        <col style={{ width: audienceMemberColumnWidths.email }} />
+                                                                        <col style={{ width: audienceMemberColumnWidths.location }} />
+                                                                        <col style={{ width: audienceMemberColumnWidths.status }} />
+                                                                    </colgroup>
+                                                                    <thead className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                                                                        <tr>
+                                                                            <th style={{ width: audienceMemberColumnWidths.number }} className="relative px-2 py-1">#<span onMouseDown={(event) => resizeAudienceMemberColumn('number', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                                                                            <th style={{ width: audienceMemberColumnWidths.user }} className="relative px-2 py-1">User<span onMouseDown={(event) => resizeAudienceMemberColumn('user', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                                                                            <th style={{ width: audienceMemberColumnWidths.email }} className="relative px-2 py-1">Email<span onMouseDown={(event) => resizeAudienceMemberColumn('email', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                                                                            <th style={{ width: audienceMemberColumnWidths.location }} className="relative px-2 py-1">Location<span onMouseDown={(event) => resizeAudienceMemberColumn('location', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                                                                            <th style={{ width: audienceMemberColumnWidths.status }} className="relative px-2 py-1">Status<span onMouseDown={(event) => resizeAudienceMemberColumn('status', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody>
+                                                                        {members.map((member: any, memberIndex) => (
+                                                                            <tr key={member.id} className="border-t border-slate-200 bg-white">
+                                                                                <td className="px-2 py-1.5 text-center text-slate-400">{memberIndex + 1}</td>
+                                                                                <td className="px-2 py-1.5 font-bold text-slate-800"><button type="button" onClick={(event) => { event.stopPropagation(); onOpenUser?.(member.id); }} className="text-left font-bold text-slate-800 underline decoration-orange-200 underline-offset-2 hover:text-brand-orange">{member.name || 'Unnamed user'}</button></td>
+                                                                                <td className="px-2 py-1.5 text-slate-600">{member.email || '—'}</td>
+                                                                                <td className="px-2 py-1.5 text-slate-600">{member.location || member.country || '—'}</td>
+                                                                                <td className="px-2 py-1.5 text-slate-600">{member.accountState || (member.isBlocked ? 'Blocked' : 'Active')}</td>
+                                                                            </tr>
+                                                                        ))}
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                                );
+                                            })()}
                                         </React.Fragment>
                                     );
                                 })}

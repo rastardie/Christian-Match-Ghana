@@ -37,6 +37,7 @@ const AdminAccessControl: React.FC<{ initialTab?: 'groups' | 'audit'; focusGroup
   const [manageGroupsPageOpen, setManageGroupsPageOpen] = useState(false);
   const [selectedGroupMemberIds, setSelectedGroupMemberIds] = useState<Record<string, Set<string>>>({});
   const [groupColumnWidths, setGroupColumnWidths] = useState({ number: 80, name: 180, description: 260, members: 90, permissions: 110, type: 100, actions: 130 });
+  const [memberColumnWidths, setMemberColumnWidths] = useState({ number: 80, user: 220, email: 240, status: 120 });
 
   const resizeGroupColumn = (column: keyof typeof groupColumnWidths, event: React.MouseEvent<HTMLSpanElement>) => {
     event.preventDefault();
@@ -45,6 +46,22 @@ const AdminAccessControl: React.FC<{ initialTab?: 'groups' | 'audit'; focusGroup
     const handleMove = (moveEvent: MouseEvent) => {
       const nextWidth = Math.max(80, startWidth + moveEvent.clientX - startX);
       setGroupColumnWidths((current) => ({ ...current, [column]: nextWidth }));
+    };
+    const handleUp = () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+    };
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+  };
+
+  const resizeMemberColumn = (column: keyof typeof memberColumnWidths, event: React.MouseEvent<HTMLSpanElement>) => {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = memberColumnWidths[column];
+    const handleMove = (moveEvent: MouseEvent) => {
+      const nextWidth = Math.max(80, startWidth + moveEvent.clientX - startX);
+      setMemberColumnWidths((current) => ({ ...current, [column]: nextWidth }));
     };
     const handleUp = () => {
       window.removeEventListener('mousemove', handleMove);
@@ -340,9 +357,20 @@ const AdminAccessControl: React.FC<{ initialTab?: 'groups' | 'audit'; focusGroup
                                 <p className="py-4 text-xs text-slate-500">No users are assigned to this group yet. Use the assignment controls below.</p>
                               ) : (
                                 <div className="mt-2 overflow-x-auto">
-                                  <table className="min-w-[520px] w-full text-left text-xs">
+                                  <table className="min-w-[660px] w-full table-fixed text-left text-xs">
+                                    <colgroup>
+                                      <col style={{ width: memberColumnWidths.number }} />
+                                      <col style={{ width: memberColumnWidths.user }} />
+                                      <col style={{ width: memberColumnWidths.email }} />
+                                      <col style={{ width: memberColumnWidths.status }} />
+                                    </colgroup>
                                     <thead className="text-[10px] font-black uppercase tracking-wide text-slate-500">
-                                      <tr><th className="w-20 whitespace-nowrap px-2 py-1"><input type="checkbox" aria-label={`Select all members in ${group.name}`} checked={members.length > 0 && members.every((member: any) => selectedMembersForGroup.has(member.id))} onChange={(event) => setSelectedGroupMemberIds((current) => ({ ...current, [group.id]: event.target.checked ? new Set(members.map((member: any) => member.id)) : new Set() }))} className="h-3.5 w-3.5 accent-orange-500" /> #</th><th className="px-2 py-1">User</th><th className="px-2 py-1">Email</th><th className="px-2 py-1">Status</th></tr>
+                                      <tr>
+                                        <th style={{ width: memberColumnWidths.number }} className="relative w-20 whitespace-nowrap px-2 py-1"><input type="checkbox" aria-label={`Select all members in ${group.name}`} checked={members.length > 0 && members.every((member: any) => selectedMembersForGroup.has(member.id))} onChange={(event) => setSelectedGroupMemberIds((current) => ({ ...current, [group.id]: event.target.checked ? new Set(members.map((member: any) => member.id)) : new Set() }))} className="h-3.5 w-3.5 accent-orange-500" /> #<span onMouseDown={(event) => resizeMemberColumn('number', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                                        <th style={{ width: memberColumnWidths.user }} className="relative px-2 py-1">User<span onMouseDown={(event) => resizeMemberColumn('user', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                                        <th style={{ width: memberColumnWidths.email }} className="relative px-2 py-1">Email<span onMouseDown={(event) => resizeMemberColumn('email', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                                        <th style={{ width: memberColumnWidths.status }} className="relative px-2 py-1">Status<span onMouseDown={(event) => resizeMemberColumn('status', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                                      </tr>
                                     </thead>
                                     <tbody>
                                       {members.map((member: any, memberIndex) => (
