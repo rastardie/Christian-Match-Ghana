@@ -245,7 +245,7 @@ const AdminAccessControl: React.FC<{ initialTab?: 'groups' | 'audit'; focusGroup
       </div>
       {message && <p className="rounded-xl bg-blue-50 px-4 py-3 text-sm font-bold text-blue-800">{message}</p>}
       {groupManagerOpen && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4">
+        <div className="absolute inset-0 z-[120] flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-sm max-h-[85dvh] overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl">
             <h2 className="text-xl font-black text-slate-900">{selectedGroupIds.size === 1 ? 'Manage group' : 'Manage groups'}</h2>
             <p className="mt-1 text-sm text-slate-500">Choose an action for {selectedGroupIds.size} selected group{selectedGroupIds.size === 1 ? '' : 's'}.</p>

@@ -78,9 +78,31 @@ for _ in {1..30}; do
   sleep 1
 done
 
-# Open the PWA as a standalone Chrome app window. -n forces a fresh app
-# window so an existing normal Chrome window cannot absorb the launch.
-open -na 'Google Chrome' --args --app="http://127.0.0.1:${BROWSER_PORT}"
+# A DEDICATED Chrome instance (its own user-data-dir) is required for a true
+# standalone app window. With `open -na ... --app`, if a normal Chrome is
+# already running the --app flag is ignored and the URL opens as an ordinary
+# browser window in the existing instance — which is exactly why Admin/menus
+# appeared to "open in a separate browser window". A separate profile forces a
+# real app window regardless of any other Chrome instance.
+CHROME_BIN="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+CHROME_APP_PROFILE="$TMP_ROOT/cmg-pwa-chrome-profile"
+
+# Close only this launcher's previous dedicated app window (never the user's
+# normal Chrome). Matching on the dedicated profile path keeps it scoped.
+pkill -TERM -f "user-data-dir=${CHROME_APP_PROFILE}" 2>/dev/null || true
+sleep 1
+
+if [[ -x "$CHROME_BIN" ]]; then
+  "$CHROME_BIN" \
+    --user-data-dir="$CHROME_APP_PROFILE" \
+    --no-first-run \
+    --no-default-browser-check \
+    --app="http://127.0.0.1:${BROWSER_PORT}" \
+    >/dev/null 2>&1 &
+else
+  # Fallback for non-standard install paths.
+  open -na 'Google Chrome' --args --user-data-dir="$CHROME_APP_PROFILE" --app="http://127.0.0.1:${BROWSER_PORT}"
+fi
 printf 'CMG local PWA: http://127.0.0.1:%s\n' "$BROWSER_PORT"
 printf 'Vite log: %s\n' "$VITE_LOG"
 printf '%s\n' 'This Terminal remains active. Press Control+C to stop the PWA.'

@@ -107,7 +107,10 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
     }
   };
 
-  const frameClassName = `cmg-app-frame cmg-view-surface w-full flex flex-col relative shadow-2xl overflow-hidden ${currentView === 'ADMIN' ? 'max-w-none h-[100dvh] sm:rounded-none sm:h-[100dvh] sm:my-0 sm:border-0' : 'max-w-md h-[100dvh] sm:rounded-[2rem] sm:h-[92vh] sm:my-6 sm:border sm:border-white/70'} ${ribbonScrolling ? 'is-ribbon-scrolling' : ''}`;
+  // Admin uses the exact same centered app frame as every other view so it
+  // always renders inside the app shell rather than ballooning to a wide,
+  // browser-like window. The frame no longer depends on the current view.
+  const frameClassName = `cmg-app-frame cmg-view-surface w-full max-w-md h-[100dvh] flex flex-col relative shadow-2xl overflow-hidden sm:rounded-[2rem] sm:h-[92vh] sm:my-6 sm:border sm:border-white/70 ${ribbonScrolling ? 'is-ribbon-scrolling' : ''}`;
 
   return (
     <div className="cmg-app-backdrop flex justify-center min-h-screen font-sans">

@@ -102,7 +102,7 @@ export const AdminActionProvider: React.FC<{ children: React.ReactNode }> = ({ c
     <ConfirmationContext.Provider value={{ confirmAdminAction }}>
       {children}
       {pending && (
-        <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-slate-950/70 p-4" role="presentation" onClick={() => close(false)}>
+        <div className="absolute inset-0 z-[3000] flex items-center justify-center bg-slate-950/70 p-4" role="presentation" onClick={() => close(false)}>
           <div className="w-full max-w-sm max-h-[85dvh] overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="admin-action-confirm-title" onClick={(event) => event.stopPropagation()}>
             <h2 id="admin-action-confirm-title" className="text-lg font-black text-slate-900">{pending.options.title}</h2>
             <p className="mt-2 text-sm text-slate-600">{pending.options.description}</p>

@@ -239,7 +239,7 @@ const AdminDashboard: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
 
   return (
     <AdminActionProvider>
-      <div className="min-h-screen bg-[#f6f8fc] font-sans text-slate-900">
+      <div className="relative min-h-full bg-[#f6f8fc] font-sans text-slate-900">
       {/* Mobile-first CMG Admin header, based on the Onboard Admin pattern. */}
       <header className="cmg-admin-header bg-white shadow-sm">
         <div className="mx-auto flex w-full items-center justify-between gap-3 px-4 py-3 sm:px-6">
@@ -327,7 +327,7 @@ const AdminDashboard: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
       <main className="mx-auto w-full overflow-auto px-4 py-5 sm:px-6 sm:py-8">
         <div key={refreshKey}>{renderContent()}</div>
         {showSignOutDialog && (
-          <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-slate-950/70 p-4" role="presentation" onClick={() => setShowSignOutDialog(false)}>
+          <div className="absolute inset-0 z-[2000] flex items-center justify-center bg-slate-950/70 p-4" role="presentation" onClick={() => setShowSignOutDialog(false)}>
             <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="admin-signout-dialog-title" onClick={(event) => event.stopPropagation()}>
               <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-brand-orange/10 text-brand-orange">
                 <Power size={26} />
@@ -1125,37 +1125,45 @@ const UsersView = ({ focusUserId, onOpenGroup, onOpenPermissionGroup, onOpenMess
                             </tr>
                             {expandedUserIds.has(user.id) && (() => {
                                 const userId = user.firestoreDocId || user.id;
-                                const audienceGroups = distributionMemberships[userId] || [];
-                                const permissionGroups = permissionMemberships[userId] || [];
+                                const groups = [
+                                    ...((distributionMemberships[userId] || []).map((group) => ({ ...group, type: 'Distribution Group' as const, open: () => onOpenGroup?.(group.id) }))),
+                                    ...((permissionMemberships[userId] || []).map((group) => ({ ...group, type: 'Security Group' as const, open: () => onOpenPermissionGroup?.(group.id) }))),
+                                ];
                                 return (
                                 <tr className="border-b border-slate-200 bg-[#f7f9fc]">
                                     <td colSpan={8} className="px-5 py-3">
                                         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2">
                                             <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Groups for {user.name}</span>
-                                            <span className="text-xs font-bold text-slate-500">{audienceGroups.length} audience · {permissionGroups.length} permission</span>
+                                            <span className="text-xs font-bold text-slate-500">{groups.length} group{groups.length === 1 ? '' : 's'}</span>
                                         </div>
-                                        <div className="mt-3 grid gap-3 md:grid-cols-2">
-                                            <div>
-                                                <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">Audience groups</p>
-                                                <div className="mt-2 flex flex-wrap gap-2">
-                                                    {audienceGroups.length === 0 ? (
-                                                        <span className="text-xs text-slate-500">No audience groups assigned.</span>
-                                                    ) : audienceGroups.map((group) => (
-                                                        <button key={group.id} type="button" onClick={(event) => { event.stopPropagation(); onOpenGroup?.(group.id); }} className="font-black text-orange-800 underline decoration-orange-200 underline-offset-2 hover:text-brand-orange">{group.name}</button>
-                                                    ))}
-                                                </div>
+                                        {groups.length === 0 ? (
+                                            <p className="py-3 text-xs text-slate-500">No groups assigned.</p>
+                                        ) : (
+                                            <div className="mt-3 overflow-x-auto">
+                                                <table className="min-w-[500px] w-full text-left text-xs">
+                                                    <thead className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                                                        <tr>
+                                                            <th className="w-12 border-b border-slate-200 px-3 py-2">#</th>
+                                                            <th className="border-b border-slate-200 px-3 py-2">Group</th>
+                                                            <th className="border-b border-slate-200 px-3 py-2">Type</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {groups.map((group, groupIndex) => (
+                                                            <tr key={`${group.type}-${group.id}`} className="border-b border-slate-100 last:border-0">
+                                                                <td className="w-12 px-3 py-2 font-black text-slate-400">{groupIndex + 1}</td>
+                                                                <td className="px-3 py-2">
+                                                                    <button type="button" onClick={(event) => { event.stopPropagation(); group.open(); }} className="font-black text-slate-800 underline decoration-orange-200 underline-offset-2 hover:text-brand-orange">{group.name}</button>
+                                                                </td>
+                                                                <td className="px-3 py-2">
+                                                                    <span className={`inline-flex rounded px-2 py-1 text-[10px] font-black ${group.type === 'Security Group' ? 'bg-blue-50 text-blue-700' : 'bg-orange-50 text-orange-700'}`}>{group.type}</span>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
                                             </div>
-                                            <div>
-                                                <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">Permission groups</p>
-                                                <div className="mt-2 flex flex-wrap gap-2">
-                                                    {permissionGroups.length === 0 ? (
-                                                        <span className="text-xs text-slate-500">No permission group assigned.</span>
-                                                    ) : permissionGroups.map((group) => (
-                                                        <button key={group.id} type="button" onClick={(event) => { event.stopPropagation(); onOpenPermissionGroup?.(group.id); }} className="font-black text-slate-800 underline decoration-orange-200 underline-offset-2 hover:text-brand-orange">{group.name}</button>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </div>
+                                        )}
                                     </td>
                                 </tr>
                                 );
@@ -1169,7 +1177,7 @@ const UsersView = ({ focusUserId, onOpenGroup, onOpenPermissionGroup, onOpenMess
             
 
             {isEditingProfile && selectedUser && (
-                <div className="fixed inset-0 z-[300] overflow-y-auto bg-white">
+                <div className="absolute inset-0 z-[300] overflow-y-auto bg-white">
                     <EditProfileView
                         user={selectedUser}
                         onCancel={() => setIsEditingProfile(false)}
@@ -1187,13 +1195,13 @@ const UsersView = ({ focusUserId, onOpenGroup, onOpenPermissionGroup, onOpenMess
              {/* Filter Menu Overlay */}
             {showFilterMenu && (
                 <div 
-                    className="fixed inset-0 z-40 bg-transparent" 
+                    className="absolute inset-0 z-40 bg-transparent"
                     onClick={() => setShowFilterMenu(false)}
                 />
             )}
 
             {manageGroupsOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+                <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm animate-in fade-in duration-200">
                     <div className="w-full max-w-sm max-h-[85dvh] overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl">
                         <div className="flex items-start justify-between gap-3">
                             <div>
@@ -1244,7 +1252,7 @@ const UsersView = ({ focusUserId, onOpenGroup, onOpenPermissionGroup, onOpenMess
 
             {/* Add User Modal */}
             {isAddUserModalOpen && (
-                <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+                <div className="absolute inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
                     <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 p-6">
                         <h2 className="text-xl font-bold text-gray-900 mb-6">Add New User</h2>
                         <div className="space-y-4">
@@ -1335,14 +1343,14 @@ const UsersView = ({ focusUserId, onOpenGroup, onOpenPermissionGroup, onOpenMess
             {/* Overlay to close menu when clicking outside */}
             {openMenuId !== null && (
                 <div 
-                    className="fixed inset-0 z-0 bg-transparent" 
+                    className="absolute inset-0 z-0 bg-transparent"
                     onClick={() => setOpenMenuId(null)}
                 />
             )}
 
             {/* User Details Modal */}
             {selectedUser && !manageGroupsOpen && (
-                <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+                <div className="absolute inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200">
                         {/* Header */}
                         <div className="relative bg-slate-900 h-32">
@@ -1432,7 +1440,7 @@ const UsersView = ({ focusUserId, onOpenGroup, onOpenPermissionGroup, onOpenMess
             
             {/* Edit Profile Overlay */}
             {isEditingProfile && selectedUser && (
-                <div className="fixed inset-0 z-[200] bg-white overflow-hidden flex flex-col">
+                <div className="absolute inset-0 z-[200] bg-white overflow-hidden flex flex-col">
                     <EditProfileView
                         user={selectedUser}
                         onCancel={() => setIsEditingProfile(false)}
@@ -1627,7 +1635,7 @@ const PrayersView = () => {
             {/* Filter Menu Overlay */}
             {showFilterMenu && (
                 <div 
-                    className="fixed inset-0 z-40 bg-transparent" 
+                    className="absolute inset-0 z-40 bg-transparent"
                     onClick={() => setShowFilterMenu(false)}
                 />
             )}
@@ -2675,7 +2683,7 @@ const DistributionGroupsView = ({ focusGroupId, onOpenUser }: { focusGroupId?: s
             )}
 
             {manageAudiencePageOpen && (
-            <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="absolute inset-0 z-[120] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm animate-in fade-in duration-200">
             <form onSubmit={saveGroup} className="max-h-[90dvh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl animate-in zoom-in-95 duration-200">
                 <div className="mb-5 flex items-center justify-between gap-3">
                     <div>
