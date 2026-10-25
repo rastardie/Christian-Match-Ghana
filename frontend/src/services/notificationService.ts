@@ -92,3 +92,13 @@ export const setupPushNotifications = async (userId: string, onWebNotificationRe
     }
   }
 };
+
+/** Clear native delivered notifications when the user has no unread messages. */
+export async function clearNativeNotificationBadge(): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return;
+  try {
+    await PushNotifications.removeAllDeliveredNotifications();
+  } catch (error) {
+    console.warn('Unable to clear native notification badge:', error);
+  }
+}

@@ -204,7 +204,7 @@ import { createSupportTicket, type SupportCategory, type SupportContactPreferenc
 import { subscribeToCallStatus, subscribeToMessages, markMessagesAsRead, sendMessage, subscribeToChats, subscribeToIncomingCalls } from './services/chatService';
 import { subscribeToPrayerRequests, subscribeToComments, togglePray, addPrayerRequest, addComment } from './services/prayerService';
 import { getUserDocument, createUserDocument, updateUserDocument, getAllUsers, claimFreePromo, checkSignupEligibility } from './services/userService';
-import { setupPushNotifications } from './services/notificationService';
+import { setupPushNotifications, clearNativeNotificationBadge } from './services/notificationService';
 import { loginWithPin, setUserPin } from './services/pinAuthService';
 import { uploadProfilePhoto, uploadCoverPhoto, uploadGalleryPhoto, uploadFile } from './services/fileStorageService';
 import { getCurrentAdminAccess } from './services/adminRbacService';
@@ -1004,6 +1004,8 @@ const AuthView = ({
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showSignupPin, setShowSignupPin] = useState(false);
+  const [showSignupConfirmPin, setShowSignupConfirmPin] = useState(false);
   
   // Signup details are completed in the onboarding flow after account creation.
   const [firstName, setFirstName] = useState(() => initialMode === 'signup' ? initialSignupDraft.firstName || "" : "");
@@ -1095,6 +1097,8 @@ const AuthView = ({
       setRepeatPassword('');
       setPin('');
       setConfirmPin('');
+      setShowSignupPin(false);
+      setShowSignupConfirmPin(false);
       setFirstName('');
       setSurname('');
       setPhone('');
@@ -1111,6 +1115,8 @@ const AuthView = ({
     setSignupStage("idle");
     setLoginMethod('password');
     setShowPassword(false);
+    setShowSignupPin(false);
+    setShowSignupConfirmPin(false);
     setIsLogin(false);
   };
 
@@ -2253,30 +2259,54 @@ const AuthView = ({
               PIN <span className="font-bold normal-case text-gray-500">(optional)</span>
             </label>
             <div className="grid grid-cols-2 gap-3">
-              <input
-                type="password"
-                inputMode="numeric"
-                pattern="[0-9]{4,6}"
-                maxLength={6}
-                autoComplete="off"
-                placeholder="PIN"
-                aria-label="PIN (optional)"
-                value={pin}
-                onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                className="w-full p-4 bg-gray-50 rounded-2xl outline-none border-2 border-transparent focus:border-brand-orange/20 text-gray-900 font-medium transition-all"
-              />
-              <input
-                type="password"
-                inputMode="numeric"
-                pattern="[0-9]{4,6}"
-                maxLength={6}
-                autoComplete="off"
-                placeholder="Confirm PIN"
-                aria-label="Confirm PIN"
-                value={confirmPin}
-                onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                className="w-full p-4 bg-gray-50 rounded-2xl outline-none border-2 border-transparent focus:border-brand-orange/20 text-gray-900 font-medium transition-all"
-              />
+              <div className="relative">
+                <input
+                  type={showSignupPin ? "text" : "password"}
+                  inputMode="numeric"
+                  pattern="[0-9]{4,6}"
+                  maxLength={6}
+                  autoComplete="off"
+                  placeholder="PIN"
+                  aria-label="PIN (optional)"
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  className="w-full p-4 pr-12 bg-gray-50 rounded-2xl outline-none border-2 border-transparent focus:border-brand-orange/20 text-gray-900 font-medium transition-all"
+                />
+                <button
+                  type="button"
+                  title={showSignupPin ? 'Hide PIN' : 'Show PIN'}
+                  aria-label={showSignupPin ? 'Hide PIN' : 'Show PIN'}
+                  aria-pressed={showSignupPin}
+                  onClick={() => setShowSignupPin((visible) => !visible)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-brand-orange"
+                >
+                  {showSignupPin ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
+              <div className="relative">
+                <input
+                  type={showSignupConfirmPin ? "text" : "password"}
+                  inputMode="numeric"
+                  pattern="[0-9]{4,6}"
+                  maxLength={6}
+                  autoComplete="off"
+                  placeholder="Confirm PIN"
+                  aria-label="Confirm PIN"
+                  value={confirmPin}
+                  onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  className="w-full p-4 pr-12 bg-gray-50 rounded-2xl outline-none border-2 border-transparent focus:border-brand-orange/20 text-gray-900 font-medium transition-all"
+                />
+                <button
+                  type="button"
+                  title={showSignupConfirmPin ? 'Hide confirmation PIN' : 'Show confirmation PIN'}
+                  aria-label={showSignupConfirmPin ? 'Hide confirmation PIN' : 'Show confirmation PIN'}
+                  aria-pressed={showSignupConfirmPin}
+                  onClick={() => setShowSignupConfirmPin((visible) => !visible)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-brand-orange"
+                >
+                  {showSignupConfirmPin ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
             </div>
             <p className="px-2 text-[11px] text-gray-500">Optional 4–6 digit PIN for quick sign-in. You can also set it later from your profile.</p>
           </div>
@@ -5480,7 +5510,7 @@ const MessageThreadView = ({
             <h3 className="font-bold text-sm text-gray-900">
               {thread.partnerName || `Partner ${thread.partnerId}`}
             </h3>
-            <p className={`text-[9px] font-black uppercase tracking-widest ${partnerPresence.isOnline ? 'text-green-500' : 'text-gray-400'}`}>
+            <p className={`text-[9px] font-black normal-case italic tracking-wide ${partnerPresence.isOnline ? 'text-green-500' : 'text-gray-400'}`}>
               {formatPresenceLabel(partnerPresence)}
             </p>
           </div>
@@ -6493,7 +6523,7 @@ const ChatListItem = ({
           <h3 className="font-bold text-gray-900 text-sm">
             {chat.partnerName || `Partner ${chat.partnerId}`}
           </h3>
-          <p className={`text-[9px] font-bold ${presence.isOnline ? 'text-green-500' : 'text-gray-400'}`}>
+          <p className={`text-[9px] font-bold normal-case italic tracking-wide ${presence.isOnline ? 'text-green-500' : 'text-gray-400'}`}>
             {formatPresenceLabel(presence)}
           </p>
           <span className="text-[10px] text-gray-400 font-black uppercase tracking-widest">
@@ -8022,6 +8052,7 @@ const App = () => {
       await Promise.all(
         unreadNotificationItems.map((item) => markMessagesAsRead(item.id, user.id)),
       );
+      await clearNativeNotificationBadge();
     } catch (error) {
       console.error('❌ Error marking all notifications as read:', error);
       showNotify('Some messages could not be marked as read. Please try again.', 'error');

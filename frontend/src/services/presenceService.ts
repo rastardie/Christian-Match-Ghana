@@ -14,6 +14,7 @@ import { db } from '../firebase';
 // writes an explicit offline marker.
 const HEARTBEAT_MS = 20_000;
 const STALE_AFTER_MS = 65_000;
+const PRESENCE_LABEL_REFRESH_MS = 1_000;
 
 export interface PresenceInfo {
   isOnline: boolean;
@@ -135,14 +136,14 @@ export function subscribeToPresence(
     },
     (error) => console.warn('Presence subscription error:', error),
   );
-  // Re-evaluate freshness periodically so a stale "online" record flips to offline
-  // even if no new snapshot arrives.
+  // Re-evaluate freshness and refresh the relative label every second so an
+  // offline user's display moves from seconds to minutes without a new write.
   const freshnessTimer = window.setInterval(() => {
     callback({
       ...latest,
       isOnline: latest.isOnline && isFresh(latest.lastSeen),
     });
-  }, 30_000);
+  }, PRESENCE_LABEL_REFRESH_MS);
   return () => {
     unsubscribe();
     window.clearInterval(freshnessTimer);
@@ -151,15 +152,37 @@ export function subscribeToPresence(
 
 export function formatPresenceLabel(presence: PresenceInfo): string {
   if (presence.isOnline) return 'Online';
-  if (!presence.lastSeen) return 'Offline';
+  if (!presence.lastSeen) return 'Last seen unavailable';
 
-  const elapsed = Math.max(0, Date.now() - presence.lastSeen);
-  if (elapsed < 60 * 60 * 1000) return 'Last seen recently';
+  const elapsedSeconds = Math.max(0, Math.floor((Date.now() - presence.lastSeen) / 1000));
+  if (elapsedSeconds < 60) {
+    return elapsedSeconds === 0
+      ? 'Last seen just now'
+      : `Last seen ${elapsedSeconds} second${elapsedSeconds === 1 ? '' : 's'} ago`;
+  }
 
-  const date = new Date(presence.lastSeen);
-  const sameDay = date.toDateString() === new Date().toDateString();
-  const time = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  return sameDay ? `Last seen at ${time}` : `Last seen ${date.toLocaleDateString()} at ${time}`;
+  const elapsedMinutes = Math.floor(elapsedSeconds / 60);
+  if (elapsedMinutes < 60) {
+    return `Last seen ${elapsedMinutes} minute${elapsedMinutes === 1 ? '' : 's'} ago`;
+  }
+
+  const elapsedHours = Math.floor(elapsedMinutes / 60);
+  if (elapsedHours < 24) {
+    return `Last seen ${elapsedHours} hour${elapsedHours === 1 ? '' : 's'} ago`;
+  }
+
+  const elapsedDays = Math.floor(elapsedHours / 24);
+  if (elapsedDays < 30) {
+    return `Last seen ${elapsedDays} day${elapsedDays === 1 ? '' : 's'} ago`;
+  }
+
+  const elapsedMonths = Math.floor(elapsedDays / 30);
+  if (elapsedMonths < 12) {
+    return `Last seen ${elapsedMonths} month${elapsedMonths === 1 ? '' : 's'} ago`;
+  }
+
+  const elapsedYears = Math.floor(elapsedMonths / 12);
+  return `Last seen ${elapsedYears} year${elapsedYears === 1 ? '' : 's'} ago`;
 }
 
 export { STALE_AFTER_MS };

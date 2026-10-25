@@ -1,7 +1,7 @@
 import { db, functions } from '../firebase';
 import { httpsCallable } from 'firebase/functions';
 import { doc, setDoc, getDoc, updateDoc, deleteDoc, serverTimestamp, collection, getDocs, query, where } from 'firebase/firestore';
-import { User } from '../types';
+import { User, DEFAULT_NOTIFICATION_PREFERENCES } from '../types';
 
 /**
  * Firestore User Service
@@ -91,7 +91,14 @@ export async function createUserDocument(uid: string, userData: Partial<User>) {
       
       // Blocked users
       blockedUsers: userData.blockedUsers || [],
-      
+
+      // Notification preferences default to email and new-chat alerts enabled.
+      // Explicit user opt-outs are preserved.
+      notificationPreferences: {
+        ...DEFAULT_NOTIFICATION_PREFERENCES,
+        ...(userData.notificationPreferences || {}),
+      },
+
       // Timestamps
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -124,7 +131,24 @@ export async function getUserDocument(uid: string): Promise<User | null> {
       const data = userSnap.data();
       // Credential hashes are server-only and must never enter client state.
       const { pinHash: _pinHash, ...safeData } = data;
-      return { id: uid, ...safeData } as User;
+      const storedPreferences = safeData.notificationPreferences && typeof safeData.notificationPreferences === 'object'
+        ? safeData.notificationPreferences
+        : {};
+      const notificationPreferences = {
+        ...DEFAULT_NOTIFICATION_PREFERENCES,
+        ...storedPreferences,
+      };
+      const missingDefaultPreferences = Object.keys(DEFAULT_NOTIFICATION_PREFERENCES)
+        .some((key) => !Object.prototype.hasOwnProperty.call(storedPreferences, key));
+      if (missingDefaultPreferences) {
+        void updateDoc(userRef, {
+          notificationPreferences,
+          updatedAt: serverTimestamp(),
+        }).catch((error) => {
+          console.warn('Unable to persist notification defaults:', error);
+        });
+      }
+      return { id: uid, ...safeData, notificationPreferences } as User;
     } else {
       console.log('⚠️ User document not found in Firestore:', uid);
       return null;

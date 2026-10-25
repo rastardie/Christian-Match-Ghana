@@ -423,6 +423,17 @@ exports.deleteUserAccount = functions.https.onCall(async (data, context) => {
 // CHAT NOTIFICATIONS (PUSH & EMAIL)
 // ----------------------------------------------------------------------------
 
+async function getUnreadMessageCountForUser(userId) {
+  const chatsSnapshot = await db
+    .collection('chats')
+    .where('participants', 'array-contains', userId)
+    .get();
+  return chatsSnapshot.docs.reduce((total, chatDoc) => {
+    const unreadCount = Number(chatDoc.data()?.unreadCount?.[userId] || 0);
+    return total + (Number.isFinite(unreadCount) ? Math.max(0, unreadCount) : 0);
+  }, 0);
+}
+
 exports.onMessageSent = functions.firestore
   .document('messages/{messageId}')
   .onCreate(async (snap, context) => {
@@ -472,6 +483,7 @@ exports.onMessageSent = functions.firestore
       if (webFcmToken) tokens.push(webFcmToken);
 
       if (notificationPreferences.push && notificationPreferences.newChatMessages && tokens.length > 0) {
+        const unreadMessageCount = await getUnreadMessageCountForUser(receiverId);
         const payload = {
           notification: {
             title: `New message from ${senderName}`,
@@ -480,17 +492,32 @@ exports.onMessageSent = functions.firestore
           data: {
             click_action: 'FLUTTER_NOTIFICATION_CLICK',
             chatId: message.chatId,
-            type: 'chat_message'
-          }
+            type: 'chat_message',
+            unreadCount: String(unreadMessageCount),
+          },
+          android: {
+            notification: {
+              notificationCount: unreadMessageCount,
+            },
+          },
+          apns: {
+            payload: {
+              aps: {
+                badge: unreadMessageCount,
+              },
+            },
+          },
         };
 
         try {
           const response = await messaging.sendEachForMulticast({
             tokens,
             notification: payload.notification,
-            data: payload.data
+            data: payload.data,
+            android: payload.android,
+            apns: payload.apns,
           });
-          console.log('Push notification sent for message:', response.successCount);
+          console.log('Push notification sent for message:', response.successCount, 'badge:', unreadMessageCount);
         } catch (pushError) {
           console.error('Error sending push notification:', pushError);
         }
