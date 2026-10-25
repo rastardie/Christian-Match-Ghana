@@ -520,8 +520,9 @@ exports.onMessageSent = functions.firestore
 
 // Process offline chat notification digests every five minutes. Each recipient
 // receives at most one email/SMS digest per 15-minute window.
-exports.processOfflineMessageNotificationBatches = functions.pubsub
-  .schedule('every 5 minutes')
+exports.processOfflineMessageNotificationBatches = functions
+  .runWith({ secrets: ['SMTP_PASS'] })
+  .pubsub.schedule('every 5 minutes')
   .timeZone('Africa/Accra')
   .onRun(async () => {
     await processOfflineMessageNotificationBatches(db);
