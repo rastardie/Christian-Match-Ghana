@@ -232,6 +232,7 @@ import {
   NotificationPreferences,
   DEFAULT_NOTIFICATION_PREFERENCES,
 } from "./types";
+import LoadingSpinner from './components/LoadingSpinner';
 import Layout from "./components/Layout";
 import PaymentModal from "./components/PaymentModal";
 import ImageCropper from "./components/ImageCropper";
@@ -498,7 +499,7 @@ export const DENOMINATIONS = [
   "Other",
 ];
 export const MARITAL_STATUSES = ["Single", "Divorced", "Widowed", "Separated"];
-export const BODY_TYPES = [
+const BODY_TYPES = [
   "Slim",
   "Athletic",
   "Average",
@@ -1108,6 +1109,8 @@ const AuthView = ({
     setEmail(draft.email || "");
     setTermsAccepted(Boolean(draft.termsAccepted));
     setSignupStage("idle");
+    setLoginMethod('password');
+    setShowPassword(false);
     setIsLogin(false);
   };
 
@@ -1799,6 +1802,8 @@ const AuthView = ({
         <button
           onClick={() => {
             setPasswordResetSent(false);
+            setLoginMethod('password');
+            setShowPassword(false);
             setIsLogin(true);
             setPassword("");
           }}
@@ -2144,24 +2149,29 @@ const AuthView = ({
               <Lock size={18} />
             </div>
             <input
-              type={loginMethod === 'pin' ? 'tel' : (showPassword ? "text" : "password")}
-              inputMode={loginMethod === 'pin' ? 'numeric' : undefined}
-              pattern={loginMethod === 'pin' ? '[0-9]{4,6}' : undefined}
-              maxLength={loginMethod === 'pin' ? 6 : undefined}
-              autoComplete={loginMethod === 'pin' ? 'one-time-code' : 'current-password'}
+              type={showPassword ? "text" : "password"}
+              inputMode={isLogin && loginMethod === 'pin' ? 'numeric' : undefined}
+              pattern={isLogin && loginMethod === 'pin' ? '[0-9]{4,6}' : undefined}
+              autoComplete={isLogin && loginMethod === 'pin' ? 'one-time-code' : (isLogin ? 'current-password' : 'new-password')}
               placeholder={isLogin ? 'Password or PIN' : 'Password'}
               value={password}
               onChange={(e) => {
                 const next = e.target.value;
                 setPassword(next);
-                if (isLogin) setLoginMethod(/^\d{4,6}$/.test(next) ? 'pin' : 'password');
+                if (isLogin) {
+                  const nextLoginMethod = /^\d{4,6}$/.test(next) ? 'pin' : 'password';
+                  setLoginMethod(nextLoginMethod);
+                  if (nextLoginMethod === 'pin' && loginMethod !== 'pin') setShowPassword(false);
+                }
               }}
               className={`w-full p-4 pl-12 pr-12 bg-gray-50 rounded-2xl outline-none border-2 border-transparent focus:border-brand-orange/20 text-gray-900 font-medium transition-all${isLogin ? '' : ' placeholder:italic placeholder:text-gray-400'}`}
               required
             />
             <button
               type="button"
-              title={showPassword ? "Hide password" : "Show password"}
+              title={showPassword ? "Hide password or PIN" : "Show password or PIN"}
+              aria-label={showPassword ? "Hide password or PIN" : "Show password or PIN"}
+              aria-pressed={showPassword}
               onClick={() => setShowPassword(!showPassword)}
               className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-brand-orange"
             >
@@ -2308,7 +2318,7 @@ const AuthView = ({
           }`}
         >
           {loading
-            ? isLogin ? "PROCESSING..." : signupStageLabel
+            ? <LoadingSpinner label={isLogin ? 'PROCESSING…' : signupStageLabel} size={16} />
             : isLogin
               ? <>SIGN IN <ArrowRight size={18} /></>
               : signupStageLabel
@@ -2322,8 +2332,7 @@ const AuthView = ({
             disabled={loading || biometricBusy}
             className="mt-3 flex min-h-[2.6rem] w-full items-center justify-center gap-2 rounded-2xl border-2 border-brand-orange/40 bg-white/80 px-5 py-2.5 text-[11px] font-black uppercase tracking-[0.12em] text-brand-orange shadow-lg shadow-brand-orange/10 transition-all hover:bg-brand-orange/5 active:scale-95 disabled:opacity-50"
           >
-            <Fingerprint size={18} />
-            {biometricBusy ? "AUTHENTICATING..." : "SIGN IN WITH BIOMETRICS"}
+            {biometricBusy ? <LoadingSpinner label="AUTHENTICATING…" size={16} /> : <><Fingerprint size={18} />SIGN IN WITH BIOMETRICS</>}
           </button>
         )}
 
@@ -2348,7 +2357,7 @@ const AuthView = ({
                   <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/>
                   <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571.001-.001 6.19 5.238 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/>
                 </svg>
-                {socialBusy === 'google' ? 'Connecting...' : 'Continue with Google'}
+                {socialBusy === 'google' ? <LoadingSpinner label="CONNECTING…" size={16} /> : <>Continue with Google</>}
               </button>
 
               <button
@@ -2360,7 +2369,7 @@ const AuthView = ({
                 <svg width="18" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                   <path d="M16.365 1.43c0 1.14-.42 2.2-1.26 3.02-.86.86-1.98 1.52-3.1 1.42-.14-1.1.44-2.26 1.22-3.02.84-.84 2.08-1.46 3.14-1.42zM20.5 17.1c-.5 1.16-.74 1.68-1.38 2.7-.9 1.42-2.16 3.2-3.74 3.2-1.4 0-1.76-.92-3.66-.9-1.9.02-2.3.92-3.7.9-1.58-.02-2.78-1.62-3.68-3.04C1.7 15.9 1.3 11.3 3.1 8.9c.9-1.22 2.32-1.98 3.66-1.98 1.36 0 2.22.92 3.66.92 1.4 0 2.26-.92 3.9-.92 1.2 0 2.46.66 3.36 1.78-2.96 1.62-2.48 5.84.82 7.4z"/>
                 </svg>
-                {socialBusy === 'apple' ? 'Connecting...' : 'Continue with Apple'}
+                {socialBusy === 'apple' ? <LoadingSpinner label="CONNECTING…" size={16} /> : <>Continue with Apple</>}
               </button>
             </div>
           </>
@@ -2384,7 +2393,11 @@ const AuthView = ({
       {!isLogin && (
         <button
           type="button"
-          onClick={() => setIsLogin(true)}
+          onClick={() => {
+            setLoginMethod('password');
+            setShowPassword(false);
+            setIsLogin(true);
+          }}
           title="Sign in to your account"
           className="cmg-account-switch-link mt-4 px-1 text-center text-[11px] font-bold tracking-wide text-brand-orange transition-colors hover:text-brand-blue"
         >
@@ -3982,7 +3995,7 @@ export const EditProfileView = ({
           disabled={loading}
           className="cmg-edit-save-button w-full py-4 rounded-2xl font-black shadow-xl active:scale-95 transition-transform disabled:opacity-50 mt-4 uppercase tracking-widest text-xs flex items-center justify-center gap-2 bg-brand-blue text-white shadow-brand-blue/20"
         >
-          {loading ? "SAVING..." : "SAVE"}
+          {loading ? <LoadingSpinner label="SAVING…" size={16} /> : "SAVE"}
         </button>
       </div>
 
@@ -5126,6 +5139,8 @@ const MessageThreadView = ({
   const [showMenu, setShowMenu] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [pendingImages, setPendingImages] = useState<File[]>([]);
+  const [pendingImagePreviews, setPendingImagePreviews] = useState<string[]>([]);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
   const [partnerPresence, setPartnerPresence] = useState<PresenceInfo>({ isOnline: false, lastSeen: null });
@@ -5163,6 +5178,12 @@ const MessageThreadView = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const previewUrls = pendingImages.map((file) => URL.createObjectURL(file));
+    setPendingImagePreviews(previewUrls);
+    return () => previewUrls.forEach((url) => URL.revokeObjectURL(url));
+  }, [pendingImages]);
 
   // Subscribe to real-time messages
   useEffect(() => {
@@ -5211,68 +5232,74 @@ const MessageThreadView = ({
   }, [messages, replyingTo]);
 
   const handleSend = async (
-    e?: React.FormEvent, 
+    e?: React.FormEvent,
     customMessage?: { type: string; text?: string; file?: File; location?: any }
   ) => {
     if (e) e.preventDefault();
-    
-    // Validation
-    if ((!input.trim() && !customMessage) || !currentUserId || isSending) return;
+
+    const messageText = customMessage?.text || input.trim();
+    const imagesToSend = customMessage ? [] : [...pendingImages];
+    if ((!messageText && !customMessage && imagesToSend.length === 0) || !currentUserId || isSending) return;
 
     setIsSending(true);
-    const messageText = customMessage?.text || input;
     const currentReply = replyingTo;
-    
-    // Only clear input if sending text
     if (!customMessage) {
-      setInput(""); 
+      setInput('');
       setReplyingTo(null);
     }
     setShowAttachMenu(false);
 
-    try {
-      let messageData: any = {
-        text: messageText,
-        type: customMessage?.type || 'text',
-      };
-
-      // Handle File Uploads
-      if (customMessage?.file) {
-        const fileType = customMessage.type === 'image' ? 'gallery_photo' : 'other'; // simple mapping
-        
-        // Notify uploading
-        // In a real app we'd show a progress bar
-        
-        const fileMeta = await uploadFile(currentUserId, customMessage.file, fileType);
-        
-        messageData.fileUrl = fileMeta.downloadURL;
-        messageData.fileName = customMessage.file.name;
-        messageData.fileSize = (customMessage.file.size / 1024).toFixed(1) + ' KB';
-        messageData.text = customMessage.type === 'image' ? '📷 Photo' : '📎 File';
-      }
-
-      // Handle Location
-      if (customMessage?.location) {
-        messageData.location = customMessage.location;
-        messageData.text = '📍 Location';
-      }
-
-      if (currentReply) {
-        messageData.replyTo = {
+    const addReply = (messageData: any) => {
+      if (!currentReply) return messageData;
+      return {
+        ...messageData,
+        replyTo: {
           id: currentReply.id,
           text: currentReply.text,
           senderName: currentReply.senderId === currentUserId ? 'You' : (thread.partnerName || 'Partner'),
-        };
-      }
+        },
+      };
+    };
 
-      await sendMessage(chatId, currentUserId, messageData);
+    const sendUploadedImage = async (file: File) => {
+      const fileMeta = await uploadFile(currentUserId, file, 'gallery_photo');
+      await sendMessage(chatId, currentUserId, addReply({
+        text: '📷 Photo',
+        type: 'image',
+        fileUrl: fileMeta.downloadURL,
+        fileName: file.name,
+        fileSize: `${(file.size / 1024).toFixed(1)} KB`,
+      }));
+    };
+
+    try {
+      if (customMessage?.file) {
+        const fileMeta = await uploadFile(currentUserId, customMessage.file, customMessage.type === 'image' ? 'gallery_photo' : 'other');
+        await sendMessage(chatId, currentUserId, addReply({
+          text: customMessage.type === 'image' ? '📷 Photo' : '📎 File',
+          type: customMessage.type,
+          fileUrl: fileMeta.downloadURL,
+          fileName: customMessage.file.name,
+          fileSize: `${(customMessage.file.size / 1024).toFixed(1)} KB`,
+        }));
+      } else if (customMessage?.location) {
+        await sendMessage(chatId, currentUserId, addReply({ text: '📍 Location', type: customMessage.type, location: customMessage.location }));
+      } else {
+        if (messageText) {
+          await sendMessage(chatId, currentUserId, addReply({ text: messageText, type: 'text' }));
+        }
+        for (const image of imagesToSend) {
+          await sendUploadedImage(image);
+          setPendingImages((current) => current.slice(1));
+        }
+      }
       setMessageError(null);
       console.log('✅ Message sent successfully');
     } catch (error) {
       console.error('❌ Error sending message:', error);
       setMessageError(error instanceof Error ? error.message : 'Unable to send this message. Please try again.');
       if (!customMessage) {
-        setInput(messageText); 
+        setInput(messageText);
         setReplyingTo(currentReply);
       }
     } finally {
@@ -5288,17 +5315,29 @@ const MessageThreadView = ({
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'file') => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    // Check size limit (e.g. 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      alert("File too large. Max 10MB.");
-      return;
-    }
+    const selectedFiles = Array.from(e.target.files || []);
+    if (!selectedFiles.length) return;
 
-    handleSend(undefined, { type, file });
-    if (e.target) e.target.value = ''; // Reset input
+    if (type === 'image') {
+      const maxBytes = 5 * 1024 * 1024;
+      const validImages = selectedFiles.filter((file) => file.type.startsWith('image/') && file.size < maxBytes);
+      const invalidCount = selectedFiles.length - validImages.length;
+      if (invalidCount > 0) {
+        setMessageError(`Only images smaller than 5 MB can be attached. ${invalidCount} file${invalidCount === 1 ? '' : 's'} skipped.`);
+      }
+      if (validImages.length > 0) {
+        setPendingImages((current) => [...current, ...validImages].slice(0, 10));
+        setMessageError(null);
+      }
+    } else {
+      const file = selectedFiles[0];
+      if (file.size >= 5 * 1024 * 1024) {
+        setMessageError('File too large. Maximum size is 5 MB.');
+      } else {
+        void handleSend(undefined, { type, file });
+      }
+    }
+    e.target.value = '';
   };
 
   const handleLocationShare = () => {
@@ -5417,7 +5456,7 @@ const MessageThreadView = ({
       )}
       
       {/* Hidden Inputs */}
-      <input type="file" ref={imageInputRef} accept="image/*" className="hidden" onChange={(e) => handleFileSelect(e, 'image')} />
+      <input type="file" ref={imageInputRef} accept="image/*" multiple className="hidden" onChange={(e) => handleFileSelect(e, 'image')} />
       <input type="file" ref={fileInputRef} className="hidden" onChange={(e) => handleFileSelect(e, 'file')} />
 
       <div className="bg-white p-3 pt-12 border-b flex items-center justify-between sticky top-0 z-10 shadow-sm">
@@ -5605,6 +5644,23 @@ const MessageThreadView = ({
           onSubmit={(e) => handleSend(e)}
           className="p-4 bg-white border-t flex flex-col gap-2 pb-10"
         >
+          {pendingImages.length > 0 && (
+            <div className="rounded-2xl border border-blue-100 bg-blue-50 p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-xs font-black text-blue-800">{pendingImages.length} photo{pendingImages.length === 1 ? '' : 's'} ready to send</p>
+                <button type="button" onClick={() => setPendingImages([])} disabled={isSending} className="text-[10px] font-black uppercase tracking-wide text-blue-600 disabled:opacity-50">Remove all</button>
+              </div>
+              <div className="flex gap-2 overflow-x-auto">
+                {pendingImages.map((file, index) => (
+                  <div key={`${file.name}-${file.lastModified}-${index}`} className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-blue-200 bg-white">
+                    {pendingImagePreviews[index] && <img src={pendingImagePreviews[index]} alt={file.name} className="h-full w-full object-cover" />}
+                    <button type="button" aria-label={`Remove ${file.name}`} onClick={() => setPendingImages((current) => current.filter((_, fileIndex) => fileIndex !== index))} disabled={isSending} className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-xs font-black text-white disabled:opacity-50">×</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Reply Preview Banner */}
           {replyingTo && (
             <div className="flex items-center justify-between bg-gray-50 p-3 rounded-2xl border-l-4 border-brand-orange animate-in slide-in-from-bottom duration-200 mb-2">
@@ -5625,10 +5681,11 @@ const MessageThreadView = ({
           )}
 
           <div className="flex gap-2 items-center">
-            <button 
-              type="button" 
+            <button
+              type="button"
+              disabled={isSending}
               onClick={() => setShowAttachMenu(!showAttachMenu)}
-              className={`p-3 rounded-2xl transition-all ${showAttachMenu ? 'bg-gray-200 text-gray-800 rotate-45' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
+              className={`p-3 rounded-2xl transition-all disabled:cursor-not-allowed disabled:opacity-50 ${showAttachMenu ? 'bg-gray-200 text-gray-800 rotate-45' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
             >
                <PlusCircle size={22} />
             </button>
@@ -5645,12 +5702,13 @@ const MessageThreadView = ({
             </div>
             <button
               type="submit"
-              disabled={!input.trim()}
-              title="Send message"
-              aria-label="Send message"
-              className="bg-brand-orange text-white p-4 rounded-2xl shadow-lg active:scale-90 transition-all"
+              disabled={(!input.trim() && pendingImages.length === 0) || isSending}
+              title={isSending ? 'Sending message' : 'Send message'}
+              aria-label={isSending ? 'Sending message' : 'Send message'}
+              aria-busy={isSending}
+              className="bg-brand-orange text-white p-4 rounded-2xl shadow-lg active:scale-90 transition-all disabled:cursor-wait disabled:opacity-70"
             >
-              <Send size={22} />
+              {isSending ? <LoadingSpinner size={22} /> : <Send size={22} />}
             </button>
           </div>
         </form>
@@ -7411,10 +7469,12 @@ const App = () => {
              // Only set active incoming call if we are not already in a call
              if (call && !currentCallId) {
                setIncomingCall(call);
-               // Play ringtone logic here if needed
              } else if (!call) {
                setIncomingCall(null);
              }
+        }, (error) => {
+          console.error('❌ Incoming call listener failed:', error);
+          showNotify('Incoming calls are unavailable. Check the local Firestore emulator and call index.', 'error');
         });
         
         unsubscribeChats = subscribeToChats(user.id, (updatedChats: ChatThread[]) => {
@@ -7434,7 +7494,47 @@ const App = () => {
       if (unsubscribeChats) unsubscribeChats();
       if (unsubscribeCalls) unsubscribeCalls();
     };
-  }, [user?.id]);
+  }, [user?.id, currentCallId]);
+
+  useEffect(() => {
+    if (!incomingCall) return;
+    let stopped = false;
+    let audioContext: AudioContext | null = null;
+    const AudioContextConstructor = window.AudioContext || (window as any).webkitAudioContext;
+
+    const playRing = () => {
+      if (stopped || !AudioContextConstructor) return;
+      try {
+        audioContext ||= new AudioContextConstructor();
+        void audioContext.resume().then(() => {
+          if (stopped || !audioContext) return;
+          const oscillator = audioContext.createOscillator();
+          const gain = audioContext.createGain();
+          oscillator.type = 'sine';
+          oscillator.frequency.setValueAtTime(880, audioContext.currentTime);
+          oscillator.frequency.setValueAtTime(660, audioContext.currentTime + 0.22);
+          gain.gain.setValueAtTime(0.0001, audioContext.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.16, audioContext.currentTime + 0.03);
+          gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.45);
+          oscillator.connect(gain).connect(audioContext.destination);
+          oscillator.start();
+          oscillator.stop(audioContext.currentTime + 0.5);
+        }).catch(() => undefined);
+      } catch (error) {
+        console.warn('Unable to play incoming call tone:', error);
+      }
+      navigator.vibrate?.([350, 150, 350]);
+    };
+
+    playRing();
+    const timer = window.setInterval(playRing, 1800);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+      navigator.vibrate?.(0);
+      void audioContext?.close().catch(() => undefined);
+    };
+  }, [incomingCall]);
 
   // Setup Push Notifications
   useEffect(() => {

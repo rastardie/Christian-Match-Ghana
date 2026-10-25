@@ -87,7 +87,7 @@ service cloud.firestore {
                      (request.auth.uid in resource.data.participants || isAdmin());
       
       // Users can create chats where they are a participant
-      allow create: if isSignedIn() && 
+      allow create: if isSignedIn() &&
                        request.auth.uid in request.resource.data.participants;
       
       // Users can update chats they are part of
@@ -177,7 +177,15 @@ service cloud.firestore {
     }
 
     match /calls/{callId} {
-      allow read: if isCallParticipant(callId);
+      // Existing call documents may only be read by the caller or receiver.
+      allow get: if isCallParticipant(callId);
+
+      // The receiver uses this constrained query to discover ringing calls.
+      // Keep the list permission limited to the authenticated receiver and
+      // ringing status so users cannot enumerate other calls.
+      allow list: if isSignedIn() &&
+        resource.data.receiverId == request.auth.uid &&
+        resource.data.status == 'ringing';
 
       allow create: if isSignedIn() &&
         request.resource.data.callerId == request.auth.uid &&

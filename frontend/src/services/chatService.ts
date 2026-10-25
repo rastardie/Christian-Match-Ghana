@@ -3,17 +3,17 @@
  * Handles real-time chat and messaging operations with Firestore
  */
 
-import { 
-  collection, 
-  doc, 
-  addDoc, 
-  updateDoc, 
-  getDoc, 
+import {
+  collection,
+  doc,
+  addDoc,
+  updateDoc,
+  getDoc,
   getDocs,
-  query, 
-  where, 
-  orderBy, 
-  onSnapshot, 
+  query,
+  where,
+  orderBy,
+  onSnapshot,
   Timestamp,
   limit,
   serverTimestamp,
@@ -105,16 +105,11 @@ export async function createOrGetChat(
   partnerUserData: { name: string; photo: string }
 ): Promise<string> {
   try {
-    // Check if chat already exists
     const existingChat = await findChatBetweenUsers(currentUserId, partnerUserId);
-    
-    if (existingChat) {
-      return existingChat;
-    }
+    if (existingChat) return existingChat;
 
-    // Create new chat
     const chatData: ChatDocument = {
-      participants: [currentUserId, partnerUserId].sort(), // Sort for consistent querying
+      participants: [currentUserId, partnerUserId].sort(),
       participantDetails: {
         [currentUserId]: currentUserData,
         [partnerUserId]: partnerUserData,
@@ -132,11 +127,6 @@ export async function createOrGetChat(
 
     const chatId = getCanonicalChatId(currentUserId, partnerUserId);
     const chatRef = doc(db, CHATS_COLLECTION, chatId);
-    const canonicalChat = await getDoc(chatRef);
-    if (canonicalChat.exists()) return chatId;
-
-    // setDoc on a deterministic ID is idempotent when both participants
-    // connect at the same time.
     await setDoc(chatRef, chatData);
     console.log('✅ Chat created:', chatId);
     return chatId;
@@ -225,9 +215,7 @@ export async function sendMessage(
       throw new Error('You are not a participant in this conversation.');
     }
     const otherUserId = chatData.participants.find(id => id !== senderId);
-    if (!otherUserId) {
-      throw new Error('This conversation has no valid partner.');
-    }
+    if (!otherUserId) throw new Error('This conversation has no valid partner.');
 
     const messageData: any = {
       chatId,
@@ -238,16 +226,12 @@ export async function sendMessage(
       status: 'sent',
       reactions: {},
     };
-
-    // Add optional fields only if they exist
     if (message.fileUrl) messageData.fileUrl = message.fileUrl;
     if (message.fileName) messageData.fileName = message.fileName;
     if (message.fileSize) messageData.fileSize = message.fileSize;
     if (message.replyTo) messageData.replyTo = message.replyTo;
     if (message.location) messageData.location = message.location;
 
-    // Commit the message and chat summary atomically so a successful send
-    // cannot leave an orphaned message or an unchanged conversation header.
     const messageRef = doc(collection(db, MESSAGES_COLLECTION));
     const batch = writeBatch(db);
     batch.set(messageRef, messageData);
@@ -549,8 +533,6 @@ export async function initiateCall(
       createdAt: serverTimestamp(),
       expiresAt: new Date(Date.now() + 60_000),
     };
-    
-    // Add to calls collection
     const callRef = await addDoc(collection(db, CALLS_COLLECTION), callData);
     console.log('✅ Call initiated:', callRef.id);
     return callRef.id;
@@ -599,7 +581,8 @@ export async function endCall(callId: string, reason: 'rejected' | 'ended' | 'mi
  */
 export function subscribeToIncomingCalls(
   userId: string,
-  callback: (call: any | null) => void
+  callback: (call: any | null) => void,
+  onError?: (error: unknown) => void,
 ): () => void {
   // Query for ringing calls where user is receiver
   // Order by createdAt desc to get latest
@@ -618,6 +601,9 @@ export function subscribeToIncomingCalls(
     } else {
       callback(null);
     }
+  }, (error) => {
+    console.error('❌ Unable to listen for incoming calls:', error);
+    onError?.(error);
   });
 
   return unsubscribe;

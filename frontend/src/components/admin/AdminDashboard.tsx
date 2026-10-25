@@ -7,6 +7,7 @@ import { LayoutDashboard, Users, Shield, Activity, LogOut, MessageSquare, Heart,
 import { EditProfileView } from '../../MainApp';
 import { updateUserDocument } from '../../services/userService';
 import AdminAccessControl from './AdminAccessControl';
+import LoadingSpinner from '../LoadingSpinner';
 import { AdminActionProvider, useAdminActionConfirmation } from './AdminActionConfirmation';
 
 import { getCurrentAdminAccess, listAdminAccessControl, assignAdminUserGroups, listAdminDistributionGroups, createAdminDistributionGroup, updateAdminDistributionGroup, deleteAdminDistributionGroup, previewAdminDistributionGroup, getAdminDistributionMemberships, adminSendMessage, type DistributionGroup, type DistributionGroupCriteria, type AdminMessageRecipientMode } from '../../services/adminRbacService';
@@ -72,6 +73,7 @@ const AdminDashboard: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
   });
   const [permissions, setPermissions] = useState<Set<string>>(new Set());
   const [refreshKey, setRefreshKey] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
   const [showSignOutDialog, setShowSignOutDialog] = useState(false);
   const [highlightX, setHighlightX] = useState(50);
   const [focusUserId, setFocusUserId] = useState<string | null>(null);
@@ -175,8 +177,12 @@ const AdminDashboard: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
     setMobileMenuOpen(false);
   };
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
     setRefreshKey((currentKey) => currentKey + 1);
+    await new Promise((resolve) => window.setTimeout(resolve, 250));
+    setRefreshing(false);
   };
 
   const requestSignOut = () => {
@@ -257,8 +263,8 @@ const AdminDashboard: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
           </button>
           </div>
           <div className="flex items-center gap-1 sm:gap-2">
-            <button type="button" title="Refresh" aria-label="Refresh" onClick={handleRefresh} className="rounded-xl p-2 text-slate-700 transition hover:bg-slate-100">
-              <RefreshCw size={21} />
+            <button type="button" title={refreshing ? 'Refreshing admin data' : 'Refresh'} aria-label={refreshing ? 'Refreshing admin data' : 'Refresh'} aria-busy={refreshing} disabled={refreshing} onClick={() => void handleRefresh()} className="rounded-xl p-2 text-slate-700 transition hover:bg-slate-100 disabled:cursor-wait disabled:opacity-60">
+              {refreshing ? <LoadingSpinner size={21} /> : <RefreshCw size={21} />}
             </button>
             <button type="button" title="Notifications" aria-label="Notifications" onClick={() => selectTab('prayers')} className="rounded-xl p-2 text-slate-700 transition hover:bg-slate-100">
               <MessageSquare size={21} />
@@ -774,6 +780,7 @@ const UsersView = ({ focusUserId, onOpenGroup, onOpenPermissionGroup, onOpenMess
     const [openMenuId, setOpenMenuId] = useState<string | null>(null);
     const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
     const [selectedUser, setSelectedUser] = useState<any>(null); // State for the details modal
+    const [message, setMessage] = useState('');
     const [isEditingProfile, setIsEditingProfile] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [userColumnWidths, setUserColumnWidths] = useState({ number: 72, user: 220, email: 200, firestoreId: 180, telephone: 140, role: 120, status: 120, joined: 140, actions: 84 });

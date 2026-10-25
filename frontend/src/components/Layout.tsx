@@ -9,6 +9,7 @@ import React, { useRef, useState } from 'react';
 import { ViewState } from '../types';
 import { Compass, MessageCircle, User, Heart, Bell, RotateCcw, Power, ArrowLeft, ShieldCheck } from 'lucide-react';
 import Logo from './Logo';
+import LoadingSpinner from './LoadingSpinner';
 
 
 interface NotificationItem {
@@ -28,7 +29,7 @@ interface LayoutProps {
   notificationItems?: NotificationItem[];
   onNotificationSelect?: (notificationId: string) => void;
   onMarkAllNotificationsRead?: () => Promise<void>;
-  onRefresh?: () => void;
+  onRefresh?: () => void | Promise<void>;
   onAdmin?: () => void;
   isSystemAdmin?: boolean;
   hideNav?: boolean; 
@@ -42,6 +43,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [showNotificationMenu, setShowNotificationMenu] = useState(false);
   const [markingAllNotificationsRead, setMarkingAllNotificationsRead] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const userScrollIntentRef = useRef(false);
   const ribbonBoundaryTimerRef = useRef<number | undefined>(undefined);
 
@@ -83,6 +85,16 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
     // user gesture may move the operational chrome away.
     if (userScrollIntentRef.current && scrollingTarget.scrollTop > 2) {
       setOperationalChromeState(true);
+    }
+  };
+
+  const handleRefresh = async () => {
+    if (!onRefresh || refreshing) return;
+    setRefreshing(true);
+    try {
+      await onRefresh();
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -141,12 +153,14 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
                 {onRefresh && (
                   <button
                     type="button"
-                    title="Refresh"
-                    aria-label="Refresh"
-                    onClick={onRefresh}
-                    className="cmg-main-icon-button"
+                    title={refreshing ? 'Refreshing' : 'Refresh'}
+                    aria-label={refreshing ? 'Refreshing' : 'Refresh'}
+                    aria-busy={refreshing}
+                    disabled={refreshing}
+                    onClick={() => void handleRefresh()}
+                    className="cmg-main-icon-button disabled:cursor-wait disabled:opacity-60"
                   >
-                    <RotateCcw size={18} />
+                    {refreshing ? <LoadingSpinner size={18} /> : <RotateCcw size={18} />}
                   </button>
                 )}
               </div>

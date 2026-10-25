@@ -3,6 +3,7 @@ import { KeyRound, Save, ShieldCheck, Users, ScrollText, RefreshCw } from 'lucid
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../../firebase';
 import { useAdminActionConfirmation } from './AdminActionConfirmation';
+import LoadingSpinner from '../LoadingSpinner';
 import { getAdminUsers } from '../../services/adminService';
 import {
   AdminAccessUser,
@@ -253,7 +254,7 @@ const AdminAccessControl: React.FC<{ initialTab?: 'groups' | 'audit'; focusGroup
         </div>
         <div className="flex items-center gap-2">
           {tab === 'groups' && <button type="button" onClick={() => { if (!selectedGroup && groups[0]) setSelectedGroup(groups[0]); if (selectedGroupIds.size === 0 && groups[0]) setSelectedGroupIds(new Set([groups[0].id])); setManageGroupsPageOpen(true); }} className="rounded-xl bg-brand-orange px-4 py-2 text-sm font-black text-white shadow-sm hover:bg-brand-orange/90">Manage Groups</button>}
-          <button onClick={() => tab === 'audit' ? void loadAudit() : void loadAccess()} className="flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm border border-slate-200"><RefreshCw size={16} /> Refresh</button>
+          <button onClick={() => tab === 'audit' ? void loadAudit() : void loadAccess()} disabled={busy} aria-busy={busy} className="flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm border border-slate-200 disabled:cursor-wait disabled:opacity-60">{busy ? <LoadingSpinner size={16} label="Refreshing" /> : <><RefreshCw size={16} /> Refresh</>}</button>
         </div>
       </div>
       <div className="flex gap-2">
