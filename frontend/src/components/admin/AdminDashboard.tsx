@@ -1,4 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { signOut, sendPasswordResetEmail, onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../../firebase';
@@ -74,6 +75,7 @@ const AdminDashboard: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
   const [permissions, setPermissions] = useState<Set<string>>(new Set());
   const [refreshKey, setRefreshKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [ribbonScrolling, setRibbonScrolling] = useState(false);
   const [showSignOutDialog, setShowSignOutDialog] = useState(false);
   const [highlightX, setHighlightX] = useState(50);
   const [focusUserId, setFocusUserId] = useState<string | null>(null);
@@ -247,9 +249,9 @@ const AdminDashboard: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
 
   return (
     <AdminActionProvider>
-      <div className="relative min-h-full bg-[#f6f8fc] font-sans text-slate-900">
+      <div className={`cmg-admin-page relative flex h-full min-h-full flex-col bg-[#f6f8fc] font-sans text-slate-900 ${ribbonScrolling ? 'is-ribbon-scrolling' : ''}`}>
       {/* Mobile-first CMG Admin header, based on the Onboard Admin pattern. */}
-      <header className="cmg-admin-header bg-white shadow-sm">
+      <header className="cmg-admin-header shrink-0 bg-white shadow-sm">
         <div className="mx-auto flex w-full items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <div className="flex items-center gap-2">
             <button type="button" title="Close Admin" aria-label="Close Admin" onClick={handleClose} className="rounded-xl p-2 text-slate-700 transition hover:bg-slate-100">
@@ -332,7 +334,12 @@ const AdminDashboard: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
           </div>
       </header>
 
-      <main className="mx-auto w-full overflow-auto px-4 py-5 sm:px-6 sm:py-8">
+      <main
+        onScroll={(event) => {
+          setRibbonScrolling(event.currentTarget.scrollTop > 2);
+        }}
+        className="cmg-admin-content mx-auto w-full min-h-0 flex-1 overflow-auto px-4 py-5 sm:px-6 sm:py-8"
+      >
         <div key={refreshKey}>{renderContent()}</div>
         {showSignOutDialog && (
           <div className="absolute inset-0 z-[2000] flex items-center justify-center bg-slate-950/70 p-4" role="presentation" onClick={() => setShowSignOutDialog(false)}>
@@ -350,6 +357,11 @@ const AdminDashboard: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
           </div>
         )}
       </main>
+      <div
+        aria-hidden="true"
+        data-view="ADMIN"
+        className="cmg-admin-bottom-ribbon cmg-nav-bottom-ribbon pointer-events-none absolute inset-x-0 bottom-0 z-10"
+      />
       </div>
     </AdminActionProvider>
   );
@@ -522,24 +534,36 @@ const Overview = () => {
   const maxReportStatus = Math.max(reportStatus.pending, reportStatus.resolved, 1);
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-        <StatCard title="Total Users" value={stats.totalUsers.toLocaleString()} change="Live" icon={<Users className="text-blue-500" size={18} />} />
-        <StatCard title="Active Users" value={activeUsers.toLocaleString()} change="Live" icon={<Activity className="text-green-500" size={18} />} />
-        <StatCard title="Verified Users" value={verifiedUsers.toLocaleString()} change="Trust" icon={<CheckCircle className="text-indigo-500" size={18} />} />
-        <StatCard title="Pending Reports" value={stats.pendingReports.toLocaleString()} change="Review" isNegative icon={<Shield className="text-red-500" size={18} />} />
+    <div className="space-y-6">
+      <div className="mx-auto w-full max-w-6xl">
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-brand-orange">Platform overview</p>
+            <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-900">Christian Match Ghana at a glance</h2>
+          </div>
+          <span className="rounded-full bg-green-50 px-3 py-1 text-[10px] font-black uppercase tracking-wide text-green-700">Live snapshot</span>
+        </div>
+        <div className="grid grid-cols-2 justify-items-center gap-3 md:grid-cols-4">
+          <StatCard title="Total Users" value={stats.totalUsers.toLocaleString()} change="Live" icon={<Users className="text-blue-500" size={18} />} />
+          <StatCard title="Active Users" value={activeUsers.toLocaleString()} change="Live" icon={<Activity className="text-green-500" size={18} />} />
+          <StatCard title="Verified Users" value={verifiedUsers.toLocaleString()} change="Trust" icon={<CheckCircle className="text-indigo-500" size={18} />} />
+          <StatCard title="Pending Reports" value={stats.pendingReports.toLocaleString()} change="Review" isNegative icon={<Shield className="text-red-500" size={18} />} />
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-        <div className="rounded-xl border border-slate-200 bg-white px-3 py-2"><p className="text-[11px] font-bold text-slate-500">Active matches</p><p className="text-lg font-black text-slate-900">{stats.activeMatches.toLocaleString()}</p></div>
-        <div className="rounded-xl border border-slate-200 bg-white px-3 py-2"><p className="text-[11px] font-bold text-slate-500">Premium users</p><p className="text-lg font-black text-slate-900">{premiumUsers.toLocaleString()}</p></div>
-        <div className="rounded-xl border border-slate-200 bg-white px-3 py-2"><p className="text-[11px] font-bold text-slate-500">Blocked users</p><p className="text-lg font-black text-slate-900">{blockedUsers.toLocaleString()}</p></div>
-        <div className="rounded-xl border border-slate-200 bg-white px-3 py-2"><p className="text-[11px] font-bold text-slate-500">Revenue</p><p className="text-lg font-black text-slate-900">₵{stats.totalRevenue.toLocaleString()}</p></div>
+      <div className="mx-auto grid w-full max-w-6xl grid-cols-2 justify-items-center gap-3 md:grid-cols-4">
+        <div className="flex min-h-[92px] w-full flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-3 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"><p className="whitespace-normal break-words text-[11px] font-black leading-tight text-slate-500">Active Matches</p><p className="mt-1 text-2xl font-black text-slate-900">{stats.activeMatches.toLocaleString()}</p></div>
+        <div className="flex min-h-[92px] w-full flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-3 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"><p className="whitespace-normal break-words text-[11px] font-black leading-tight text-slate-500">Premium Users</p><p className="mt-1 text-2xl font-black text-slate-900">{premiumUsers.toLocaleString()}</p></div>
+        <div className="flex min-h-[92px] w-full flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-3 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"><p className="whitespace-normal break-words text-[11px] font-black leading-tight text-slate-500">Blocked Users</p><p className="mt-1 text-2xl font-black text-slate-900">{blockedUsers.toLocaleString()}</p></div>
+        <div className="flex min-h-[92px] w-full flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-3 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"><p className="whitespace-normal break-words text-[11px] font-black leading-tight text-slate-500">Revenue</p><p className="mt-1 text-2xl font-black text-slate-900">₵{stats.totalRevenue.toLocaleString()}</p></div>
       </div>
 
-      <details className="rounded-xl border border-slate-200 bg-white p-3">
-        <summary className="cursor-pointer list-none text-sm font-black text-slate-800">Detailed insights and activity</summary>
-        <div className="mt-3 grid gap-3 lg:grid-cols-3">
+      <details open className="cmg-admin-overview-details w-full rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-2 py-1 text-sm font-black text-slate-800 transition hover:bg-slate-50">
+          <span>Detailed insights and activity</span>
+          <span className="cmg-admin-details-chevron flex shrink-0 items-center justify-center rounded-full bg-slate-100 p-1 text-slate-600" aria-hidden="true"><ChevronDown size={18} /></span>
+        </summary>
+        <div className="mt-4 grid w-full gap-4">
         <div className="rounded-xl border border-slate-200 bg-white p-4">
           <h3 className="font-black text-slate-800">User status</h3>
           <div className="mt-3 space-y-2 text-xs">
@@ -560,14 +584,14 @@ const Overview = () => {
         </div>
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-2">
+      <div className="mt-4 grid w-full gap-4">
         <div className="rounded-xl border border-slate-200 bg-white p-4">
           <div className="mb-2 flex items-center justify-between"><h3 className="font-black text-slate-800">Recent users</h3><span className="text-xs font-bold text-slate-400">{dashboardUsers.length} total</span></div>
-          <div className="divide-y divide-slate-100">{recentUsers.length ? recentUsers.map((user, index) => <div key={`${user.id}-${index}`} className="flex items-center justify-between gap-2 py-2 text-xs"><span className="truncate font-black text-slate-800">{user.name || user.email || 'Unnamed user'}</span><span className="shrink-0 text-slate-500">{user.isBlocked ? 'Blocked' : 'Active'}</span></div>) : <p className="py-4 text-sm text-slate-500">No users found.</p>}</div>
+          <div className="divide-y divide-slate-100">{recentUsers.length ? recentUsers.map((user, index) => <div key={`${user.id}-${index}`} className="flex items-start justify-between gap-3 py-3 text-xs"><span className="min-w-0 whitespace-normal break-words font-black text-slate-800">{user.name || user.email || 'Unnamed user'}</span><span className="shrink-0 text-slate-500">{user.isBlocked ? 'Blocked' : 'Active'}</span></div>) : <p className="py-4 text-sm text-slate-500">No users found.</p>}</div>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-4">
           <div className="mb-2 flex items-center justify-between"><h3 className="font-black text-slate-800">Moderation queue</h3><span className="text-xs font-bold text-slate-400">{stats.pendingReports} pending</span></div>
-          <div className="divide-y divide-slate-100">{recentReports.length ? recentReports.map((report, index) => <div key={`${report.id}-${index}`} className="flex items-center justify-between gap-2 py-2 text-xs"><span className="truncate font-black text-slate-800">{report.reason || 'General report'}</span><span className="shrink-0 rounded px-2 py-0.5 font-bold text-orange-700 bg-orange-50">{report.status || 'pending'}</span></div>) : <p className="py-4 text-sm text-slate-500">No reports found.</p>}</div>
+          <div className="divide-y divide-slate-100">{recentReports.length ? recentReports.map((report, index) => <div key={`${report.id}-${index}`} className="flex items-start justify-between gap-3 py-3 text-xs"><span className="min-w-0 whitespace-normal break-words font-black text-slate-800">{report.reason || 'General report'}</span><span className="shrink-0 rounded px-2 py-0.5 font-bold text-orange-700 bg-orange-50">{report.status || 'pending'}</span></div>) : <p className="py-4 text-sm text-slate-500">No reports found.</p>}</div>
         </div>
       </div>
       </details>
@@ -778,6 +802,8 @@ const UsersView = ({ focusUserId, onOpenGroup, onOpenPermissionGroup, onOpenMess
     }, [focusUserId, users]);
 
     const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+    const [openMenuPosition, setOpenMenuPosition] = useState<{ top: number; left: number } | null>(null);
+    const openMenuUser = openMenuId ? users.find((user) => user.id === openMenuId) : null;
     const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
     const [selectedUser, setSelectedUser] = useState<any>(null); // State for the details modal
     const [message, setMessage] = useState('');
@@ -833,7 +859,24 @@ const UsersView = ({ focusUserId, onOpenGroup, onOpenPermissionGroup, onOpenMess
 
     const toggleMenu = (e: React.MouseEvent, id: string) => {
         e.stopPropagation(); // Prevent row click
-        setOpenMenuId(openMenuId === id ? null : id);
+        if (openMenuId === id) {
+            setOpenMenuId(null);
+            setOpenMenuPosition(null);
+            return;
+        }
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        const menuWidth = 192;
+        const menuHeight = 320;
+        const gap = 8;
+        const top = rect.bottom + menuHeight + gap > window.innerHeight
+            ? Math.max(8, rect.top - menuHeight - gap)
+            : rect.bottom + gap;
+        const left = Math.min(
+            Math.max(8, rect.right - menuWidth),
+            Math.max(8, window.innerWidth - menuWidth - 8),
+        );
+        setOpenMenuPosition({ top, left });
+        setOpenMenuId(id);
     };
 
     const handleBlock = async (e: React.MouseEvent, id: string) => {
@@ -1241,53 +1284,7 @@ const UsersView = ({ focusUserId, onOpenGroup, onOpenPermissionGroup, onOpenMess
                                     >
                                         <MoreHorizontal size={18} />
                                     </button>
-                                    
-                                    {openMenuId === user.id && (
-                                        <div className="absolute right-8 top-10 w-48 bg-white rounded-lg shadow-xl border border-gray-100 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); void openManageGroups([user.id]); }}
-                                                className="w-full text-left px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-                                            >
-                                                <Users size={16} />
-                                                Manage user
-                                            </button>
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); void handleBlock(e, user.id); }}
-                                                className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 border-t border-gray-100"
-                                            >
-                                                <Shield size={16} />
-                                                {user.status === 'Blocked' ? 'Enable user' : 'Disable user'}
-                                            </button>
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); void handlePasswordReset([user.id]); }}
-                                                className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 border-t border-gray-100"
-                                            >
-                                                <KeyRound size={16} />
-                                                Reset password
-                                            </button>
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); void openManageGroups([user.id]); }}
-                                                className="w-full text-left px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 border-t border-gray-100"
-                                            >
-                                                <Users size={16} />
-                                                Add to group
-                                            </button>
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); void openManageGroups([user.id]); }}
-                                                className="w-full text-left px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 border-t border-gray-100"
-                                            >
-                                                <Users size={16} />
-                                                Remove from group
-                                            </button>
-                                            <button 
-                                                onClick={(e) => handleDelete(e, user.id)}
-                                                className="w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 border-t border-gray-100"
-                                            >
-                                                <Trash2 size={16} />
-                                                Delete User
-                                            </button>
-                                        </div>
-                                    )}
+
                                 </td>
                             </tr>
                             {expandedUserIds.has(user.id) && (() => {
@@ -1638,7 +1635,31 @@ const UsersView = ({ focusUserId, onOpenGroup, onOpenPermissionGroup, onOpenMess
                     />
                 </div>
             )}
-            
+
+          {openMenuUser && openMenuPosition && createPortal(
+            <>
+              <button
+                type="button"
+                aria-label="Close user actions"
+                className="fixed inset-0 z-[9998] cursor-default"
+                onClick={() => { setOpenMenuId(null); setOpenMenuPosition(null); }}
+              />
+              <div
+                className="fixed z-[9999] w-48 overflow-hidden rounded-lg border border-gray-100 bg-white shadow-2xl animate-in fade-in zoom-in-95 duration-200"
+                style={{ top: openMenuPosition.top, left: openMenuPosition.left }}
+                role="menu"
+                aria-label={`Actions for ${openMenuUser.name}`}
+              >
+                <button type="button" role="menuitem" onClick={(event) => { event.stopPropagation(); setOpenMenuId(null); setOpenMenuPosition(null); void openManageGroups([openMenuUser.id]); }} className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm text-slate-700 hover:bg-slate-50"><Users size={16} />Manage user</button>
+                <button type="button" role="menuitem" onClick={(event) => { event.stopPropagation(); setOpenMenuId(null); setOpenMenuPosition(null); void handleBlock(event as unknown as React.MouseEvent, openMenuUser.id); }} className="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-3 text-left text-sm text-gray-700 hover:bg-gray-50"><Shield size={16} />{openMenuUser.status === 'Blocked' ? 'Enable user' : 'Disable user'}</button>
+                <button type="button" role="menuitem" onClick={(event) => { event.stopPropagation(); setOpenMenuId(null); setOpenMenuPosition(null); void handlePasswordReset([openMenuUser.id]); }} className="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-3 text-left text-sm text-gray-700 hover:bg-gray-50"><KeyRound size={16} />Reset password</button>
+                <button type="button" role="menuitem" onClick={(event) => { event.stopPropagation(); setOpenMenuId(null); setOpenMenuPosition(null); void openManageGroups([openMenuUser.id]); }} className="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-3 text-left text-sm text-slate-700 hover:bg-slate-50"><Users size={16} />Add to group</button>
+                <button type="button" role="menuitem" onClick={(event) => { event.stopPropagation(); setOpenMenuId(null); setOpenMenuPosition(null); void openManageGroups([openMenuUser.id]); }} className="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-3 text-left text-sm text-slate-700 hover:bg-slate-50"><Users size={16} />Remove from group</button>
+                <button type="button" role="menuitem" onClick={(event) => { event.stopPropagation(); setOpenMenuId(null); setOpenMenuPosition(null); void handleDelete(event as unknown as React.MouseEvent, openMenuUser.id); }} className="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-3 text-left text-sm text-red-600 hover:bg-red-50"><Trash2 size={16} />Delete User</button>
+              </div>
+            </>,
+            document.body,
+          )}
         </div>
     );
 };
@@ -1666,6 +1687,30 @@ const PrayersView = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [showFilterMenu, setShowFilterMenu] = useState(false);
     const [filterStatus, setFilterStatus] = useState<'All' | 'Active' | 'Reported'>('All');
+    const [prayerColumnWidths, setPrayerColumnWidths] = useState({
+        number: 60,
+        user: 190,
+        content: 420,
+        engagement: 160,
+        status: 130,
+        actions: 110,
+    });
+
+    const resizePrayerColumn = (column: keyof typeof prayerColumnWidths, event: React.MouseEvent<HTMLSpanElement>) => {
+        event.preventDefault();
+        const startX = event.clientX;
+        const startWidth = prayerColumnWidths[column];
+        const handleMove = (moveEvent: MouseEvent) => {
+            const nextWidth = Math.max(80, startWidth + moveEvent.clientX - startX);
+            setPrayerColumnWidths((current) => ({ ...current, [column]: nextWidth }));
+        };
+        const handleUp = () => {
+            window.removeEventListener('mousemove', handleMove);
+            window.removeEventListener('mouseup', handleUp);
+        };
+        window.addEventListener('mousemove', handleMove);
+        window.addEventListener('mouseup', handleUp);
+    };
 
     const filteredPrayers = prayers.filter(p => {
         const matchesSearch = p.user.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -1756,52 +1801,60 @@ const PrayersView = () => {
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <table className="w-full text-left">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                        <tr>
-                            <th className="px-6 py-4 font-semibold text-gray-600 text-sm">User</th>
-                            <th className="px-6 py-4 font-semibold text-gray-600 text-sm">Content</th>
-                            <th className="px-6 py-4 font-semibold text-gray-600 text-sm">Engagement</th>
-                            <th className="px-6 py-4 font-semibold text-gray-600 text-sm">Status</th>
-                            <th className="px-6 py-4 font-semibold text-gray-600 text-sm text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                        {filteredPrayers.map((prayer) => (
-                            <tr key={prayer.id} className="hover:bg-gray-50 transition-colors">
-                                <td className="px-6 py-4">
-                                    <div className="font-medium text-gray-900">{prayer.user}</div>
-                                    <div className="text-xs text-gray-400">{prayer.date}</div>
-                                </td>
-                                <td className="px-6 py-4">
-                                    <p className="text-gray-600 text-sm line-clamp-2 max-w-sm">{prayer.content}</p>
-                                </td>
-                                <td className="px-6 py-4">
-                                    <div className="flex items-center gap-4 text-sm text-gray-500">
-                                        <span className="flex items-center gap-1"><Heart size={14} /> {prayer.likes}</span>
-                                        <span className="flex items-center gap-1"><MessageSquare size={14} /> {prayer.comments}</span>
-                                    </div>
-                                </td>
-                                <td className="px-6 py-4">
-                                    {prayer.reported ? (
-                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                            Reported
-                                        </span>
-                                    ) : (
-                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                            Active
-                                        </span>
-                                    )}
-                                </td>
-                                <td className="px-6 py-4 text-right">
-                                    <button className="text-gray-400 hover:text-red-500 transition-colors p-2 hover:bg-red-50 rounded-full" title="Delete">
-                                        <Trash2 size={18} />
-                                    </button>
-                                </td>
+                <div className="overflow-x-auto">
+                    <table className="cmg-admin-compact-table min-w-[1070px] w-full table-fixed border-collapse text-left">
+                        <colgroup>
+                            <col style={{ width: prayerColumnWidths.number }} />
+                            <col style={{ width: prayerColumnWidths.user }} />
+                            <col style={{ width: prayerColumnWidths.content }} />
+                            <col style={{ width: prayerColumnWidths.engagement }} />
+                            <col style={{ width: prayerColumnWidths.status }} />
+                            <col style={{ width: prayerColumnWidths.actions }} />
+                        </colgroup>
+                        <thead className="bg-slate-900 text-[10px] font-black uppercase tracking-wide text-white">
+                            <tr>
+                                <th style={{ width: prayerColumnWidths.number }} className="relative px-2 py-2">#<span onMouseDown={(event) => resizePrayerColumn('number', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                                <th style={{ width: prayerColumnWidths.user }} className="relative px-3 py-2">User<span onMouseDown={(event) => resizePrayerColumn('user', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                                <th style={{ width: prayerColumnWidths.content }} className="relative px-3 py-2">Content<span onMouseDown={(event) => resizePrayerColumn('content', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                                <th style={{ width: prayerColumnWidths.engagement }} className="relative px-3 py-2">Engagement<span onMouseDown={(event) => resizePrayerColumn('engagement', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                                <th style={{ width: prayerColumnWidths.status }} className="relative px-3 py-2">Status<span onMouseDown={(event) => resizePrayerColumn('status', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                                <th style={{ width: prayerColumnWidths.actions }} className="relative px-3 py-2">Actions<span onMouseDown={(event) => resizePrayerColumn('actions', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {filteredPrayers.map((prayer, index) => (
+                                <tr key={prayer.id} className="h-9 border-b border-slate-200 text-xs text-slate-700 transition hover:bg-slate-50">
+                                    <td className="px-2 py-1.5 font-black text-slate-400">{index + 1}</td>
+                                    <td className="px-3 py-1.5">
+                                        <div className="truncate font-black text-slate-900" title={prayer.user}>{prayer.user}</div>
+                                        <div className="truncate text-[10px] italic text-slate-400" title={prayer.date}>{prayer.date}</div>
+                                    </td>
+                                    <td className="px-3 py-1.5">
+                                        <p className="truncate text-slate-600" title={prayer.content}>{prayer.content}</p>
+                                    </td>
+                                    <td className="px-3 py-1.5">
+                                        <div className="flex items-center gap-4 text-slate-500">
+                                            <span className="flex items-center gap-1"><Heart size={14} /> {prayer.likes}</span>
+                                            <span className="flex items-center gap-1"><MessageSquare size={14} /> {prayer.comments}</span>
+                                        </div>
+                                    </td>
+                                    <td className="px-3 py-1.5">
+                                        {prayer.reported ? (
+                                            <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">Reported</span>
+                                        ) : (
+                                            <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">Active</span>
+                                        )}
+                                    </td>
+                                    <td className="px-3 py-1.5">
+                                        <button className="rounded-full p-2 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500" title="Delete">
+                                            <Trash2 size={18} />
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
             
             {/* Filter Menu Overlay */}
@@ -1828,11 +1881,35 @@ const ConnectionsView = () => {
     }, []);
 
     const [searchTerm, setSearchTerm] = useState('');
+    const [connectionColumnWidths, setConnectionColumnWidths] = useState({
+        initiator: 190,
+        recipient: 190,
+        status: 130,
+        connectedOn: 150,
+        lastMessage: 360,
+        actions: 110,
+    });
 
-    const filteredConnections = connections.filter(conn => 
-        conn.userA.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    const filteredConnections = connections.filter(conn =>
+        conn.userA.toLowerCase().includes(searchTerm.toLowerCase()) ||
         conn.userB.toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    const resizeConnectionColumn = (column: keyof typeof connectionColumnWidths, event: React.MouseEvent<HTMLSpanElement>) => {
+        event.preventDefault();
+        const startX = event.clientX;
+        const startWidth = connectionColumnWidths[column];
+        const handleMove = (moveEvent: MouseEvent) => {
+            const nextWidth = Math.max(80, startWidth + moveEvent.clientX - startX);
+            setConnectionColumnWidths((current) => ({ ...current, [column]: nextWidth }));
+        };
+        const handleUp = () => {
+            window.removeEventListener('mousemove', handleMove);
+            window.removeEventListener('mouseup', handleUp);
+        };
+        window.addEventListener('mousemove', handleMove);
+        window.addEventListener('mouseup', handleUp);
+    };
 
     return (
         <div className="space-y-6">
@@ -1841,9 +1918,9 @@ const ConnectionsView = () => {
                 <div className="flex gap-2">
                      <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                        <input 
-                            type="text" 
-                            placeholder="Search users..." 
+                        <input
+                            type="text"
+                            placeholder="Search users..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-orange/20"
@@ -1853,42 +1930,52 @@ const ConnectionsView = () => {
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <table className="w-full text-left">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                        <tr>
-                            <th className="px-6 py-4 font-semibold text-gray-600 text-sm">Initiator</th>
-                            <th className="px-6 py-4 font-semibold text-gray-600 text-sm">Recipient</th>
-                            <th className="px-6 py-4 font-semibold text-gray-600 text-sm">Status</th>
-                            <th className="px-6 py-4 font-semibold text-gray-600 text-sm">Connected On</th>
-                            <th className="px-6 py-4 font-semibold text-gray-600 text-sm">Last Message</th>
-                            <th className="px-6 py-4 font-semibold text-gray-600 text-sm text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                        {filteredConnections.map((conn) => (
-                            <tr key={conn.id} className="hover:bg-gray-50 transition-colors">
-                                <td className="px-6 py-4 font-medium text-gray-900">{conn.userA}</td>
-                                <td className="px-6 py-4 font-medium text-gray-900">{conn.userB}</td>
-                                <td className="px-6 py-4">
-                                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                        conn.status === 'Matched' ? 'bg-green-100 text-green-800' :
-                                        conn.status === 'Blocked' ? 'bg-red-100 text-red-800' : 
-                                        'bg-yellow-100 text-yellow-800'
-                                    }`}>
-                                        {conn.status}
-                                    </span>
-                                </td>
-                                <td className="px-6 py-4 text-sm text-gray-500">{conn.date}</td>
-                                <td className="px-6 py-4 text-sm text-gray-500 truncate max-w-[200px]" title={conn.lastMessage}>{conn.lastMessage}</td>
-                                <td className="px-6 py-4 text-right">
-                                    <button className="text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-gray-100 rounded-full">
-                                        <MoreHorizontal size={18} />
-                                    </button>
-                                </td>
+                <div className="overflow-x-auto">
+                    <table className="cmg-admin-compact-table min-w-[1130px] w-full table-fixed border-collapse text-left">
+                        <colgroup>
+                            <col style={{ width: connectionColumnWidths.initiator }} />
+                            <col style={{ width: connectionColumnWidths.recipient }} />
+                            <col style={{ width: connectionColumnWidths.status }} />
+                            <col style={{ width: connectionColumnWidths.connectedOn }} />
+                            <col style={{ width: connectionColumnWidths.lastMessage }} />
+                            <col style={{ width: connectionColumnWidths.actions }} />
+                        </colgroup>
+                        <thead className="bg-slate-900 text-[10px] font-black uppercase tracking-wide text-white">
+                            <tr>
+                                <th style={{ width: connectionColumnWidths.initiator }} className="relative px-3 py-2">Initiator<span onMouseDown={(event) => resizeConnectionColumn('initiator', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                                <th style={{ width: connectionColumnWidths.recipient }} className="relative px-3 py-2">Recipient<span onMouseDown={(event) => resizeConnectionColumn('recipient', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                                <th style={{ width: connectionColumnWidths.status }} className="relative px-3 py-2">Status<span onMouseDown={(event) => resizeConnectionColumn('status', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                                <th style={{ width: connectionColumnWidths.connectedOn }} className="relative px-3 py-2">Connected On<span onMouseDown={(event) => resizeConnectionColumn('connectedOn', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                                <th style={{ width: connectionColumnWidths.lastMessage }} className="relative px-3 py-2">Last Message<span onMouseDown={(event) => resizeConnectionColumn('lastMessage', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
+                                <th style={{ width: connectionColumnWidths.actions }} className="relative px-3 py-2">Actions<span onMouseDown={(event) => resizeConnectionColumn('actions', event)} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-brand-orange/70" /></th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {filteredConnections.map((conn) => (
+                                <tr key={conn.id} className="h-9 border-b border-slate-200 text-xs text-slate-700 transition hover:bg-slate-50">
+                                    <td className="px-3 py-1.5 font-black text-slate-900">{conn.userA}</td>
+                                    <td className="px-3 py-1.5 font-black text-slate-900">{conn.userB}</td>
+                                    <td className="px-3 py-1.5">
+                                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                            conn.status === 'Matched' ? 'bg-green-100 text-green-800' :
+                                            conn.status === 'Blocked' ? 'bg-red-100 text-red-800' :
+                                            'bg-yellow-100 text-yellow-800'
+                                        }`}>
+                                            {conn.status}
+                                        </span>
+                                    </td>
+                                    <td className="px-3 py-1.5 text-slate-500">{conn.date}</td>
+                                    <td className="max-w-[360px] truncate px-3 py-1.5 text-slate-500" title={conn.lastMessage}>{conn.lastMessage}</td>
+                                    <td className="px-3 py-1.5">
+                                        <button className="rounded-full p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600">
+                                            <MoreHorizontal size={18} />
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     );
@@ -1904,7 +1991,7 @@ const AdminMessagesView: React.FC<{
     const [audiences, setAudiences] = useState<DistributionGroup[]>([]);
     const [recipientMode, setRecipientMode] = useState<AdminMessageRecipientMode>('all');
     const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
-    const [selectedAudienceId, setSelectedAudienceId] = useState('');
+    const [selectedAudienceIds, setSelectedAudienceIds] = useState<Set<string>>(new Set());
     const [recipientSearch, setRecipientSearch] = useState('');
     const [messageText, setMessageText] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
@@ -1937,7 +2024,6 @@ const AdminMessagesView: React.FC<{
             setConnections(connectionsResult);
             setAudiencesLoading(false);
             setLoading(false);
-            if (!selectedAudienceId && groupResult[0]) setSelectedAudienceId(groupResult[0].id);
         };
         void load();
         return () => {
@@ -1950,8 +2036,13 @@ const AdminMessagesView: React.FC<{
     const activeUsers = availableUsers.filter((user) =>
         isActiveRecipient(user) && (user.firestoreDocId || user.id) !== auth.currentUser?.uid,
     );
-    const selectedAudience = audiences.find((audience) => audience.id === selectedAudienceId);
-    const filteredUsers = availableUsers.filter((user) => {
+    const selectedAudiences = audiences.filter((audience) => selectedAudienceIds.has(audience.id));
+    const selectedAudienceNames = selectedAudiences.map((audience) => audience.name);
+    const selectedAudienceSummary = selectedAudiences.length === 0
+        ? 'Choose saved audiences'
+        : `${selectedAudiences.length} selected · ${selectedAudienceNames.slice(0, 2).join(', ')}${selectedAudiences.length > 2 ? ` +${selectedAudiences.length - 2} more` : ''}`;
+    const selectedUsers = availableUsers.filter((user) => selectedUserIds.has(user.firestoreDocId || user.id));
+    const filteredUsers = activeUsers.filter((user) => {
         const term = recipientSearch.trim().toLowerCase();
         if (!term) return true;
         return [user.name, user.email, user.location, user.gender]
@@ -1981,11 +2072,21 @@ const AdminMessagesView: React.FC<{
         });
     };
 
+    const toggleAudienceSelection = (audienceId: string) => {
+        setSelectedAudienceIds((current) => {
+            const next = new Set(current);
+            if (next.has(audienceId)) next.delete(audienceId);
+            else next.add(audienceId);
+            return next;
+        });
+        setError('');
+        setSendStatus('');
+    };
+
     const selectRecipientMode = (mode: AdminMessageRecipientMode) => {
         setRecipientMode(mode);
         setError('');
         setSendStatus('');
-        if (mode === 'audience' && !selectedAudienceId && audiences[0]) setSelectedAudienceId(audiences[0].id);
     };
 
     const handleSend = async () => {
@@ -2002,15 +2103,15 @@ const AdminMessagesView: React.FC<{
             setError('Select at least one user.');
             return;
         }
-        if (recipientMode === 'audience' && !selectedAudienceId) {
-            setError('Choose a saved audience.');
+        if (recipientMode === 'audience' && selectedAudienceIds.size === 0) {
+            setError('Choose at least one saved audience.');
             return;
         }
         const recipientDescription = recipientMode === 'all'
             ? `all ${activeUsers.length} active users`
             : recipientMode === 'selected'
                 ? `${selectedUserIds.size} selected users`
-                : `${selectedAudience?.name || 'the selected audience'} (${selectedAudience?.memberCount ?? 0} members)`;
+                : `${selectedAudiences.length} saved audience${selectedAudiences.length === 1 ? '' : 's'} (${selectedAudienceNames.join(', ')}). Overlapping members will receive one message, and inactive users plus your Admin account will be excluded.`;
         const confirmed = await confirmAdminAction({
             title: 'Send admin message?',
             description: `Send this message to ${recipientDescription}. This will create a conversation message for each active recipient.`,
@@ -2024,7 +2125,7 @@ const AdminMessagesView: React.FC<{
                 text,
                 recipientMode,
                 ...(recipientMode === 'selected' ? { userIds: [...selectedUserIds] } : {}),
-                ...(recipientMode === 'audience' ? { audienceId: selectedAudienceId } : {}),
+                ...(recipientMode === 'audience' ? { audienceIds: [...selectedAudienceIds] } : {}),
             });
             setSendStatus(`Message sent to ${result.sentCount} user${result.sentCount === 1 ? '' : 's'}.`);
             setMessageText('');
@@ -2036,62 +2137,66 @@ const AdminMessagesView: React.FC<{
     };
 
     return (
-        <div className="space-y-6">
-            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-                <div className="border-b border-slate-100 pb-5">
-                    <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
-                        <h3 className="text-xl font-black leading-tight text-slate-900 sm:text-2xl">Send message to users</h3>
-                        <button type="button" onClick={onManageAudiences} className="shrink-0 self-start rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-black text-slate-700 transition hover:border-slate-300 hover:bg-slate-50">Manage audiences</button>
+        <div className="space-y-5">
+            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                    <div>
+                        <p className="text-xs font-black uppercase tracking-[0.16em] text-brand-orange">Ops · Messages</p>
+                        <h3 className="mt-1 text-2xl font-black leading-tight text-slate-900">Send a message</h3>
+                        <p className="mt-1 text-sm text-slate-500">Choose recipients, write your message, and send securely.</p>
                     </div>
-                    <p className="mt-4 w-full max-w-none text-base leading-7 text-slate-600">Use this page to send one controlled message to all active users, individual recipients, or a saved audience. Recipients are resolved securely when you send, and delivery uses the existing in-app, push, email, SMS, and WhatsApp notification pipeline where configured.</p>
-                    <div className="mt-4 grid gap-3 rounded-xl border border-blue-100 bg-blue-50/70 p-4 text-sm text-slate-700 sm:grid-cols-3">
-                        <div><strong className="block text-slate-900">All users</strong><span>Reach every active member.</span></div>
-                        <div><strong className="block text-slate-900">Selected users</strong><span>Choose individual recipients.</span></div>
-                        <div><strong className="block text-slate-900">Saved audience</strong><span>Reuse a managed audience definition.</span></div>
-                    </div>
+                    <button type="button" onClick={onManageAudiences} className="shrink-0 rounded-xl border border-slate-200 px-4 py-2 text-sm font-black text-slate-700 transition hover:border-slate-300 hover:bg-slate-50">Manage audiences</button>
                 </div>
 
                 {!canSend && <div className="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">Your account can view Messages, but does not have the message-sending permission.</div>}
                 {(error || sendStatus) && <div className={`mt-4 rounded-xl px-4 py-3 text-sm font-semibold ${error ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>{error || sendStatus}</div>}
 
-                <div className="mt-5 grid gap-3 md:grid-cols-3">
-                    {([
-                        { mode: 'all' as const, title: 'All users', detail: `${activeUsers.length} active recipients` },
-                        { mode: 'selected' as const, title: 'Selected users', detail: `${selectedUserIds.size} selected` },
-                        { mode: 'audience' as const, title: 'Saved audience', detail: selectedAudience ? `${selectedAudience.name} · ${selectedAudience.memberCount ?? 0} members` : 'Choose an audience' },
-                    ]).map((option) => (
-                        <button key={option.mode} type="button" onClick={() => selectRecipientMode(option.mode)} className={`cmg-admin-content-button min-w-0 rounded-xl border p-4 text-left transition ${recipientMode === option.mode ? 'border-brand-orange bg-orange-50 ring-2 ring-brand-orange/20' : 'border-slate-200 hover:border-slate-300'}`}>
-                            <span className="flex min-w-0 items-start justify-between gap-2"><span className="min-w-0 break-words text-sm font-black leading-tight text-slate-900">{option.title}</span><span className={`mt-0.5 h-3 w-3 shrink-0 rounded-full border-2 ${recipientMode === option.mode ? 'border-brand-orange bg-brand-orange' : 'border-slate-300'}`} /></span>
-                            <span className="mt-1 block break-words text-xs font-semibold leading-5 text-slate-500">{option.detail}</span>
-                        </button>
-                    ))}
-                </div>
-
-                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                    {recipientMode === 'all' && <p className="text-sm text-slate-600">The server will resolve all active users at send time and exclude the sending administrator.</p>}
-                    {recipientMode === 'selected' && (
-                        <div>
-                            <div className="mb-3 flex flex-col justify-between gap-2 sm:flex-row sm:items-center"><div><h4 className="text-sm font-black text-slate-800">Select recipients</h4><p className="text-xs text-slate-500">Blocked users are skipped securely by the server.</p></div><span className="text-xs font-black text-brand-orange">{selectedUserIds.size} selected</span></div>
-                            <div className="relative mb-3"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} /><input type="search" value={recipientSearch} onChange={(event) => setRecipientSearch(event.target.value)} placeholder="Search users by name, email, location, or gender" className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm" /></div>
-                            <div className="max-h-52 space-y-1 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2">{filteredUsers.length === 0 ? <p className="p-3 text-sm text-slate-500">No users found.</p> : filteredUsers.map((user) => { const userId = user.firestoreDocId || user.id; return <label key={userId} className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 hover:bg-orange-50"><input type="checkbox" checked={selectedUserIds.has(userId)} onChange={() => toggleUser(userId)} className="h-4 w-4 accent-orange-500" /><span className="min-w-0"><span className="block truncate text-sm font-bold text-slate-800">{user.name || 'Unnamed user'}</span><span className="block truncate text-xs text-slate-500">{user.email || 'No email'} · {user.location || user.country || 'No location'}</span></span>{!isActiveRecipient(user) && <span className="ml-auto text-[10px] font-black uppercase text-red-500">Blocked</span>}</label>; })}</div>
+                <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(22rem,0.9fr)]">
+                    <div>
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                            <label htmlFor="admin-recipient-mode" className="mb-2 block text-xs font-black uppercase tracking-wide text-slate-500">Recipient type</label>
+                            <div className="relative">
+                                <select id="admin-recipient-mode" value={recipientMode} onChange={(event) => selectRecipientMode(event.target.value as AdminMessageRecipientMode)} className="w-full appearance-none rounded-xl border border-slate-200 bg-white px-3 py-3 pr-11 text-sm font-black text-slate-800 focus:border-brand-orange focus:outline-none focus:ring-2 focus:ring-brand-orange/20">
+                                    <option value="all">All active users · {activeUsers.length} recipients</option>
+                                    <option value="selected">Selected users · {selectedUserIds.size} added</option>
+                                    <option value="audience">Saved audience · {selectedAudienceSummary}</option>
+                                </select>
+                                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" size={20} strokeWidth={2.5} aria-hidden="true" />
+                            </div>
                         </div>
-                    )}
-                    {recipientMode === 'audience' && <div><h4 className="text-sm font-black text-slate-800">Choose a saved audience</h4><p className="mt-1 text-xs text-slate-500">Audience membership and recipient eligibility are resolved on the server when you send.</p><div className="mt-3 grid gap-2 md:grid-cols-2">{audiencesLoading ? <p className="text-sm text-slate-500">Loading audiences…</p> : audiences.length === 0 ? <p className="text-sm text-slate-500">No saved audiences available.</p> : audiences.map((audience) => <button key={audience.id} type="button" onClick={() => setSelectedAudienceId(audience.id)} className={`cmg-admin-content-button min-w-0 rounded-lg border p-3 text-left ${selectedAudienceId === audience.id ? 'border-brand-orange bg-orange-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}><div className="flex min-w-0 items-start justify-between gap-2"><span className="min-w-0 break-words text-sm font-black leading-tight text-slate-800">{audience.name}</span><span className="shrink-0 text-xs font-black text-brand-orange">{audience.memberCount ?? 0}</span></div><p className="mt-1 break-words text-[11px] leading-4 text-slate-500">{audience.description || audienceCriteriaSummary(audience)}</p><p className="mt-1 break-words text-[10px] leading-4 text-slate-400">{audienceCriteriaSummary(audience)}</p></button>)}</div></div>}
-                </div>
 
-                <div className="mt-4">
-                    <div className="mb-2 flex items-center justify-between gap-3"><label htmlFor="admin-message-text" className="text-sm font-black text-slate-800">Message</label><span className="text-xs text-slate-400">{messageText.length}/2000</span></div>
-                    <textarea id="admin-message-text" value={messageText} onChange={(event) => setMessageText(event.target.value.slice(0, 2000))} rows={5} placeholder="Write the message users should receive…" className="w-full resize-y rounded-xl border border-slate-200 p-3 text-sm text-slate-800 focus:border-brand-orange focus:outline-none focus:ring-2 focus:ring-brand-orange/20" />
+                        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            {recipientMode === 'all' && <div className="flex items-center justify-between gap-3 rounded-xl border border-green-100 bg-green-50 p-4"><div><p className="text-sm font-black text-slate-900">All active users</p><p className="mt-1 text-xs font-semibold text-slate-600">The server will confirm eligibility and exclude you when sending.</p></div><span className="shrink-0 text-2xl font-black text-green-700">{activeUsers.length}</span></div>}
+                            {recipientMode === 'selected' && (
+                                <div>
+                                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div><h4 className="text-sm font-black text-slate-800">Recipients</h4><p className="text-xs text-slate-500">Search active users and add them to this message.</p></div><div className="flex items-center gap-2"><span className="text-xs font-black text-brand-orange">{selectedUserIds.size} added</span>{selectedUserIds.size > 0 && <button type="button" onClick={() => setSelectedUserIds(new Set())} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-black text-slate-600 hover:bg-slate-100">Clear all</button>}</div></div>
+                                    <div className="mb-3 min-h-10 rounded-xl border border-dashed border-slate-300 bg-white p-2">
+                                        {selectedUsers.length === 0 ? <p className="px-2 py-1 text-xs text-slate-400">No recipients added yet.</p> : <div className="flex flex-wrap gap-2">{selectedUsers.map((user) => { const userId = user.firestoreDocId || user.id; return <button key={userId} type="button" onClick={() => toggleUser(userId)} className="inline-flex max-w-full items-center gap-1 rounded-full bg-orange-100 px-3 py-1.5 text-left text-xs font-black text-orange-800 hover:bg-orange-200" title="Remove recipient"><span className="max-w-[16rem] break-words">{user.name || user.email || 'Unnamed user'}</span><X size={13} aria-hidden="true" /></button>; })}</div>}
+                                    </div>
+                                    <div className="relative mb-3"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} /><input type="search" value={recipientSearch} onChange={(event) => setRecipientSearch(event.target.value)} placeholder="Search by name, email, location, or gender" aria-label="Search active users" className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-9 pr-3 text-sm" /></div>
+                                    <div className="max-h-64 space-y-1 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2">{filteredUsers.length === 0 ? <p className="p-3 text-sm text-slate-500">No active users match this search.</p> : filteredUsers.map((user) => { const userId = user.firestoreDocId || user.id; const selected = selectedUserIds.has(userId); return <button key={userId} type="button" role="option" aria-selected={selected} onClick={() => toggleUser(userId)} className={`cmg-admin-content-button flex w-full min-w-0 items-center gap-3 rounded-lg px-3 py-2 text-left transition ${selected ? 'bg-orange-50' : 'hover:bg-slate-50'}`}><span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${selected ? 'border-brand-orange bg-brand-orange text-white' : 'border-slate-300 text-transparent'}`}><CheckCircle size={13} aria-hidden="true" /></span><span className="min-w-0 flex-1"><span className="block break-words text-sm font-bold text-slate-800">{user.name || 'Unnamed user'}</span><span className="block break-words text-xs text-slate-500">{user.email || 'No email'} · {user.location || user.country || 'No location'}</span></span><span className={`shrink-0 text-[10px] font-black uppercase ${selected ? 'text-brand-orange' : 'text-slate-400'}`}>{selected ? 'Added' : 'Add'}</span></button>; })}</div>
+                                </div>
+                            )}
+                            {recipientMode === 'audience' && <div><label className="mb-2 block text-sm font-black text-slate-800">Saved audiences</label><details className="group relative"><summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-800 shadow-sm"><span className="min-w-0 break-words">{selectedAudienceSummary}</span><ChevronDown className="shrink-0 text-slate-500 transition-transform group-open:rotate-180" size={20} strokeWidth={2.5} aria-hidden="true" /></summary><div className="absolute left-0 right-0 z-20 mt-2 max-h-64 space-y-1 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl">{audiencesLoading ? <p className="p-3 text-sm text-slate-500">Loading audiences…</p> : audiences.length === 0 ? <p className="p-3 text-sm text-slate-500">No saved audiences available.</p> : audiences.map((audience) => <label key={audience.id} className="flex cursor-pointer items-start gap-3 rounded-lg px-3 py-2 hover:bg-orange-50"><input type="checkbox" checked={selectedAudienceIds.has(audience.id)} onChange={() => toggleAudienceSelection(audience.id)} className="mt-0.5 h-4 w-4 shrink-0 accent-orange-500" /><span className="min-w-0"><span className="block break-words text-sm font-bold text-slate-800">{audience.name} · {audience.memberCount ?? 0} members</span><span className="mt-0.5 block break-words text-xs text-slate-500">{audience.description || audienceCriteriaSummary(audience)}</span></span></label>)}</div></details>{selectedAudiences.length > 0 && <div className="mt-3 rounded-xl border border-orange-100 bg-orange-50/60 p-3"><p className="text-sm font-black text-slate-800">{selectedAudiences.length} audience{selectedAudiences.length === 1 ? '' : 's'} selected</p><p className="mt-1 break-words text-xs text-slate-600">{selectedAudienceNames.join(', ')}</p><p className="mt-2 text-[11px] font-semibold text-orange-800">Overlapping members will receive one message.</p></div>}</div>}
+                        </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-orange-100 bg-orange-50/40 p-4">
+                        <div className="mb-2 flex items-center justify-between gap-3"><label htmlFor="admin-message-text" className="text-sm font-black text-slate-800">Message</label><span className="text-xs font-black text-slate-400">{messageText.length}/2000</span></div>
+                        <textarea id="admin-message-text" value={messageText} onChange={(event) => setMessageText(event.target.value.slice(0, 2000))} rows={10} placeholder="Write the message users should receive…" className="w-full resize-y rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-800 shadow-sm focus:border-brand-orange focus:outline-none focus:ring-2 focus:ring-brand-orange/20" />
+                        <div className="mt-4 rounded-xl border border-orange-100 bg-white p-3"><p className="text-[10px] font-black uppercase tracking-wide text-slate-400">Send summary</p><p className="mt-1 break-words text-sm font-black text-slate-800">{recipientMode === 'all' ? `All active users · ${activeUsers.length}` : recipientMode === 'selected' ? `${selectedUserIds.size} selected users` : `${selectedAudiences.length} saved audience${selectedAudiences.length === 1 ? '' : 's'} · ${selectedAudienceNames.join(', ')}`}</p><p className="mt-1 text-xs text-slate-500">Final eligibility is checked securely before delivery.</p></div>
+                        <button type="button" onClick={() => void handleSend()} disabled={sending || !canSend || !messageText.trim()} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-orange px-5 py-3 text-sm font-black text-white shadow-sm hover:bg-brand-orange/90 disabled:cursor-not-allowed disabled:opacity-50"><Send size={16} />{sending ? 'Sending…' : 'Send message'}</button>
+                    </div>
                 </div>
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-slate-500">The existing notification pipeline will handle in-app, push, and configured offline digest channels.</p><button type="button" onClick={() => void handleSend()} disabled={sending || !canSend || !messageText.trim()} className="inline-flex items-center gap-2 rounded-xl bg-brand-orange px-5 py-2.5 text-sm font-black text-white shadow-sm hover:bg-brand-orange/90 disabled:cursor-not-allowed disabled:opacity-50"><Send size={16} />{sending ? 'Sending…' : 'Send message'}</button></div>
             </section>
 
-            <section className="rounded-xl border border-gray-200 bg-white shadow-sm">
-                <div className="flex flex-col justify-between gap-4 border-b border-gray-200 p-5 sm:flex-row sm:items-center"><div><h3 className="font-black text-gray-800">Recent conversations</h3><p className="text-sm text-gray-500">Monitor conversation summaries after admin messages are sent.</p></div><div className="relative w-full sm:w-72"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} /><input type="search" placeholder="Search conversations..." value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} className="w-full rounded-lg border border-gray-200 py-2 pl-9 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-brand-orange/20" /></div></div>
-                {loading ? <div className="p-8 text-center text-sm text-gray-500">Loading conversations...</div> : filteredConnections.length === 0 ? <div className="p-8 text-center text-sm text-gray-500">No conversations found.</div> : <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left"><thead className="border-b border-gray-200 bg-gray-50"><tr><th className="px-6 py-4 text-sm font-semibold text-gray-600">Conversation</th><th className="px-6 py-4 text-sm font-semibold text-gray-600">Latest message</th><th className="px-6 py-4 text-sm font-semibold text-gray-600">Last activity</th><th className="px-6 py-4 text-right text-sm font-semibold text-gray-600">Status</th></tr></thead><tbody className="divide-y divide-gray-100">{filteredConnections.map((connection) => <tr key={connection.id} className="hover:bg-gray-50"><td className="px-6 py-4"><div className="font-medium text-gray-900">{connection.userA}</div><div className="text-xs text-gray-500">with {connection.userB}</div></td><td className="max-w-[360px] truncate px-6 py-4 text-sm text-gray-600" title={connection.lastMessage}>{connection.lastMessage || 'No messages yet'}</td><td className="px-6 py-4 text-sm text-gray-500">{connection.date}</td><td className="px-6 py-4 text-right"><span className="inline-flex rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">Active</span></td></tr>)}</tbody></table></div>}
-            </section>
-
-            <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><div className="mb-3 flex items-center justify-between gap-3"><div><h3 className="font-black text-slate-800">Available saved audiences</h3><p className="text-sm text-slate-500">These are the audiences available for this message. Select one above or manage its membership.</p></div><span className="rounded-md bg-slate-50 px-2 py-1 text-xs font-black text-slate-600">{audiences.length} audiences</span></div>{audiencesLoading ? <p className="text-sm text-slate-500">Loading audiences…</p> : audiences.length === 0 ? <p className="text-sm text-slate-500">No saved audiences available.</p> : <div className="grid gap-2 md:grid-cols-2">{audiences.map((audience) => <button key={audience.id} type="button" onClick={() => { setSelectedAudienceId(audience.id); setRecipientMode('audience'); }} className={`cmg-admin-content-button min-w-0 rounded-xl border p-3 text-left ${selectedAudienceId === audience.id && recipientMode === 'audience' ? 'border-brand-orange bg-orange-50' : 'border-slate-200 hover:bg-slate-50'}`}><div className="flex min-w-0 items-start justify-between gap-2"><span className="min-w-0 break-words text-sm font-black leading-tight text-slate-800">{audience.name}</span><span className="shrink-0 text-xs font-black text-brand-orange">{audience.memberCount ?? 0}</span></div><p className="mt-1 break-words text-xs leading-4 text-slate-500">{audience.description || audienceCriteriaSummary(audience)}</p><p className="mt-1 break-words text-[11px] leading-4 text-slate-400">{audienceCriteriaSummary(audience)}</p></button>)}</div>}</section>
+            <details className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 text-sm font-black text-slate-800"><span>Recent conversations</span><span className="text-xs font-bold text-slate-400">{connections.length} available</span></summary>
+                <div className="border-t border-slate-100 p-4">
+                    <div className="mb-4 flex justify-end"><div className="relative w-full sm:w-72"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} /><input type="search" placeholder="Search conversations..." value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} className="w-full rounded-lg border border-gray-200 py-2 pl-9 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-brand-orange/20" /></div></div>
+                    {loading ? <div className="p-8 text-center text-sm text-gray-500">Loading conversations...</div> : filteredConnections.length === 0 ? <div className="p-8 text-center text-sm text-gray-500">No conversations found.</div> : <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left"><thead className="border-b border-gray-200 bg-gray-50"><tr><th className="px-4 py-3 text-xs font-black uppercase tracking-wide text-gray-600">Conversation</th><th className="px-4 py-3 text-xs font-black uppercase tracking-wide text-gray-600">Latest message</th><th className="px-4 py-3 text-xs font-black uppercase tracking-wide text-gray-600">Last activity</th><th className="px-4 py-3 text-xs font-black uppercase tracking-wide text-gray-600">Status</th></tr></thead><tbody className="divide-y divide-gray-100">{filteredConnections.map((connection) => <tr key={connection.id} className="hover:bg-gray-50"><td className="px-4 py-3"><div className="font-medium text-gray-900">{connection.userA}</div><div className="text-xs text-gray-500">with {connection.userB}</div></td><td className="max-w-[360px] break-words px-4 py-3 text-sm text-gray-600" title={connection.lastMessage}>{connection.lastMessage || 'No messages yet'}</td><td className="px-4 py-3 text-sm text-gray-500">{connection.date}</td><td className="px-4 py-3"><span className="inline-flex rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">Active</span></td></tr>)}</tbody></table></div>}
+                </div>
+            </details>
         </div>
     );
 };
@@ -2579,13 +2684,13 @@ const NavItem = ({ icon, label, active = false, onClick }: { icon: React.ReactNo
 );
 
 const StatCard = ({ title, value, change, isNegative, icon }: { title: string, value: string, change: string, isNegative?: boolean, icon?: React.ReactNode }) => (
-  <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition-shadow hover:shadow-md">
-    <div className="mb-2 flex items-center justify-between gap-2">
-        <div className="rounded-lg bg-gray-50 p-1.5">{icon || <Activity size={18} className="text-gray-400" />}</div>
-        <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-black ${isNegative ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>{change}</span>
+  <div className="relative flex min-h-[132px] w-full flex-col items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+    <div className="mb-3 flex items-center justify-center gap-2">
+        <div className="rounded-xl bg-slate-50 p-2">{icon || <Activity size={18} className="text-slate-400" />}</div>
+        <span className={`rounded-full px-2 py-1 text-[9px] font-black uppercase tracking-wide ${isNegative ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>{change}</span>
     </div>
-    <p className="truncate text-[11px] font-bold text-gray-500">{title}</p>
-    <h3 className="text-xl font-black tracking-tight text-gray-900">{value}</h3>
+    <p className="w-full whitespace-normal break-words text-[11px] font-black leading-tight text-slate-500">{title}</p>
+    <h3 className="mt-1 text-2xl font-black tracking-tight text-slate-900">{value}</h3>
   </div>
 );
 

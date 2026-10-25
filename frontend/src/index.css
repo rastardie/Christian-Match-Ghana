@@ -533,6 +533,20 @@ body {
   background-image: url("./assets/brand-reference/wallpapers/cmg-bg-leaf-top.png");
 }
 
+.cmg-chat-top-banner {
+  height: 14rem;
+  background:
+    linear-gradient(to bottom, rgba(255, 250, 241, 0.48) 0%, rgba(255, 250, 241, 0.70) 58%, rgba(255, 250, 241, 0.98) 100%),
+    url("./assets/brand-reference/wallpapers/cmg-bg-waves-top.png") no-repeat top center / 100% auto;
+  opacity: 0.82;
+  transition: transform 350ms ease, opacity 350ms ease;
+}
+
+.cmg-app-frame.is-ribbon-scrolling .cmg-chat-top-banner {
+  opacity: 0.3;
+  transform: translateY(-50%);
+}
+
 /* Bottom ribbon + heart overlay for the Edit Profile screen. It sits above the
    scrolling form (foreground) so the form content scrolls beneath it. */
 .cmg-edit-bottom-ribbon {
@@ -582,7 +596,6 @@ body {
 .cmg-view-surface[data-view="PROFILE"],
 .cmg-view-surface[data-view="COMMUNITY"],
 .cmg-view-surface[data-view="EDIT_PROFILE"] {
-  background-image: none !important;
   background-color: var(--cmg-cream);
 }
 
@@ -2101,9 +2114,9 @@ textarea::placeholder {
 }
 
 .cmg-app-frame.is-ribbon-scrolling .cmg-admin-header {
-  max-height: 18rem;
-  opacity: 0.3;
-  transform: translateY(-50%);
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-100%);
   pointer-events: none;
 }
 
@@ -2134,6 +2147,41 @@ textarea::placeholder {
   z-index: 1;
 }
 
+.cmg-admin-page {
+  isolation: isolate;
+}
+
+.cmg-admin-page .cmg-admin-content {
+  position: relative;
+  z-index: 1;
+}
+
+.cmg-admin-page.is-ribbon-scrolling .cmg-admin-header {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-100%);
+  pointer-events: none;
+}
+
+.cmg-admin-page .cmg-admin-bottom-ribbon {
+  transition: transform 350ms ease, opacity 350ms ease;
+}
+
+.cmg-admin-page.is-ribbon-scrolling .cmg-admin-bottom-ribbon {
+  opacity: 0.3 !important;
+  transform: translateY(50%);
+}
+
+/* Native details disclosure affordance for the Admin overview. */
+.cmg-admin-details-chevron {
+  transition: transform 180ms ease, background-color 180ms ease;
+}
+
+.cmg-admin-overview-details[open] .cmg-admin-details-chevron {
+  transform: rotate(180deg);
+  background-color: rgba(234, 88, 12, 0.12);
+  color: var(--brand-orange, #ea580c);
+}
 
 /* Admin action labels stay intact; the button group may wrap, but a button's
    icon/text description never breaks across multiple lines. */

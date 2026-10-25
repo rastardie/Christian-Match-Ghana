@@ -32,13 +32,14 @@ interface LayoutProps {
   onRefresh?: () => void | Promise<void>;
   onAdmin?: () => void;
   isSystemAdmin?: boolean;
-  hideNav?: boolean; 
+  hideNav?: boolean;
+  hideHeader?: boolean;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, onBack, onLogout, onNotifications, notificationCount = 0, notificationItems = [], onNotificationSelect, onMarkAllNotificationsRead, onRefresh, onAdmin, isSystemAdmin, hideNav }) => {
+const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, onBack, onLogout, onNotifications, notificationCount = 0, notificationItems = [], onNotificationSelect, onMarkAllNotificationsRead, onRefresh, onAdmin, isSystemAdmin, hideNav, hideHeader }) => {
   // Navigation is hidden during auth, onboarding, and specific deep-view states (like active calls)
   const shouldShowNav = !hideNav && !['AUTH', 'ONBOARDING', 'EDIT_PROFILE', 'ADMIN'].includes(currentView);
-  const shouldShowMainHeader = shouldShowNav && currentView !== 'PROFILE' && currentView !== 'ADMIN';
+  const shouldShowMainHeader = shouldShowNav && !hideHeader && currentView !== 'PROFILE' && currentView !== 'ADMIN';
   const [ribbonScrolling, setRibbonScrolling] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [showNotificationMenu, setShowNotificationMenu] = useState(false);

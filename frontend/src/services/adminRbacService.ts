@@ -132,6 +132,7 @@ export interface AdminSendMessageResult {
   broadcastId: string;
   recipientMode: AdminMessageRecipientMode;
   audienceId?: string;
+  audienceIds?: string[];
   resolvedCount: number;
   sentCount: number;
   skippedCount: number;
@@ -142,6 +143,7 @@ export async function adminSendMessage(input: {
   recipientMode: AdminMessageRecipientMode;
   userIds?: string[];
   audienceId?: string;
+  audienceIds?: string[];
 }): Promise<AdminSendMessageResult> {
   const call = httpsCallable(functions, 'adminSendMessage');
   return (await call(input)).data as AdminSendMessageResult;

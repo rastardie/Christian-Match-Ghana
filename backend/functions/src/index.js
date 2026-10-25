@@ -1497,6 +1497,7 @@ exports.adminSendMessage = functions.https.onCall(async (data, context) => {
 
   let recipients = activeUsers;
   let audienceId = null;
+  let audienceIds = [];
   if (recipientMode === 'selected') {
     const userIds = Array.isArray(data?.userIds)
       ? [...new Set(data.userIds.map((value) => String(value).trim()).filter(Boolean))].slice(0, 5000)
@@ -1507,16 +1508,35 @@ exports.adminSendMessage = functions.https.onCall(async (data, context) => {
     const selectedIds = new Set(userIds);
     recipients = activeUsers.filter(({ id }) => selectedIds.has(id));
   } else if (recipientMode === 'audience') {
-    audienceId = String(data?.audienceId || '').trim();
-    if (!audienceId) {
-      throw new functions.https.HttpsError('invalid-argument', 'Choose a saved audience.');
+    if (data?.audienceIds !== undefined && !Array.isArray(data.audienceIds)) {
+      throw new functions.https.HttpsError('invalid-argument', 'Saved audience IDs must be provided as a list.');
     }
-    const audienceSnapshot = await db.collection(DISTRIBUTION_GROUPS_COLLECTION).doc(audienceId).get();
-    if (!audienceSnapshot.exists) {
-      throw new functions.https.HttpsError('not-found', 'The selected audience no longer exists.');
+    if (data?.audienceIds !== undefined && data?.audienceId !== undefined) {
+      throw new functions.https.HttpsError('invalid-argument', 'Provide audienceIds or audienceId, not both.');
     }
-    const criteria = normalizeDistributionCriteria(audienceSnapshot.data()?.criteria);
-    recipients = activeUsers.filter(({ id, data: userData }) => matchesDistributionCriteria(userData, criteria, id));
+    audienceIds = data?.audienceIds !== undefined
+      ? [...new Set(data.audienceIds.map((value) => String(value).trim()).filter(Boolean))]
+      : data?.audienceId
+        ? [String(data.audienceId).trim()]
+        : [];
+    if (audienceIds.length === 0) {
+      throw new functions.https.HttpsError('invalid-argument', 'Choose at least one saved audience.');
+    }
+    if (audienceIds.length > 50) {
+      throw new functions.https.HttpsError('resource-exhausted', 'Select no more than 50 saved audiences at once.');
+    }
+    const audienceSnapshots = await Promise.all(audienceIds.map((id) => db.collection(DISTRIBUTION_GROUPS_COLLECTION).doc(id).get()));
+    const missingAudienceIndex = audienceSnapshots.findIndex((snapshot) => !snapshot.exists);
+    if (missingAudienceIndex >= 0) {
+      throw new functions.https.HttpsError('not-found', `The selected audience ${audienceIds[missingAudienceIndex]} no longer exists.`);
+    }
+    const criteriaList = audienceSnapshots.map((snapshot) => normalizeDistributionCriteria(snapshot.data()?.criteria));
+    const matchedUserIds = new Set();
+    activeUsers.forEach(({ id, data: userData }) => {
+      if (criteriaList.some((criteria) => matchesDistributionCriteria(userData, criteria, id))) matchedUserIds.add(id);
+    });
+    recipients = activeUsers.filter(({ id }) => matchedUserIds.has(id));
+    audienceId = audienceIds.length === 1 ? audienceIds[0] : null;
   }
 
   if (recipients.length === 0) {
@@ -1572,6 +1592,7 @@ exports.adminSendMessage = functions.https.onCall(async (data, context) => {
         broadcastId,
         recipientMode,
         audienceId,
+        audienceIds: recipientMode === 'audience' ? audienceIds : [],
       });
     });
     await batch.commit();
@@ -1581,6 +1602,7 @@ exports.adminSendMessage = functions.https.onCall(async (data, context) => {
   await recordAdminAudit(context, 'admin.message.broadcast_sent', broadcastId, {
     recipientMode,
     audienceId,
+    audienceIds,
     resolvedCount: recipients.length,
     sentCount,
     textLength: text.length,
@@ -1590,6 +1612,7 @@ exports.adminSendMessage = functions.https.onCall(async (data, context) => {
     broadcastId,
     recipientMode,
     audienceId: audienceId || undefined,
+    audienceIds: recipientMode === 'audience' ? audienceIds : [],
     resolvedCount: recipients.length,
     sentCount,
     skippedCount: 0,

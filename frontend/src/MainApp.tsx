@@ -149,7 +149,14 @@ const LandingPage = ({  onGetStarted,
       <div className="cmg-landing-scrim" />
       {slide.type !== 'video' && (
         <div className="cmg-landing-approved-logo">
-          <Logo size={160} className="drop-shadow-2xl" />
+          <img
+            src={`${landingBase}landing-logo-circle.png`}
+            width={160}
+            height={160}
+            className="h-40 w-40 object-contain drop-shadow-2xl"
+            alt="Christian Match Ghana logo"
+            draggable={false}
+          />
         </div>
       )}
 
@@ -5349,6 +5356,7 @@ const MessageThreadView = ({
     if (!selectedFiles.length) return;
 
     if (type === 'image') {
+      setShowAttachMenu(false);
       const maxBytes = 5 * 1024 * 1024;
       const validImages = selectedFiles.filter((file) => file.type.startsWith('image/') && file.size < maxBytes);
       const invalidCount = selectedFiles.length - validImages.length;
@@ -5421,7 +5429,7 @@ const MessageThreadView = ({
 
   return (
     <div className="h-full flex flex-col bg-gray-50 animate-in slide-in-from-right duration-300 relative" onClick={() => setActiveMessageId(null)}>
-      {/* Settings Menu */}
+      <div className="cmg-chat-top-banner pointer-events-none absolute inset-x-0 top-0 z-0" aria-hidden="true" />
       {showMenu && (
         <>
           <div
@@ -5489,7 +5497,7 @@ const MessageThreadView = ({
       <input type="file" ref={imageInputRef} accept="image/*" multiple className="hidden" onChange={(e) => handleFileSelect(e, 'image')} />
       <input type="file" ref={fileInputRef} className="hidden" onChange={(e) => handleFileSelect(e, 'file')} />
 
-      <div className="bg-white p-3 pt-12 border-b flex items-center justify-between sticky top-0 z-10 shadow-sm">
+      <div className="bg-transparent backdrop-blur-sm p-3 pt-12 border-b flex items-center justify-between sticky top-0 z-10 shadow-sm">
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
@@ -5510,7 +5518,7 @@ const MessageThreadView = ({
             <h3 className="font-bold text-sm text-gray-900">
               {thread.partnerName || `Partner ${thread.partnerId}`}
             </h3>
-            <p className={`text-[9px] font-black normal-case italic tracking-wide ${partnerPresence.isOnline ? 'text-green-500' : 'text-gray-400'}`}>
+            <p className={`text-[10.8px] font-black normal-case italic tracking-wide ${partnerPresence.isOnline ? 'text-green-500' : 'text-gray-400'}`}>
               {formatPresenceLabel(partnerPresence)}
             </p>
           </div>
@@ -5776,12 +5784,14 @@ const PublicProfileView = ({
   profile,
   onBack,
   onConnect,
+  isConnected = false,
   currentUserId,
   onBlock,
 }: {
   profile: any;
   onBack: () => void;
   onConnect: () => void;
+  isConnected?: boolean;
   currentUserId?: string;
   onBlock?: (userId: string) => void;
 }) => {
@@ -5973,9 +5983,9 @@ const PublicProfileView = ({
        <div className="p-4 bg-transparent z-40 max-w-md mx-auto pointer-events-none mb-10">
           <button
             onClick={onConnect}
-            className="w-full py-4 bg-brand-orange text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl shadow-brand-orange/20 active:scale-95 transition-all flex items-center justify-center gap-2 pointer-events-auto"
+            className={`w-full py-4 ${isConnected ? 'bg-brand-blue' : 'bg-brand-orange'} text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2 pointer-events-auto`}
           >
-            <MessageCircle size={20} /> Connect with {profile.name.split(' ')[0]}
+            <MessageCircle size={20} /> {isConnected ? 'Message' : `Connect with ${profile.name.split(' ')[0]}`}
           </button>
        </div>
     </div>
@@ -5986,10 +5996,12 @@ const BrowseView = ({
   profiles,
   onMessage,
   currentUser,
+  connectedPartnerIds,
 }: {
   profiles: any[];
   onMessage: (id: string) => void;
   currentUser: User | null;
+  connectedPartnerIds: ReadonlySet<string>;
 }) => {
   const [index, setIndex] = useState(0);
   const [viewingProfile, setViewingProfile] = useState<any>(null);
@@ -6122,7 +6134,8 @@ const BrowseView = ({
   if (viewingProfile) {
     return (
       <PublicProfileView 
-        profile={viewingProfile} 
+        profile={viewingProfile}
+        isConnected={connectedPartnerIds.has(viewingProfile.id)}
         onBack={() => setViewingProfile(null)}
         onConnect={() => {
            onMessage(viewingProfile.id);
@@ -6470,14 +6483,14 @@ const BrowseView = ({
           Skip
         </button>
         <button
-          title="Send connection request"
+          title={connectedPartnerIds.has(profile.id) ? 'Open conversation' : 'Send connection request'}
           onClick={(e) => {
              e.stopPropagation();
              onMessage(profile.id);
           }}
-          className="flex-1 py-4 bg-brand-orange text-white rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-brand-orange/20 active:scale-95 transition-all"
+          className={`flex-1 py-4 ${connectedPartnerIds.has(profile.id) ? 'bg-brand-blue' : 'bg-brand-orange'} text-white rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-lg active:scale-95 transition-all`}
         >
-          Connect
+          {connectedPartnerIds.has(profile.id) ? 'Message' : 'Connect'}
         </button>
       </div>
     </div>
@@ -6523,7 +6536,7 @@ const ChatListItem = ({
           <h3 className="font-bold text-gray-900 text-sm">
             {chat.partnerName || `Partner ${chat.partnerId}`}
           </h3>
-          <p className={`text-[9px] font-bold normal-case italic tracking-wide ${presence.isOnline ? 'text-green-500' : 'text-gray-400'}`}>
+          <p className={`text-[10.8px] font-bold normal-case italic tracking-wide ${presence.isOnline ? 'text-green-500' : 'text-gray-400'}`}>
             {formatPresenceLabel(presence)}
           </p>
           <span className="text-[10px] text-gray-400 font-black uppercase tracking-widest">
@@ -8084,7 +8097,8 @@ const App = () => {
         }
         setCurrentView(v);
       }}
-      hideNav={["CHAT", "CALL"].includes(currentView) && !!activeChatId}
+      hideHeader={currentView === "CHAT" && !!activeChatId}
+      hideNav={currentView === "CALL" && !!activeChatId}
     >
       {showIncompleteProfileModal && currentView !== "EDIT_PROFILE" && (
         <div className="fixed inset-0 z-[1000] bg-black/80 flex items-center justify-center p-4">
@@ -8144,6 +8158,7 @@ const App = () => {
           profiles={allUsers}
           onMessage={handleConnectRequest} // Use new handler
           currentUser={user}
+          connectedPartnerIds={new Set(chats.map((chat) => chat.partnerId))}
         />
       )}
       {currentView === "COMMUNITY" && <CommunityView user={user} />}
