@@ -326,7 +326,9 @@ exports.adminListAuditLogs = functions.https.onCall(async (data, context) => {
 // URL matches: https://us-central1-<project-id>.cloudfunctions.net/paystackWebhook
 // ----------------------------------------------------------------------------
 
-exports.paystackWebhook = functions.https.onRequest(async (req, res) => {
+exports.paystackWebhook = functions
+  .runWith({ secrets: ['PAYSTACK_SECRET_KEY'] })
+  .https.onRequest(async (req, res) => {
   try {
     // 1. Validate Request Method
     if (req.method !== "POST") {
