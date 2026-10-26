@@ -142,6 +142,109 @@ exports.completeAdminPasswordChange = functions.https.onCall(async (data, contex
   return { updated: true };
 });
 
+exports.completeForcedPasswordChange = functions.https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Authentication required.');
+  const userRef = db.collection('users').doc(context.auth.uid);
+  const [userSnapshot, adminAccess] = await Promise.all([
+    userRef.get(),
+    getAdminAccess(context.auth.uid),
+  ]);
+  const userData = userSnapshot.exists ? userSnapshot.data() || {} : {};
+  if (userData.mustChangePassword !== true && adminAccess?.mustChangePassword !== true) return { updated: false };
+  const now = FieldValue.serverTimestamp();
+  const batch = db.batch();
+  batch.set(userRef, { mustChangePassword: false, updatedAt: now }, { merge: true });
+  if (adminAccess) batch.update(db.collection('adminUsers').doc(context.auth.uid), { mustChangePassword: false, updatedAt: now });
+  batch.set(db.collection('adminAuditLogs').doc(), {
+    actorId: context.auth.uid,
+    actorEmail: context.auth.token.email || null,
+    action: 'user.password.forced_change_completed',
+    targetId: context.auth.uid,
+    details: { hadAdminAccess: Boolean(adminAccess) },
+    createdAt: now,
+  });
+  await batch.commit();
+  return { updated: true };
+});
+
+async function resolveAdminPasswordTarget(context, data) {
+  const access = await requireAdminPermission(context, 'users.edit');
+  const targetUserId = String(data?.userId || '').trim();
+  if (!targetUserId) throw new functions.https.HttpsError('invalid-argument', 'A target user is required.');
+  if (targetUserId === context.auth.uid) throw new functions.https.HttpsError('failed-precondition', 'Use your own account recovery flow to change your password.');
+  const [targetAuth, targetProfile, targetAdmin] = await Promise.all([
+    auth.getUser(targetUserId).catch(() => null),
+    db.collection('users').doc(targetUserId).get(),
+    db.collection('adminUsers').doc(targetUserId).get(),
+  ]);
+  if (!targetAuth || !targetProfile.exists) throw new functions.https.HttpsError('not-found', 'The selected user account could not be found.');
+  if (targetAdmin.exists && access.isSuperAdmin !== true) throw new functions.https.HttpsError('permission-denied', 'Only a Super Admin can reset an administrator account.');
+  if (!targetAuth.email) throw new functions.https.HttpsError('failed-precondition', 'The selected account has no email address.');
+  return { access, targetUserId, targetAuth, targetProfile, targetAdmin };
+}
+
+exports.adminSendPasswordResetEmail = functions
+  .runWith({ secrets: ['SMTP_PASS'] })
+  .https.onCall(async (data, context) => {
+    const { targetUserId, targetAuth, targetAdmin } = await resolveAdminPasswordTarget(context, data);
+    const appBaseUrl = process.env.APP_BASE_URL || 'https://christianmatchghana.com';
+    let resetLink;
+    try {
+      resetLink = await auth.generatePasswordResetLink(targetAuth.email, { url: appBaseUrl, handleCodeInApp: false });
+      const transporter = createVerificationReminderTransporter();
+      await transporter.sendMail({
+        from: process.env.CAMPAIGN_FROM_EMAIL || process.env.SMTP_USER,
+        to: targetAuth.email,
+        replyTo: process.env.CAMPAIGN_REPLY_TO || process.env.SMTP_USER,
+        subject: 'Reset your Christian Match Ghana password',
+        text: `A Christian Match Ghana administrator requested a password reset for your account. Open this link to create a new password: ${resetLink}`,
+        html: `<p>A Christian Match Ghana administrator requested a password reset for your account.</p><p><a href="${escapeEmailHtml(resetLink)}">Create a new password</a></p><p>If you did not expect this email, contact Christian Match Ghana support.</p>`,
+      });
+    } catch (error) {
+      console.error('Unable to send administrator password reset email:', error);
+      if (error instanceof functions.https.HttpsError) throw error;
+      throw new functions.https.HttpsError('failed-precondition', 'The password reset email could not be sent. Check the server email configuration.');
+    }
+    await recordAdminAudit(context, 'admin.password.reset_email_requested', targetUserId, {
+      method: 'email',
+      targetEmail: targetAuth.email,
+      targetWasAdmin: targetAdmin.exists,
+    });
+    return { sent: true, targetUserId };
+  });
+
+exports.adminSetUserPassword = functions.https.onCall(async (data, context) => {
+  const { targetUserId, targetAuth, targetAdmin } = await resolveAdminPasswordTarget(context, data);
+  const newPassword = String(data?.newPassword || '');
+  const forceChange = data?.forceChange === true;
+  if (newPassword.length < 12 || newPassword.length > 128 || !/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/[0-9]/.test(newPassword) || !/[^A-Za-z0-9]/.test(newPassword)) {
+    throw new functions.https.HttpsError('invalid-argument', 'Password must be 12–128 characters and include uppercase, lowercase, number, and special character.');
+  }
+  try {
+    await auth.updateUser(targetUserId, { password: newPassword });
+    await auth.revokeRefreshTokens(targetUserId);
+    const now = FieldValue.serverTimestamp();
+    const batch = db.batch();
+    batch.set(db.collection('users').doc(targetUserId), { mustChangePassword: forceChange, updatedAt: now }, { merge: true });
+    if (targetAdmin.exists) batch.update(db.collection('adminUsers').doc(targetUserId), { mustChangePassword: forceChange, updatedAt: now });
+    batch.set(db.collection('adminAuditLogs').doc(), {
+      actorId: context.auth.uid,
+      actorEmail: context.auth.token.email || null,
+      action: 'admin.password.set',
+      targetId: targetUserId,
+      details: { method: 'set', forceChange, targetEmail: targetAuth.email, targetWasAdmin: targetAdmin.exists, authUpdateSucceeded: true },
+      createdAt: now,
+    });
+    await batch.commit();
+  } catch (error) {
+    console.error('Unable to set administrator-managed user password:', error);
+    if (error instanceof functions.https.HttpsError) throw error;
+    throw new functions.https.HttpsError('internal', 'The password was not updated completely. Please retry and verify the account before sharing credentials.');
+  }
+  return { updated: true, targetUserId, forceChange };
+});
+
+
 async function recordAdminAudit(context, action, targetId, details = {}) {
   await db.collection('adminAuditLogs').add({
     actorId: context.auth.uid,
@@ -545,8 +648,9 @@ exports.onMessageSent = functions.firestore
     }
   });
 
-// Process offline chat notification digests every five minutes. Each recipient
-// receives at most one email/SMS digest per 15-minute window.
+// Process offline chat notification batches every five minutes. The first
+// queued offline message is sent on the next run; later messages are grouped
+// into follow-up 15-minute digest windows.
 exports.processOfflineMessageNotificationBatches = functions
   .runWith({ secrets: ['SMTP_PASS'] })
   .pubsub.schedule('every 5 minutes')

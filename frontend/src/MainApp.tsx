@@ -211,7 +211,7 @@ import { createSupportTicket, type SupportCategory, type SupportContactPreferenc
 import { subscribeToCallStatus, subscribeToMessages, markMessagesAsRead, sendMessage, subscribeToChats, subscribeToIncomingCalls } from './services/chatService';
 import { subscribeToPrayerRequests, subscribeToComments, togglePray, addPrayerRequest, addComment } from './services/prayerService';
 import { getUserDocument, createUserDocument, updateUserDocument, getAllUsers, claimFreePromo, checkSignupEligibility } from './services/userService';
-import { setupPushNotifications, clearNativeNotificationBadge } from './services/notificationService';
+import { setupPushNotifications, clearNativeNotificationBadge, syncAppBadge } from './services/notificationService';
 import { loginWithPin, setUserPin } from './services/pinAuthService';
 import { uploadProfilePhoto, uploadCoverPhoto, uploadGalleryPhoto, uploadFile } from './services/fileStorageService';
 import { getCurrentAdminAccess } from './services/adminRbacService';
@@ -7253,11 +7253,7 @@ const ForcedPasswordChangeView: React.FC<{
     try {
       if (!auth.currentUser) throw new Error('Your session has expired. Please sign in again.');
       await updatePassword(auth.currentUser, newPassword);
-      await updateDoc(doc(db, 'users', user.id), {
-        mustChangePassword: false,
-        updatedAt: serverTimestamp(),
-      });
-      await httpsCallable(functions, 'completeAdminPasswordChange')();
+      await httpsCallable(functions, 'completeForcedPasswordChange')();
       onComplete({ ...user, mustChangePassword: false });
     } catch (changeError: any) {
       setError(changeError?.message || 'Unable to change your password. Please sign in again and retry.');
@@ -7456,6 +7452,7 @@ const App = () => {
       localStorage.removeItem("cmg_current_view");
       setActiveChatId(null);
       setUser(null);
+      void clearNativeNotificationBadge();
       setCurrentView("AUTH");
       setAuthMode('login');
       setShowLanding(true);
@@ -7515,9 +7512,15 @@ const App = () => {
              } else if (!call) {
                setIncomingCall(null);
              }
-        }, (error) => {
+        }, (error: any) => {
           console.error('❌ Incoming call listener failed:', error);
-          showNotify('Incoming calls are unavailable. Check the local Firestore emulator and call index.', 'error');
+          const code = String(error?.code || 'unknown').replace(/^.*\//, '');
+          const message = code === 'failed-precondition'
+            ? 'Incoming calls are unavailable because the Dev Firestore calls index is not ready.'
+            : code === 'permission-denied'
+              ? 'Incoming calls are unavailable because Dev Firestore denied the call listener. Please sign out and sign in again.'
+              : `Incoming calls are unavailable in Dev (${code}). Please try again.`;
+          showNotify(message, 'error');
         });
         
         unsubscribeChats = subscribeToChats(user.id, (updatedChats: ChatThread[]) => {
@@ -7863,6 +7866,14 @@ const App = () => {
     return startUserPresence(user.id);
   }, [user?.id]);
 
+  // Keep the installed PWA/app badge synchronized before any view-specific early return.
+  const unreadMessageCount = chats.reduce(
+    (total, chat) => total + Math.max(0, chat.unreadCount || 0),
+    0,
+  );
+  useEffect(() => {
+    void syncAppBadge(unreadMessageCount);
+  }, [unreadMessageCount]);
 
   if (currentView === "CHANGE_PASSWORD" && user)
     return (
@@ -8048,10 +8059,6 @@ const App = () => {
   const activeChat = activeChatId
     ? chats.find((c) => c.id === activeChatId)
     : null;
-  const unreadMessageCount = chats.reduce(
-    (total, chat) => total + Math.max(0, chat.unreadCount || 0),
-    0,
-  );
   const unreadNotificationItems = chats
     .filter((chat) => (chat.unreadCount || 0) > 0)
     .map((chat) => ({

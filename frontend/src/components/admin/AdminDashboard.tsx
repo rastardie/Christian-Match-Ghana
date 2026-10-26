@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { signOut, sendPasswordResetEmail, onAuthStateChanged } from 'firebase/auth';
+import { signOut, onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../../firebase';
 import { getDashboardStats, getAdminUsers, getAdminPrayers, getAdminReports, deleteUser, toggleBlockUser, getAdminConnections, getAdminPayments, getAnalyticsData, AnalyticsData, adminCreateUser } from '../../services/adminService';
 import { LayoutDashboard, Users, Shield, Activity, LogOut, MessageSquare, Heart, Trash2, Search, CheckCircle, XCircle, Link as LinkIcon, CreditCard, DollarSign, Calendar, MoreHorizontal, ChevronDown, RefreshCw, ClipboardList, Settings, Menu, Power, FileText, Printer, KeyRound, X, Edit3, Send } from 'lucide-react';
@@ -11,7 +11,7 @@ import AdminAccessControl from './AdminAccessControl';
 import LoadingSpinner from '../LoadingSpinner';
 import { AdminActionProvider, useAdminActionConfirmation } from './AdminActionConfirmation';
 
-import { getCurrentAdminAccess, listAdminAccessControl, assignAdminUserGroups, listAdminDistributionGroups, createAdminDistributionGroup, updateAdminDistributionGroup, deleteAdminDistributionGroup, previewAdminDistributionGroup, getAdminDistributionMemberships, adminSendMessage, type DistributionGroup, type DistributionGroupCriteria, type AdminMessageRecipientMode } from '../../services/adminRbacService';
+import { getCurrentAdminAccess, listAdminAccessControl, assignAdminUserGroups, listAdminDistributionGroups, createAdminDistributionGroup, updateAdminDistributionGroup, deleteAdminDistributionGroup, previewAdminDistributionGroup, getAdminDistributionMemberships, adminSendMessage, adminSendPasswordResetEmail, adminSetUserPassword, type DistributionGroup, type DistributionGroupCriteria, type AdminMessageRecipientMode } from '../../services/adminRbacService';
 import type { User } from '../../types';
 type AdminReportKind = 'platform' | 'users' | 'moderation' | 'payments';
 
@@ -856,6 +856,12 @@ const UsersView = ({ focusUserId, onOpenGroup, onOpenPermissionGroup, onOpenMess
     const [userGroupAssignments, setUserGroupAssignments] = useState<Record<string, string[]>>({});
     const [manageGroupsBusy, setManageGroupsBusy] = useState(false);
     const [groupMembershipEditing, setGroupMembershipEditing] = useState(false);
+    const [passwordResetTarget, setPasswordResetTarget] = useState<any | null>(null);
+    const [passwordResetPassword, setPasswordResetPassword] = useState('');
+    const [passwordResetConfirmation, setPasswordResetConfirmation] = useState('');
+    const [passwordResetForceChange, setPasswordResetForceChange] = useState(true);
+    const [passwordResetBusy, setPasswordResetBusy] = useState(false);
+    const [passwordResetError, setPasswordResetError] = useState('');
 
     const toggleMenu = (e: React.MouseEvent, id: string) => {
         e.stopPropagation(); // Prevent row click
@@ -1010,16 +1016,58 @@ const UsersView = ({ focusUserId, onOpenGroup, onOpenPermissionGroup, onOpenMess
         setUsers((current) => current.map((user) => ids.includes(user.id) ? { ...user, status: blocked ? 'Blocked' : 'Active' } : user));
     };
 
-    const handlePasswordReset = async (userIds: string[]) => {
-        const confirmed = await confirmAdminAction({ title: 'Reset selected passwords?', description: `Send password reset emails for ${userIds.length} selected user${userIds.length === 1 ? '' : 's'}.` });
+    const getTargetUserId = (user: any) => user.firestoreDocId || user.id;
+
+    const handlePasswordResetEmail = async (userIds: string[]) => {
+        const selected = users.filter((user) => userIds.includes(user.id) || userIds.includes(user.firestoreDocId)).filter((user) => getTargetUserId(user));
+        const confirmed = await confirmAdminAction({ title: 'Send password reset email?', description: `Send a password reset email to ${selected.length} selected user${selected.length === 1 ? '' : 's'}.` });
         if (!confirmed) return;
-        const selected = users.filter((user) => userIds.includes(user.id) && user.email);
-        await Promise.all(selected.map((user) => sendPasswordResetEmail(auth, user.email)));
-        alert(`Password reset email sent for ${selected.length} user${selected.length === 1 ? '' : 's'}.`);
+        const results = await Promise.allSettled(selected.map((user) => adminSendPasswordResetEmail(getTargetUserId(user))));
+        const sent = results.filter((result) => result.status === 'fulfilled').length;
+        const failed = results.length - sent;
+        alert(`${sent} password reset email${sent === 1 ? '' : 's'} sent${failed ? `; ${failed} failed.` : '.'}`);
+    };
+
+    const openSetPassword = (userId: string) => {
+        const target = users.find((user) => user.id === userId || user.firestoreDocId === userId);
+        if (!target) return;
+        setPasswordResetTarget(target);
+        setPasswordResetPassword('');
+        setPasswordResetConfirmation('');
+        setPasswordResetForceChange(true);
+        setPasswordResetError('');
+    };
+
+    const handleSetPassword = async () => {
+        if (!passwordResetTarget) return;
+        if (passwordResetPassword !== passwordResetConfirmation) {
+            setPasswordResetError('The passwords do not match.');
+            return;
+        }
+        if (passwordResetPassword.length < 12 || !/[A-Z]/.test(passwordResetPassword) || !/[a-z]/.test(passwordResetPassword) || !/[0-9]/.test(passwordResetPassword) || !/[^A-Za-z0-9]/.test(passwordResetPassword)) {
+            setPasswordResetError('Use at least 12 characters with uppercase, lowercase, number, and special character.');
+            return;
+        }
+        const targetUserId = getTargetUserId(passwordResetTarget);
+        const confirmed = await confirmAdminAction({ title: 'Set a new user password?', description: `Set a new password for ${passwordResetTarget.name || passwordResetTarget.email || 'this user'}${passwordResetForceChange ? ' and require a change at next login' : ''}.` });
+        if (!confirmed) return;
+        setPasswordResetBusy(true);
+        setPasswordResetError('');
+        try {
+            await adminSetUserPassword({ userId: targetUserId, newPassword: passwordResetPassword, forceChange: passwordResetForceChange });
+            setPasswordResetPassword('');
+            setPasswordResetConfirmation('');
+            setPasswordResetTarget(null);
+            alert(`Password updated for ${passwordResetTarget.name || passwordResetTarget.email || 'the user'}.${passwordResetForceChange ? ' The user must change it at next login.' : ''}`);
+        } catch (error: any) {
+            setPasswordResetError(error?.message || 'Unable to set the user password.');
+        } finally {
+            setPasswordResetBusy(false);
+        }
     };
 
     const handleBulkPasswordReset = async () => {
-        await handlePasswordReset([...selectedUserIds]);
+        await handlePasswordResetEmail([...selectedUserIds]);
     };
 
     const handleBulkDeleteUsers = async () => {
@@ -1652,12 +1700,31 @@ const UsersView = ({ focusUserId, onOpenGroup, onOpenPermissionGroup, onOpenMess
               >
                 <button type="button" role="menuitem" onClick={(event) => { event.stopPropagation(); setOpenMenuId(null); setOpenMenuPosition(null); void openManageGroups([openMenuUser.id]); }} className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm text-slate-700 hover:bg-slate-50"><Users size={16} />Manage user</button>
                 <button type="button" role="menuitem" onClick={(event) => { event.stopPropagation(); setOpenMenuId(null); setOpenMenuPosition(null); void handleBlock(event as unknown as React.MouseEvent, openMenuUser.id); }} className="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-3 text-left text-sm text-gray-700 hover:bg-gray-50"><Shield size={16} />{openMenuUser.status === 'Blocked' ? 'Enable user' : 'Disable user'}</button>
-                <button type="button" role="menuitem" onClick={(event) => { event.stopPropagation(); setOpenMenuId(null); setOpenMenuPosition(null); void handlePasswordReset([openMenuUser.id]); }} className="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-3 text-left text-sm text-gray-700 hover:bg-gray-50"><KeyRound size={16} />Reset password</button>
+                <button type="button" role="menuitem" onClick={(event) => { event.stopPropagation(); setOpenMenuId(null); setOpenMenuPosition(null); void handlePasswordResetEmail([getTargetUserId(openMenuUser)]); }} className="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-3 text-left text-sm text-gray-700 hover:bg-gray-50"><KeyRound size={16} />Send reset email</button>
+                <button type="button" role="menuitem" onClick={(event) => { event.stopPropagation(); setOpenMenuId(null); setOpenMenuPosition(null); openSetPassword(getTargetUserId(openMenuUser)); }} className="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-3 text-left text-sm text-gray-700 hover:bg-gray-50"><KeyRound size={16} />Set new password</button>
                 <button type="button" role="menuitem" onClick={(event) => { event.stopPropagation(); setOpenMenuId(null); setOpenMenuPosition(null); void openManageGroups([openMenuUser.id]); }} className="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-3 text-left text-sm text-slate-700 hover:bg-slate-50"><Users size={16} />Add to group</button>
                 <button type="button" role="menuitem" onClick={(event) => { event.stopPropagation(); setOpenMenuId(null); setOpenMenuPosition(null); void openManageGroups([openMenuUser.id]); }} className="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-3 text-left text-sm text-slate-700 hover:bg-slate-50"><Users size={16} />Remove from group</button>
                 <button type="button" role="menuitem" onClick={(event) => { event.stopPropagation(); setOpenMenuId(null); setOpenMenuPosition(null); void handleDelete(event as unknown as React.MouseEvent, openMenuUser.id); }} className="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-3 text-left text-sm text-red-600 hover:bg-red-50"><Trash2 size={16} />Delete User</button>
               </div>
             </>,
+            document.body,
+          )}
+
+          {passwordResetTarget && createPortal(
+            <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/60 p-4" role="presentation" onClick={() => !passwordResetBusy && setPasswordResetTarget(null)}>
+              <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="admin-set-password-title" onClick={(event) => event.stopPropagation()}>
+                <h2 id="admin-set-password-title" className="text-lg font-black text-slate-900">Set new password</h2>
+                <p className="mt-1 break-words text-sm text-slate-500">{passwordResetTarget.name || passwordResetTarget.email || 'Selected user'}</p>
+                <div className="mt-4 space-y-3">
+                  <label className="block text-sm font-bold text-slate-700">New password<input autoFocus type="password" value={passwordResetPassword} onChange={(event) => setPasswordResetPassword(event.target.value)} autoComplete="new-password" className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-brand-orange" placeholder="12+ characters" /></label>
+                  <label className="block text-sm font-bold text-slate-700">Confirm password<input type="password" value={passwordResetConfirmation} onChange={(event) => setPasswordResetConfirmation(event.target.value)} autoComplete="new-password" className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-brand-orange" placeholder="Repeat the password" /></label>
+                  <label className="flex items-start gap-3 rounded-xl border border-orange-100 bg-orange-50 p-3 text-sm text-slate-700"><input type="checkbox" checked={passwordResetForceChange} onChange={(event) => setPasswordResetForceChange(event.target.checked)} className="mt-0.5 h-4 w-4 accent-orange-500" /><span><strong className="block text-slate-900">Force change at next login</strong><span className="text-xs text-slate-600">Recommended when sharing a temporary password.</span></span></label>
+                  <p className="text-xs text-slate-500">Password must include uppercase, lowercase, number, and special character. Existing sessions will be revoked.</p>
+                  {passwordResetError && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{passwordResetError}</p>}
+                </div>
+                <div className="mt-5 flex gap-2"><button type="button" onClick={() => setPasswordResetTarget(null)} disabled={passwordResetBusy} className="flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm font-black text-slate-600">Cancel</button><button type="button" onClick={() => void handleSetPassword()} disabled={passwordResetBusy || !passwordResetPassword || !passwordResetConfirmation} className="flex-1 rounded-xl bg-brand-orange px-4 py-3 text-sm font-black text-white disabled:opacity-50">{passwordResetBusy ? 'Saving…' : 'Set password'}</button></div>
+              </div>
+            </div>,
             document.body,
           )}
         </div>

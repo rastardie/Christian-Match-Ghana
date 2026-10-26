@@ -37,6 +37,16 @@ export async function createAdministrator(input: { loginName: string; email: str
   return (await call(input)).data as { userId: string; loginName: string; email: string; displayName: string; isSuperAdmin: boolean; mustChangePassword: boolean; isPremium: boolean };
 }
 
+export async function adminSendPasswordResetEmail(userId: string) {
+  const call = httpsCallable(functions, 'adminSendPasswordResetEmail');
+  return (await call({ userId })).data as { sent: boolean; targetUserId: string };
+}
+
+export async function adminSetUserPassword(input: { userId: string; newPassword: string; forceChange: boolean }) {
+  const call = httpsCallable(functions, 'adminSetUserPassword');
+  return (await call(input)).data as { updated: boolean; targetUserId: string; forceChange: boolean };
+}
+
 export async function upsertAdminGroup(input: Partial<AdminGroup>) {
   const call = httpsCallable(functions, 'adminUpsertGroup');
   return (await call(input)).data as AdminGroup;

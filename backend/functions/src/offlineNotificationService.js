@@ -135,12 +135,12 @@ function createTransporter() {
 
 async function queueOfflineMessageNotification({ db, recipientId, chatId, messageId, senderId, senderName, text }) {
   let windowStart = batchWindowStart();
+  let dueAtMillis = Date.now();
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const batchRef = db.collection('notificationBatches').doc(batchIdFor(recipientId, windowStart));
     const itemRef = batchRef.collection('items').doc(messageId);
     const now = Timestamp.now();
-    const dueAt = Timestamp.fromMillis(windowStart + BATCH_WINDOW_MS);
 
     try {
       await db.runTransaction(async (transaction) => {
@@ -154,7 +154,10 @@ async function queueOfflineMessageNotification({ db, recipientId, chatId, messag
             status: 'pending',
             messageCount: 1,
             windowStart: Timestamp.fromMillis(windowStart),
-            dueAt,
+            // The first batch is eligible on the next worker run. If the
+            // previous batch closed this clock window, dueAtMillis is pushed
+            // out so follow-up messages are grouped into a digest.
+            dueAt: Timestamp.fromMillis(dueAtMillis),
             attempts: 0,
             createdAt: now,
             updatedAt: now,
@@ -182,9 +185,10 @@ async function queueOfflineMessageNotification({ db, recipientId, chatId, messag
       return;
     } catch (error) {
       if (!String(error?.message || error).includes('is already')) throw error;
-      // The scheduled worker closed this window while the trigger was adding a
-      // message. Put the event into the next window instead of losing it.
+      // The worker has already sent/claimed this batch. Start a follow-up
+      // digest window that becomes eligible 15 minutes from this message.
       windowStart += BATCH_WINDOW_MS;
+      dueAtMillis = Date.now() + BATCH_WINDOW_MS;
     }
   }
 

@@ -93,8 +93,28 @@ export const setupPushNotifications = async (userId: string, onWebNotificationRe
   }
 };
 
-/** Clear native delivered notifications when the user has no unread messages. */
+/** Synchronize the unread message total with a supported installed-app badge. */
+export async function syncAppBadge(unreadCount: number): Promise<void> {
+  if (typeof navigator === 'undefined') return;
+  const badgeNavigator = navigator as Navigator & {
+    setAppBadge?: (count?: number) => Promise<void>;
+    clearAppBadge?: () => Promise<void>;
+  };
+  try {
+    const count = Number.isFinite(unreadCount) ? Math.max(0, Math.floor(unreadCount)) : 0;
+    if (count > 0 && typeof badgeNavigator.setAppBadge === 'function') {
+      await badgeNavigator.setAppBadge(count);
+    } else if (count === 0 && typeof badgeNavigator.clearAppBadge === 'function') {
+      await badgeNavigator.clearAppBadge();
+    }
+  } catch (error) {
+    console.warn('Unable to synchronize app icon badge:', error);
+  }
+}
+
+/** Clear native delivered notifications and the installed-app badge. */
 export async function clearNativeNotificationBadge(): Promise<void> {
+  await syncAppBadge(0);
   if (!Capacitor.isNativePlatform()) return;
   try {
     await PushNotifications.removeAllDeliveredNotifications();

@@ -47,14 +47,25 @@ const firebaseConfig = ${JSON.stringify(config, null, 2)};
 firebase.initializeApp(firebaseConfig);
 const messaging = firebase.messaging();
 
-messaging.onBackgroundMessage((payload) => {
+messaging.onBackgroundMessage(async (payload) => {
   console.log('[firebase-messaging-sw.js] Received background message ', payload);
+  const unreadCount = Math.max(0, Number(payload.data?.unreadCount || 0));
+  try {
+    if (unreadCount > 0 && typeof self.registration.setAppBadge === 'function') {
+      await self.registration.setAppBadge(unreadCount);
+    } else if (unreadCount === 0 && typeof self.registration.clearAppBadge === 'function') {
+      await self.registration.clearAppBadge();
+    }
+  } catch (error) {
+    console.warn('[firebase-messaging-sw.js] Unable to update app badge', error);
+  }
   const notificationTitle = payload.notification?.title || 'New Notification';
   const notificationOptions = {
     body: payload.notification?.body || 'You have a new message.',
-    icon: '${iconPath}'
+    icon: '${iconPath}',
+    badge: '${iconPath}'
   };
-  self.registration.showNotification(notificationTitle, notificationOptions);
+  await self.registration.showNotification(notificationTitle, notificationOptions);
 });
 `;
 
