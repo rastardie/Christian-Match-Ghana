@@ -736,6 +736,8 @@ Successfully deployed/verified:
 - Firestore indexes, including the incoming-call query index.
 - Firestore security rules, including hardened call and ICE-candidate access.
 
+- Offline notification SMTP uses Secret Manager secret `SMTP_PASS` in Dev. Version `3` is the current clean version; the deployed worker is bound to version `3`. The notification transport also strips only trailing CR/LF characters from the injected secret so future shell-created versions cannot fail authentication because of an accidental final newline. Never store the secret value in Git, local `.env` files, ZIP archives, or this handover.
+
 The Paystack webhook endpoint is:
 
 ```text

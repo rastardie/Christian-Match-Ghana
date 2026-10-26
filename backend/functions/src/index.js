@@ -1014,7 +1014,10 @@ function createVerificationReminderTransporter() {
   const smtpPort = Number.parseInt(process.env.SMTP_PORT || '465', 10);
   const smtpSecure = process.env.SMTP_SECURE === 'true' || smtpPort === 465;
   const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
+  // Secret Manager values can accidentally include a final newline when created
+  // from a shell file. Remove only trailing CR/LF so SMTP auth remains stable
+  // across local tests and Cloud Functions deployments.
+  const smtpPass = String(process.env.SMTP_PASS || '').replace(/[\r\n]+$/, '');
 
   if (!smtpHost || !smtpUser || !smtpPass) {
     throw new functions.https.HttpsError(

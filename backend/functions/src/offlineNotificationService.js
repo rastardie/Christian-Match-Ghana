@@ -123,7 +123,9 @@ function createTransporter() {
   const smtpPort = Number.parseInt(process.env.SMTP_PORT || '465', 10);
   const smtpSecure = process.env.SMTP_SECURE === 'true' || smtpPort === 465;
   const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
+  // Normalize accidental shell-added trailing newlines in Secret Manager
+  // values before authenticating with the SMTP provider.
+  const smtpPass = String(process.env.SMTP_PASS || '').replace(/[\r\n]+$/, '');
   if (!smtpUser || !smtpPass) return null;
   return nodemailer.createTransport({
     host: smtpHost,
