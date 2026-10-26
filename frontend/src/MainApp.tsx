@@ -208,7 +208,7 @@ import { onAuthStateChanged, signOut, GoogleAuthProvider, OAuthProvider, signInW
 import { httpsCallable } from 'firebase/functions';
 import { doc, onSnapshot, collection, query, where, getDocs, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { createSupportTicket, type SupportCategory, type SupportContactPreference } from './services/supportService';
-import { subscribeToCallStatus, subscribeToMessages, markMessagesAsRead, sendMessage, subscribeToChats, subscribeToIncomingCalls } from './services/chatService';
+import { subscribeToCallStatus, subscribeToMessages, markMessagesAsRead, sendMessage, editMessage, deleteMessage, subscribeToChats, subscribeToIncomingCalls } from './services/chatService';
 import { subscribeToPrayerRequests, subscribeToComments, togglePray, addPrayerRequest, addComment } from './services/prayerService';
 import { getUserDocument, createUserDocument, updateUserDocument, getAllUsers, claimFreePromo, checkSignupEligibility } from './services/userService';
 import { setupPushNotifications, clearNativeNotificationBadge, syncAppBadge } from './services/notificationService';
@@ -2185,10 +2185,10 @@ const AuthView = ({
               title={showPassword ? "Hide password or PIN" : "Show password or PIN"}
               aria-label={showPassword ? "Hide password or PIN" : "Show password or PIN"}
               aria-pressed={showPassword}
-              onClick={() => setShowPassword(!showPassword)}
+              onClick={() => setShowPassword((visible) => !visible)}
               className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-brand-orange"
             >
-              {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              {showPassword ? <Eye size={20} /> : <EyeOff size={20} />}
             </button>
           </div>
         </div>
@@ -2287,7 +2287,7 @@ const AuthView = ({
                   onClick={() => setShowSignupPin((visible) => !visible)}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-brand-orange"
                 >
-                  {showSignupPin ? <EyeOff size={20} /> : <Eye size={20} />}
+                  {showSignupPin ? <Eye size={20} /> : <EyeOff size={20} />}
                 </button>
               </div>
               <div className="relative">
@@ -2311,7 +2311,7 @@ const AuthView = ({
                   onClick={() => setShowSignupConfirmPin((visible) => !visible)}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-brand-orange"
                 >
-                  {showSignupConfirmPin ? <EyeOff size={20} /> : <Eye size={20} />}
+                  {showSignupConfirmPin ? <Eye size={20} /> : <EyeOff size={20} />}
                 </button>
               </div>
             </div>
@@ -5179,6 +5179,7 @@ const MessageThreadView = ({
   const [pendingImages, setPendingImages] = useState<File[]>([]);
   const [pendingImagePreviews, setPendingImagePreviews] = useState<string[]>([]);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null);
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
   const [partnerPresence, setPartnerPresence] = useState<PresenceInfo>({ isOnline: false, lastSeen: null });
 
@@ -5280,9 +5281,11 @@ const MessageThreadView = ({
 
     setIsSending(true);
     const currentReply = replyingTo;
+    const currentEdit = editingMessage;
     if (!customMessage) {
       setInput('');
       setReplyingTo(null);
+      setEditingMessage(null);
     }
     setShowAttachMenu(false);
 
@@ -5310,6 +5313,12 @@ const MessageThreadView = ({
     };
 
     try {
+      if (currentEdit && !customMessage) {
+        await editMessage(currentEdit.id, currentUserId, messageText);
+        setMessageError(null);
+        console.log('✅ Message edited successfully');
+        return;
+      }
       if (customMessage?.file) {
         const fileMeta = await uploadFile(currentUserId, customMessage.file, customMessage.type === 'image' ? 'gallery_photo' : 'other');
         await sendMessage(chatId, currentUserId, addReply({
@@ -5338,6 +5347,7 @@ const MessageThreadView = ({
       if (!customMessage) {
         setInput(messageText);
         setReplyingTo(currentReply);
+        setEditingMessage(currentEdit);
       }
     } finally {
       setIsSending(false);
@@ -5349,6 +5359,41 @@ const MessageThreadView = ({
     if (onBlock && currentUserId) {
       onBlock(thread.partnerId);
     }
+  };
+
+  const isEditableMessage = (message: Message) => Boolean(
+    currentUserId &&
+    message.senderId === currentUserId &&
+    message.type === 'text' &&
+    message.timestampMillis &&
+    Date.now() - message.timestampMillis <= 5 * 60 * 1000,
+  );
+
+  const handleDeleteMessage = async (message: Message) => {
+    if (!currentUserId || message.senderId !== currentUserId) return;
+    if (!window.confirm('Delete this message? This cannot be undone.')) return;
+    setActiveMessageId(null);
+    try {
+      await deleteMessage(message.id);
+      setMessageError(null);
+    } catch (error) {
+      console.error('❌ Error deleting message:', error);
+      setMessageError(error instanceof Error ? error.message : 'Unable to delete this message.');
+    }
+  };
+
+  const handleEditMessage = (message: Message) => {
+    if (!isEditableMessage(message)) return;
+    setEditingMessage(message);
+    setReplyingTo(null);
+    setInput(message.text);
+    setActiveMessageId(null);
+    window.setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
+  const cancelEditingMessage = () => {
+    setEditingMessage(null);
+    setInput('');
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'file') => {
@@ -5527,7 +5572,7 @@ const MessageThreadView = ({
           <button
             title="Start voice call"
             onClick={() => {
-              if (isSubscriptionActive(currentUser) || isSubscriptionActive(partnerProfile)) {
+              if (isSubscriptionActive(currentUser)) {
                 onStartCall(false);
               } else if (onOpenPayment) {
                 onOpenPayment();
@@ -5540,7 +5585,7 @@ const MessageThreadView = ({
           <button
             title="Start video call"
             onClick={() => {
-              if (isSubscriptionActive(currentUser) || isSubscriptionActive(partnerProfile)) {
+              if (isSubscriptionActive(currentUser)) {
                 onStartCall(true);
               } else if (onOpenPayment) {
                 onOpenPayment();
@@ -5655,6 +5700,7 @@ const MessageThreadView = ({
                           onClick={(e) => {
                             e.stopPropagation();
                             setReplyingTo(m);
+                            setEditingMessage(null);
                             setActiveMessageId(null);
                             inputRef.current?.focus();
                           }}
@@ -5662,6 +5708,12 @@ const MessageThreadView = ({
                         >
                           <RotateCcw size={12} className="scale-x-[-1]" /> Reply
                         </button>
+                        {isMe && isEditableMessage(m) && (
+                          <button type="button" onClick={(e) => { e.stopPropagation(); handleEditMessage(m); }} className="px-3 py-1.5 hover:bg-white/20 rounded-lg text-xs font-bold">Edit</button>
+                        )}
+                        {isMe && (
+                          <button type="button" onClick={(e) => { e.stopPropagation(); void handleDeleteMessage(m); }} className="px-3 py-1.5 hover:bg-red-500/40 rounded-lg text-xs font-bold text-red-100">Delete</button>
+                        )}
                      </div>
                      {/* Triangle pointer */}
                      <div className={`absolute bottom-[-6px] ${isMe ? "right-6" : "left-6"} w-0 h-0 border-l-[6px] border-l-transparent border-t-[6px] border-t-gray-800 border-r-[6px] border-r-transparent`}></div>
@@ -5670,14 +5722,14 @@ const MessageThreadView = ({
               </div>
               
               <div className="mt-1.5 flex items-center gap-1.5 text-[10px] font-bold text-gray-400">
-                {m.timestamp}
+                {m.timestamp}{m.editedAt && <span className="italic"> · edited</span>}
               </div>
             </div>
           );
         })}
       </div>
 
-      {isSubscriptionActive(currentUser) || isSubscriptionActive(partnerProfile) ? (
+      {isSubscriptionActive(currentUser) ? (
         <form
           onSubmit={(e) => handleSend(e)}
           className="p-4 bg-white border-t flex flex-col gap-2 pb-10"
@@ -5696,6 +5748,13 @@ const MessageThreadView = ({
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {editingMessage && (
+            <div className="flex items-center justify-between rounded-2xl border-l-4 border-brand-blue bg-blue-50 p-3">
+              <div className="mr-4 flex-1"><p className="mb-1 text-[10px] font-black uppercase tracking-widest text-brand-blue">Editing message</p><p className="line-clamp-1 text-xs text-gray-600">{editingMessage.text}</p></div>
+              <button type="button" onClick={cancelEditingMessage} className="rounded-full bg-gray-200 p-1 text-gray-500 hover:text-gray-700"><X size={14} /></button>
             </div>
           )}
 
@@ -5721,7 +5780,7 @@ const MessageThreadView = ({
           <div className="flex gap-2 items-center">
             <button
               type="button"
-              disabled={isSending}
+              disabled={isSending || Boolean(editingMessage)}
               onClick={() => setShowAttachMenu(!showAttachMenu)}
               className={`p-3 rounded-2xl transition-all disabled:cursor-not-allowed disabled:opacity-50 ${showAttachMenu ? 'bg-gray-200 text-gray-800 rotate-45' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
             >
@@ -5735,14 +5794,14 @@ const MessageThreadView = ({
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 className="w-full bg-gray-50 rounded-2xl pl-5 pr-12 py-4 text-sm outline-none focus:ring-2 focus:ring-brand-orange/20 text-gray-900 font-bold"
-                placeholder={replyingTo ? "Type your reply..." : "Send a message..."}
+                placeholder={editingMessage ? "Edit your message..." : replyingTo ? "Type your reply..." : "Send a message..."}
               />
             </div>
             <button
               type="submit"
               disabled={(!input.trim() && pendingImages.length === 0) || isSending}
-              title={isSending ? 'Sending message' : 'Send message'}
-              aria-label={isSending ? 'Sending message' : 'Send message'}
+              title={editingMessage ? 'Save message changes' : isSending ? 'Sending message' : 'Send message'}
+              aria-label={editingMessage ? 'Save message changes' : isSending ? 'Sending message' : 'Send message'}
               aria-busy={isSending}
               className="bg-brand-orange text-white p-4 rounded-2xl shadow-lg active:scale-90 transition-all disabled:cursor-wait disabled:opacity-70"
             >
@@ -7208,19 +7267,15 @@ const FriendsView = ({
 export const isSubscriptionActive = (user: User | null | undefined): boolean => {
   if (!user) return false;
   if (user.isSystemAdmin === true) return true;
-  if (!user.subscriptionEndDate) return false;
-  try {
-    let endDate: Date;
-    const rawEnd = user.subscriptionEndDate as any;
-    if (rawEnd && typeof rawEnd.toDate === 'function') {
-      endDate = rawEnd.toDate();
-    } else {
-      endDate = new Date(rawEnd);
-    }
-    return endDate > new Date();
-  } catch (e) {
-    return false;
-  }
+  if (user.subscriptionStatus !== 'active' || !user.subscriptionExpiresAt) return false;
+
+  const rawExpiry = user.subscriptionExpiresAt as any;
+  let expiryMillis = 0;
+  if (typeof rawExpiry.toMillis === 'function') expiryMillis = rawExpiry.toMillis();
+  else if (typeof rawExpiry.toDate === 'function') expiryMillis = rawExpiry.toDate().getTime();
+  else if (typeof rawExpiry.seconds === 'number') expiryMillis = rawExpiry.seconds * 1000;
+  else if (typeof rawExpiry._seconds === 'number') expiryMillis = rawExpiry._seconds * 1000;
+  return expiryMillis > Date.now();
 };
 
 const ForcedPasswordChangeView: React.FC<{
@@ -7713,51 +7768,29 @@ const App = () => {
     }
   };
 
-  const handlePaymentSuccess = async (reference?: string, plan?: '6months' | '12months') => {
-    if (!user) return;
+  const handlePaymentSuccess = async (reference: string, plan?: '6months' | '12months') => {
+    if (!user || !reference) {
+      showNotify('The payment reference was not received. No subscription was granted.', 'error');
+      return;
+    }
 
     try {
-      const selectedPlan = plan || '6months';
-      const durationDays = selectedPlan === '6months' ? 180 : 365;
-      const amount = selectedPlan === '6months' ? 150 : 280;
+      // The server verifies the Paystack transaction, amount, currency, email,
+      // and reference before writing the subscription entitlement.
+      const verifySubscription = httpsCallable(functions, 'verifyPaystackSubscription');
+      await verifySubscription({ reference, plan: plan || '6months' });
 
-      const startDate = new Date();
-      const endDate = new Date();
-      endDate.setDate(startDate.getDate() + durationDays);
+      const { getUserDocument } = await import('./services/userService');
+      const refreshedUser = await getUserDocument(user.id);
+      if (!refreshedUser) throw new Error('Unable to reload your subscription after payment verification.');
+      setUser({ ...refreshedUser, id: user.id });
+      showNotify('Subscription verified! You now have paid access.', 'success');
 
-      const ref = reference || `MOCK-${Date.now()}`;
-
-      // 1. Record payment transaction in Firestore
-      const { recordTransaction } = await import('./services/paymentService');
-      await recordTransaction(user.id, user.name, user.email, amount, ref, 'subscription');
-
-      // 2. Update user's subscription in Firestore
-      const { updateUserDocument } = await import('./services/userService');
-      const subscriptionUpdates = {
-        subscriptionStartDate: startDate.toISOString(),
-        subscriptionEndDate: endDate.toISOString(),
-        subscriptionType: selectedPlan,
-        subscriptionStatus: 'active' as const,
-        isPremium: true
-      };
-      await updateUserDocument(user.id, subscriptionUpdates);
-
-      // Update local user state
-      const updatedUser = {
-        ...user,
-        ...subscriptionUpdates
-      };
-      setUser(updatedUser);
-
-      showNotify(`Subscription successful! You now have unlimited chat access.`, "success");
-
-      // 3. Connect to pending partner profile if available
       const targetId = pendingConnectId;
       if (targetId) {
         const { createOrGetChat } = await import('./services/chatService');
-        const { getUserDocument } = await import('./services/userService');
-        
-        const partnerData = await getUserDocument(targetId);
+        const { getUserDocument: getPartnerDocument } = await import('./services/userService');
+        const partnerData = await getPartnerDocument(targetId);
         if (partnerData) {
           const chatId = await createOrGetChat(
             user.id,
@@ -7766,12 +7799,12 @@ const App = () => {
             { name: partnerData.name, photo: partnerData.photos[0] || '' }
           );
           setActiveChatId(chatId);
-          setCurrentView("CHAT");
+          setCurrentView('CHAT');
         }
       }
-    } catch (error) {
-      console.error('❌ Error updating subscription after payment:', error);
-      showNotify("Failed to update subscription", "error");
+    } catch (error: any) {
+      console.error('❌ Verified payment processing failed:', error);
+      showNotify(error?.message || 'Payment could not be verified. No subscription was granted.', 'error');
     } finally {
       setPendingConnectId(null);
     }
@@ -8150,6 +8183,7 @@ const App = () => {
         isOpen={showPaymentModal}
         onClose={() => setShowPaymentModal(false)}
         onSuccess={handlePaymentSuccess}
+        userId={user?.id}
         userCountry={user?.country || "Ghana"}
         email={user?.email}
       />
@@ -8173,6 +8207,11 @@ const App = () => {
         <FriendsView
           user={user}
           onChat={async (partnerId) => {
+            if (!isSubscriptionActive(user)) {
+              setPendingConnectId(partnerId);
+              setShowPaymentModal(true);
+              return;
+            }
             // Create or get chat with friend
             try {
               const { createOrGetChat } = await import('./services/chatService');

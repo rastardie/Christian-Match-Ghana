@@ -357,11 +357,6 @@ const AdminDashboard: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
           </div>
         )}
       </main>
-      <div
-        aria-hidden="true"
-        data-view="ADMIN"
-        className="cmg-admin-bottom-ribbon cmg-nav-bottom-ribbon pointer-events-none absolute inset-x-0 bottom-0 z-10"
-      />
       </div>
     </AdminActionProvider>
   );

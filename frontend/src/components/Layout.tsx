@@ -37,8 +37,10 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, onBack, onLogout, onNotifications, notificationCount = 0, notificationItems = [], onNotificationSelect, onMarkAllNotificationsRead, onRefresh, onAdmin, isSystemAdmin, hideNav, hideHeader }) => {
-  // Navigation is hidden during auth, onboarding, and specific deep-view states (like active calls)
-  const shouldShowNav = !hideNav && !['AUTH', 'ONBOARDING', 'EDIT_PROFILE', 'ADMIN'].includes(currentView);
+  // Keep the shared lower navigation available in Admin so users can move
+  // between Discover, Likes, Messages, Profile, and Admin without closing the
+  // management surface. The Admin header itself remains view-specific.
+  const shouldShowNav = !hideNav && !['AUTH', 'ONBOARDING', 'EDIT_PROFILE'].includes(currentView);
   const shouldShowMainHeader = shouldShowNav && !hideHeader && currentView !== 'PROFILE' && currentView !== 'ADMIN';
   const [ribbonScrolling, setRibbonScrolling] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
@@ -298,7 +300,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
             />
             {isSystemAdmin && onAdmin && (
               <NavButton
-                active={false}
+                active={currentView === 'ADMIN'}
                 onClick={onAdmin}
                 icon={<ShieldCheck size={20} />}
                 label="Admin"

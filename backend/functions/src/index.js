@@ -24,6 +24,144 @@ const LEGACY_SUPER_ADMIN_EMAILS = new Set([
   'admin@example.com',
 ]);
 const PIN_PATTERN = /^\d{4,6}$/;
+const PAID_SUBSCRIPTION_PLANS = {
+  '6months': { durationDays: 180, amountMinor: 15000, amount: 150, currency: 'GHS' },
+  '12months': { durationDays: 365, amountMinor: 28000, amount: 280, currency: 'GHS' },
+};
+
+function getSubscriptionPlan(plan) {
+  return PAID_SUBSCRIPTION_PLANS[plan] || null;
+}
+
+function subscriptionFields(startDate, endDate, subscriptionType) {
+  return {
+    isPremium: true,
+    subscriptionStartAt: Timestamp.fromDate(startDate),
+    subscriptionExpiresAt: Timestamp.fromDate(endDate),
+    subscriptionStartDate: startDate.toISOString(),
+    subscriptionEndDate: endDate.toISOString(),
+    subscriptionType,
+    subscriptionStatus: 'active',
+  };
+}
+
+function parsePaystackMetadata(metadata) {
+  if (!metadata) return {};
+  if (typeof metadata === 'object') return metadata;
+  if (typeof metadata === 'string') {
+    try { return JSON.parse(metadata); } catch { return {}; }
+  }
+  return {};
+}
+
+async function verifyPaystackTransaction(reference) {
+  const secret = process.env.PAYSTACK_SECRET_KEY;
+  if (!secret) throw new functions.https.HttpsError('failed-precondition', 'Payment verification is not configured.');
+
+  const response = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
+    headers: { Authorization: `Bearer ${secret}` },
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || payload.status !== true || payload.data?.status !== 'success') {
+    throw new functions.https.HttpsError('failed-precondition', 'Paystack could not verify this payment.');
+  }
+  return payload.data;
+}
+
+async function grantVerifiedSubscription({ uid, planName, transaction }) {
+  const plan = getSubscriptionPlan(planName);
+  if (!plan) throw new functions.https.HttpsError('invalid-argument', 'Choose a valid subscription plan.');
+
+  if (Number(transaction.amount) !== plan.amountMinor || String(transaction.currency || '').toUpperCase() !== plan.currency) {
+    throw new functions.https.HttpsError('failed-precondition', 'The verified payment amount or currency does not match the selected plan.');
+  }
+
+  const metadata = parsePaystackMetadata(transaction.metadata);
+  if (metadata.userId !== uid) {
+    throw new functions.https.HttpsError('permission-denied', 'This payment is not linked to your account.');
+  }
+
+  const userRef = db.collection('users').doc(uid);
+  const userSnapshot = await userRef.get();
+  if (!userSnapshot.exists) throw new functions.https.HttpsError('failed-precondition', 'Your profile could not be found.');
+  const userData = userSnapshot.data() || {};
+  const authRecord = await auth.getUser(uid);
+  const paidEmail = transaction.customer?.email || transaction.customer_email;
+  if (paidEmail && authRecord.email && paidEmail.toLowerCase() !== authRecord.email.toLowerCase()) {
+    throw new functions.https.HttpsError('permission-denied', 'The payment email does not match your account.');
+  }
+
+  const paymentId = `paystack_${String(transaction.reference).replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+  const paymentRef = db.collection('payments').doc(paymentId);
+  const previousPayment = await paymentRef.get();
+  if (previousPayment.exists && previousPayment.data()?.userId && previousPayment.data().userId !== uid) {
+    throw new functions.https.HttpsError('already-exists', 'This payment reference has already been used.');
+  }
+  if (previousPayment.exists && previousPayment.data()?.status === 'success') {
+    const existingExpiry = userData.subscriptionExpiresAt;
+    return {
+      plan: previousPayment.data()?.plan || planName,
+      subscriptionEndDate: existingExpiry?.toDate ? existingExpiry.toDate().toISOString() : userData.subscriptionEndDate || null,
+      subscriptionExpiresAtMillis: existingExpiry?.toMillis ? existingExpiry.toMillis() : null,
+    };
+  }
+
+  const startDate = new Date();
+  const endDate = new Date(startDate.getTime() + plan.durationDays * 24 * 60 * 60 * 1000);
+  const now = Timestamp.now();
+  const batch = db.batch();
+  batch.update(userRef, {
+    ...subscriptionFields(startDate, endDate, planName),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  batch.set(paymentRef, {
+    userId: uid,
+    userEmail: authRecord.email || paidEmail || null,
+    amount: plan.amount,
+    amountMinor: transaction.amount,
+    currency: transaction.currency,
+    type: 'subscription',
+    provider: 'paystack',
+    reference: transaction.reference,
+    plan: planName,
+    status: 'success',
+    verifiedAt: now,
+    createdAt: previousPayment.exists ? (previousPayment.data()?.createdAt || now) : now,
+  }, { merge: true });
+  await batch.commit();
+
+  return {
+    plan: planName,
+    subscriptionEndDate: endDate.toISOString(),
+    subscriptionExpiresAtMillis: endDate.getTime(),
+  };
+}
+
+exports.verifyPaystackSubscription = functions
+  .runWith({ secrets: ['PAYSTACK_SECRET_KEY'], timeoutSeconds: 30 })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Authentication required.');
+    const reference = String(data?.reference || '').trim();
+    const planName = String(data?.plan || '').trim();
+    if (!reference || reference.length > 100 || !/^[a-zA-Z0-9_-]+$/.test(reference)) {
+      throw new functions.https.HttpsError('invalid-argument', 'A valid payment reference is required.');
+    }
+    if (!getSubscriptionPlan(planName)) {
+      throw new functions.https.HttpsError('invalid-argument', 'Choose a valid subscription plan.');
+    }
+
+    const userSnapshot = await db.collection('users').doc(context.auth.uid).get();
+    const country = userSnapshot.exists ? String(userSnapshot.data()?.country || 'Ghana') : 'Ghana';
+    if (country !== 'Ghana') {
+      throw new functions.https.HttpsError('failed-precondition', 'International card payments are not available yet.');
+    }
+
+    const transaction = await verifyPaystackTransaction(reference);
+    if (transaction.reference !== reference) {
+      throw new functions.https.HttpsError('failed-precondition', 'The payment reference could not be confirmed.');
+    }
+    return grantVerifiedSubscription({ uid: context.auth.uid, planName, transaction });
+  });
 
 async function hashUserPin(pin) {
   const salt = crypto.randomBytes(16).toString('hex');
@@ -465,22 +603,19 @@ exports.paystackWebhook = functions
 
     if (event.event === "charge.success") {
       const data = event.data;
-      const { reference, amount, metadata, customer } = data;
-      
-      // Example: Metadata might contain userId or intended action
-      // const userId = metadata?.userId;
-      
-      // TODO: Add your logic here to fulfill the purchase.
-      // For example, finding the user by email or metadata reference
-      // and unlocking the feature in Firestore.
-      
-      // Example:
-      // if (metadata.userId) {
-      //   await db.collection('users').doc(metadata.userId).update({
-      //     isPremium: true
-      //   });
-      // }
-      
+      const { reference, metadata } = data;
+      const verifiedMetadata = parsePaystackMetadata(metadata);
+      const userId = typeof verifiedMetadata.userId === 'string' ? verifiedMetadata.userId.trim() : '';
+      const planName = typeof verifiedMetadata.plan === 'string' ? verifiedMetadata.plan.trim() : '';
+
+      // Webhook fulfillment is also server-side and idempotent. Events without
+      // our user/plan metadata are recorded in logs but never grant access.
+      if (userId && getSubscriptionPlan(planName)) {
+        await grantVerifiedSubscription({ uid: userId, planName, transaction: data });
+      } else {
+        console.warn(`Paystack success event ${reference} did not contain valid CMG subscription metadata.`);
+      }
+
       console.log(`Payment confirmed for reference: ${reference}`);
     }
 
@@ -927,6 +1062,18 @@ exports.sendUnverifiedVerificationReminders = functions
     }
     const udata = userSnap.data();
     if (udata.freeMonthGrantedAt) {
+      // Backfill the server-owned Timestamp for promo grants created before
+      // entitlement hardening. Only the known server promo sources qualify.
+      const knownPromoSource = ['new-member-promo', VERIFICATION_PROMO_CAMPAIGN_ID].includes(udata.freeMonthSource);
+      const legacyEnd = udata.subscriptionEndDate ? new Date(udata.subscriptionEndDate) : null;
+      if (knownPromoSource && !udata.subscriptionExpiresAt && legacyEnd && !Number.isNaN(legacyEnd.getTime())) {
+        const legacyStart = udata.subscriptionStartDate ? new Date(udata.subscriptionStartDate) : now;
+        await userRef.update({
+          subscriptionStartAt: Timestamp.fromDate(Number.isNaN(legacyStart.getTime()) ? now : legacyStart),
+          subscriptionExpiresAt: Timestamp.fromDate(legacyEnd),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
       return { action: 'claimFreePromo', granted: false, reason: 'already_granted' };
     }
 
@@ -949,11 +1096,7 @@ exports.sendUnverifiedVerificationReminders = functions
     }
 
     await userRef.update({
-      isPremium: true,
-      subscriptionStartDate: now.toISOString(),
-      subscriptionEndDate: promoEnd.toISOString(),
-      subscriptionStatus: 'active',
-      subscriptionType: 'free1month',
+      ...subscriptionFields(now, promoEnd, 'free1month'),
       freeMonthGrantedAt: now.toISOString(),
       freeMonthSource: inCohort ? VERIFICATION_PROMO_CAMPAIGN_ID : 'new-member-promo',
       updatedAt: FieldValue.serverTimestamp()
@@ -970,7 +1113,8 @@ exports.sendUnverifiedVerificationReminders = functions
 
   // Guarded helper: grant the fixed-date free promo to verified cohort members.
   // End date is FIXED (same for everyone); late verifiers get the remaining time.
-  // Access auto-expires via subscriptionEndDate (isSubscriptionActive) — no rerun needed for expiry.
+  // Access auto-expires via the server-owned subscriptionExpiresAt timestamp;
+  // no client-side rerun is needed for expiry.
   if (data.action === 'processFreeMonthPromo') {
     const promoCampaignId = typeof data.campaignId === 'string' ? data.campaignId.trim() : '';
     if (!promoCampaignId) {
@@ -1014,11 +1158,7 @@ exports.sendUnverifiedVerificationReminders = functions
           continue;
         }
         await userRef.update({
-          isPremium: true,
-          subscriptionStartDate: now.toISOString(),
-          subscriptionEndDate: promoEnd.toISOString(),
-          subscriptionStatus: 'active',
-          subscriptionType: 'free1month',
+          ...subscriptionFields(now, promoEnd, 'free1month'),
           freeMonthGrantedAt: now.toISOString(),
           freeMonthSource: promoCampaignId,
           updatedAt: FieldValue.serverTimestamp()

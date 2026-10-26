@@ -2130,6 +2130,17 @@ textarea::placeholder {
   transform: translateY(50%);
 }
 
+/* Admin's header contains its primary branch and lower option menus. Keep it
+   available while the Admin content scrolls; only the decorative ribbons may
+   move away. Other views retain the normal scroll-away header behavior. */
+.cmg-app-frame[data-view="ADMIN"] .cmg-admin-header,
+.cmg-app-frame[data-view="ADMIN"] .cmg-admin-page.is-ribbon-scrolling .cmg-admin-header {
+  max-height: 18rem;
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
 
 .cmg-admin-header::before {
   content: "";

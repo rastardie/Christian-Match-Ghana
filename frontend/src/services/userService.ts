@@ -79,15 +79,11 @@ export async function createUserDocument(uid: string, userData: Partial<User>) {
       isVerified: userData.isVerified || false,
       verificationStatus: userData.verificationStatus || 'unverified',
       isContactVerified: userData.isContactVerified || false,
-      isPremium: userData.isPremium || false,
+      // Subscription entitlement fields are server-owned. They are intentionally
+      // omitted here; promo grants and paid subscriptions are written only by
+      // trusted Cloud Functions.
       termsAccepted: userData.termsAccepted || false,
       termsAcceptedAt: userData.termsAcceptedAt || new Date().toISOString(),
-      
-      // Subscription properties
-      subscriptionStartDate: userData.subscriptionStartDate || null,
-      subscriptionEndDate: userData.subscriptionEndDate || null,
-      subscriptionType: userData.subscriptionType || null,
-      subscriptionStatus: userData.subscriptionStatus || null,
       
       // Blocked users
       blockedUsers: userData.blockedUsers || [],

@@ -4,12 +4,13 @@ import { Lock, CheckCircle, CreditCard, Shield, X } from 'lucide-react';
 interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: (reference?: string, plan?: '6months' | '12months') => void;
+  onSuccess: (reference: string, plan?: '6months' | '12months') => void;
+  userId?: string;
   userCountry: 'Ghana' | 'International' | string;
   email?: string;
 }
 
-const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onSuccess, userCountry, email }) => {
+const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onSuccess, userCountry, email, userId }) => {
   const [processing, setProcessing] = useState(false);
   const [step, setStep] = useState<'SELECT' | 'PROCESSING' | 'SUCCESS'>('SELECT');
   const [selectedPlan, setSelectedPlan] = useState<'6months' | '12months'>('6months');
@@ -62,7 +63,11 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onSuccess,
         email: email || 'user@christianmatchghana.com',
         amount: getAmountInKoboOrCents(),
         currency: isGhana ? 'GHS' : 'USD',
-        ref: '' + Math.floor((Math.random() * 1000000000) + 1), // Generate a random reference
+        metadata: {
+          userId: userId || '',
+          plan: selectedPlan,
+          purpose: 'subscription',
+        },
         callback: function(response: any) {
           if (response.status === 'success') {
              setStep('SUCCESS');
@@ -84,19 +89,9 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onSuccess,
       handler.openIframe();
 
     } else {
-      // Mock simulation for Stripe/International
-      setProcessing(true);
-      setStep('PROCESSING');
-      
-      setTimeout(() => {
-        setStep('SUCCESS');
-        setProcessing(false);
-        setTimeout(() => {
-          onSuccess(undefined, selectedPlan);
-          onClose();
-          setStep('SELECT'); 
-        }, 1500);
-      }, 2500);
+      setProcessing(false);
+      setStep('SELECT');
+      alert('International card payments are not available yet. Please contact support.');
     }
   }; 
 
@@ -193,21 +188,9 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onSuccess,
                   )}
                 </button>
               ) : (
-                /* Primary Button for International: Stripe (Mock) */
-                <button 
-                  onClick={() => handlePay('stripe')}
-                  disabled={processing}
-                  className="w-full py-4 bg-brand-blue text-white rounded-xl font-bold text-base flex items-center justify-center gap-2 shadow-md active:scale-95 transition-transform disabled:opacity-70 disabled:cursor-not-allowed"
-                >
-                  {processing ? (
-                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                  ) : (
-                    <>
-                      <CreditCard size={18} />
-                      Pay {getPriceText()} with Card
-                    </>
-                  )}
-                </button>
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-xs font-bold text-amber-800">
+                  International card payments are not available yet. No subscription is granted until a verified payment is completed.
+                </div>
               )}
               
               <button type="button" onClick={dismiss} className="w-full py-2 text-gray-400 hover:text-gray-500 font-bold text-xs uppercase tracking-wider">Cancel</button>

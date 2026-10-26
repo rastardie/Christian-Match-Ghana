@@ -33,8 +33,20 @@ service cloud.firestore {
     }
     
     // ============================================
+    function hasActiveSubscription(userId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(userId)) &&
+        get(/databases/$(database)/documents/users/$(userId)).data.subscriptionStatus == 'active' &&
+        get(/databases/$(database)/documents/users/$(userId)).data.subscriptionExpiresAt is timestamp &&
+        get(/databases/$(database)/documents/users/$(userId)).data.subscriptionExpiresAt > request.time;
+    }
+
     function canUpdateProfileFields() {
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['pinHash', 'hasPin']);
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'pinHash', 'hasPin', 'isPremium', 'subscriptionStartAt', 'subscriptionExpiresAt',
+        'subscriptionStartDate', 'subscriptionEndDate', 'subscriptionType', 'subscriptionStatus',
+        'freeMonthGrantedAt', 'freeMonthSource'
+      ]);
     }
 
     // RBAC ACCESS CONTROL
@@ -66,7 +78,11 @@ service cloud.firestore {
     match /users/{userId} {
       // Anyone authenticated can browse profiles; administrative writes require specific permissions.
       allow read: if isSignedIn();
-      allow create: if (isOwner(userId) || hasAdminPermission('users.create')) && !request.resource.data.keys().hasAny(['pinHash', 'hasPin']);
+      allow create: if (isOwner(userId) || hasAdminPermission('users.create')) && !request.resource.data.keys().hasAny([
+        'pinHash', 'hasPin', 'isPremium', 'subscriptionStartAt', 'subscriptionExpiresAt',
+        'subscriptionStartDate', 'subscriptionEndDate', 'subscriptionType', 'subscriptionStatus',
+        'freeMonthGrantedAt', 'freeMonthSource'
+      ]);
       allow update: if (isOwner(userId) && canUpdateProfileFields()) ||
         (hasAdminPermission('users.edit') && canUpdateProfileFields()) ||
         (hasAdminPermission('users.suspend') && canUpdateProfileFields() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isBlocked', 'updatedAt']));
@@ -82,20 +98,21 @@ service cloud.firestore {
     // CHATS COLLECTION
     // ============================================
     match /chats/{chatId} {
-      // Users can only read chats they are part of
-      allow read: if isSignedIn() && 
-                     (request.auth.uid in resource.data.participants || isAdmin());
-      
-      // Users can create chats where they are a participant
-      allow create: if isSignedIn() &&
-                       request.auth.uid in request.resource.data.participants;
-      
-      // Users can update chats they are part of
-      allow update: if isSignedIn() && 
+      allow read: if isAdmin() ||
+        (isSignedIn() && hasActiveSubscription(request.auth.uid) && request.auth.uid in resource.data.participants);
+
+      // Only an entitled member may create a one-to-one chat. The user profile
+      // is checked from the server-owned subscriptionExpiresAt timestamp.
+      allow create: if hasActiveSubscription(request.auth.uid) &&
+                       request.auth.uid in request.resource.data.participants &&
+                       request.resource.data.participants.size() == 2;
+
+      // Users can update chats they are part of while entitled.
+      allow update: if hasActiveSubscription(request.auth.uid) &&
                        request.auth.uid in resource.data.participants;
-      
-      // Users can delete chats they are part of
-      allow delete: if isSignedIn() && 
+
+      // Users can delete chats they are part of while entitled.
+      allow delete: if hasActiveSubscription(request.auth.uid) &&
                        request.auth.uid in resource.data.participants;
     }
     
@@ -105,6 +122,7 @@ service cloud.firestore {
     function isChatParticipant(chatId) {
       return isSignedIn() && (
         isAdmin() || (
+          hasActiveSubscription(request.auth.uid) &&
           exists(/databases/$(database)/documents/chats/$(chatId)) &&
           request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants
         )
@@ -121,12 +139,26 @@ service cloud.firestore {
       allow create: if isChatParticipant(request.resource.data.chatId) &&
         request.resource.data.senderId == request.auth.uid;
 
-      // Message content and ownership are immutable. Participants may only
-      // update delivery/read state and reactions.
+      // Participants may update delivery/read state and reactions. Message
+      // authors may also edit only their own text within five minutes; the
+      // server timestamp and rule clock make the window authoritative.
       allow update: if isChatParticipant(resource.data.chatId) &&
         request.resource.data.chatId == resource.data.chatId &&
         request.resource.data.senderId == resource.data.senderId &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reactions']);
+        (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reactions']) ||
+          (
+            resource.data.senderId == request.auth.uid &&
+            resource.data.type == 'text' &&
+            request.resource.data.type == resource.data.type &&
+            request.resource.data.text is string &&
+            request.resource.data.text.size() > 0 &&
+            request.resource.data.text.size() <= 2000 &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['text', 'editedAt']) &&
+            request.resource.data.editedAt == request.time &&
+            request.time <= resource.data.timestamp + duration.value(5, 'm')
+          )
+        );
 
       allow delete: if isChatParticipant(resource.data.chatId) &&
         resource.data.senderId == request.auth.uid;
@@ -166,7 +198,8 @@ service cloud.firestore {
     // CALLS COLLECTION
     // ============================================
     function isCallParticipant(callId) {
-      return isSignedIn() && exists(/databases/$(database)/documents/calls/$(callId)) && (
+      return hasActiveSubscription(request.auth.uid) &&
+        exists(/databases/$(database)/documents/calls/$(callId)) && (
         request.auth.uid == get(/databases/$(database)/documents/calls/$(callId)).data.callerId ||
         request.auth.uid == get(/databases/$(database)/documents/calls/$(callId)).data.receiverId
       );
@@ -183,11 +216,11 @@ service cloud.firestore {
       // The receiver uses this constrained query to discover ringing calls.
       // Keep the list permission limited to the authenticated receiver and
       // ringing status so users cannot enumerate other calls.
-      allow list: if isSignedIn() &&
+      allow list: if hasActiveSubscription(request.auth.uid) &&
         resource.data.receiverId == request.auth.uid &&
         resource.data.status == 'ringing';
 
-      allow create: if isSignedIn() &&
+      allow create: if hasActiveSubscription(request.auth.uid) &&
         request.resource.data.callerId == request.auth.uid &&
         request.resource.data.receiverId != request.auth.uid &&
         request.resource.data.chatId is string &&
@@ -246,7 +279,9 @@ service cloud.firestore {
     // ============================================
     match /payments/{paymentId} {
       allow read: if hasAdminPermission('payments.view') || (isSignedIn() && resource.data.userId == request.auth.uid);
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      // Payment records and subscription entitlements are written only by
+      // trusted Cloud Functions after provider verification.
+      allow create: if false;
       allow update: if hasAdminPermission('subscriptions.manage');
     }
   }

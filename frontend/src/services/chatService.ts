@@ -70,6 +70,7 @@ interface MessageDocument {
   };
   timestamp: Timestamp;
   status: 'sent' | 'delivered' | 'read';
+  editedAt?: Timestamp;
   reactions?: {
     [userId: string]: string; // emoji
   };
@@ -278,6 +279,8 @@ export function subscribeToMessages(
         senderId: data.senderId,
         text: data.text,
         timestamp: data.timestamp?.toDate?.()?.toLocaleString() || 'Just now',
+        timestampMillis: timestampMillis(data.timestamp),
+        editedAt: data.editedAt?.toDate?.()?.toLocaleString(),
         type: data.type as any, // Cast to any to avoid strict type issues with location types not in MessageDocument strict def if I missed updating it there
         fileUrl: data.fileUrl,
         fileName: data.fileName,
@@ -386,9 +389,19 @@ export async function markMessagesAsRead(chatId: string, userId: string): Promis
 }
 
 
-/**
- * Delete a message
- */
+/** Edit an own text message during the server-enforced five-minute window. */
+export async function editMessage(messageId: string, userId: string, text: string): Promise<void> {
+  const nextText = text.trim();
+  if (!nextText) throw new Error('Message text cannot be empty.');
+  if (nextText.length > 2000) throw new Error('Message text cannot exceed 2,000 characters.');
+  if (auth.currentUser?.uid !== userId) throw new Error('Your authenticated session does not match the active sender.');
+  await updateDoc(doc(db, MESSAGES_COLLECTION, messageId), {
+    text: nextText,
+    editedAt: serverTimestamp(),
+  });
+}
+
+/** Delete an own message. Firestore rules enforce sender ownership. */
 export async function deleteMessage(messageId: string): Promise<void> {
   try {
     await deleteDoc(doc(db, MESSAGES_COLLECTION, messageId));

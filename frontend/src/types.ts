@@ -94,7 +94,9 @@ export interface User {
   // Subscription properties
   subscriptionStartDate?: string | null;
   subscriptionEndDate?: string | null;
-  subscriptionType?: '6months' | '12months' | null;
+  subscriptionStartAt?: any;
+  subscriptionExpiresAt?: any;
+  subscriptionType?: '6months' | '12months' | 'free1month' | null;
   subscriptionStatus?: 'active' | 'expired' | null;
   
   // Blocked users - stores IDs of users blocked by this user
@@ -194,6 +196,8 @@ export interface Message {
   reactions?: { emoji: string; count: number }[];
   myReaction?: string;
   status?: 'sent' | 'delivered' | 'read';
+  timestampMillis?: number;
+  editedAt?: string;
   replyTo?: {
     id: string;
     text: string;
