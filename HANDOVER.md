@@ -953,7 +953,7 @@ Deployment status of these commits is not recorded in this handover. Confirm wit
 
 ### 19.2 Voice and video calls — local changes (not committed)
 
-Status: local source changes only. Not committed, not pushed, not deployed. Pending local two-session testing and explicit approval under section 1.1.
+Status: committed as `2b8a3f5` and pushed to `origin/sync/cmg-local-2026-10-13`. Deployed to Firebase Dev (`christian-match-ghana`) on 2026-10-27; see 19.5. Still pending: two-session local call testing. The deployed build has not been verified end to end.
 
 Working-tree changes:
 
@@ -1011,3 +1011,26 @@ Not verified:
 [ ] Get explicit approval before any commit, push, staging deploy, or Dev deploy.
 [ ] On commit, add frontend/public/sounds/, frontend/scripts/generate-ringtones.mjs, and frontend/src/services/ringtoneService.ts. Keep firebase-export-*, frontend/dist.zip, and pubsub-debug.log out of Git.
 ```
+
+### 19.5 Dev deployment and URL correction — 2026-10-27
+
+Project validation (`firebase projects:list`):
+
+```text
+Dev         christian-match-ghana   project number 481815915882   display name "Christian Match Ghana Stg"
+Production  christianmatch-app      project number 121785138277   display name "Christianmatch App"
+```
+
+The hosting site `https://christian-match-ghana.web.app` belongs to the Dev project. The "production" label for this URL in section 18 is wrong. Production is the `christianmatch-app` project. Treat section 18's release-flow text with this correction.
+
+Deployed to `christian-match-ghana` with `firebase deploy --project christian-match-ghana --only functions,firestore,hosting --non-interactive`:
+
+- Firestore rules and indexes.
+- Hosting: root-base staging build (`VITE_BASE_PATH=/`, mode `staging-web`), 118 files. Index bundle `/assets/index-CtS9Fwt5.js`.
+- Functions: Node.js 22, updated including `verifyPaystackSubscription`, `paystackWebhook`, admin distribution-group callables, `syncDefaultMessageAudienceMembership` (created), and the PIN and RBAC callables. Two functions (`deleteMyAccount`, `adminDeleteDistributionGroup`) reported a transient failure and then succeeded on the same run. Both are present in `functions:list`.
+- Storage was not deployed. Its rules did not change in this update.
+- Database was not deployed. No Realtime Database instance exists yet.
+
+Post-deploy checks: `https://christian-match-ghana.web.app/` serves the new bundle. `/sounds/ringtone.wav` and `/sounds/ringback.wav` return HTTP 200.
+
+Not yet verified: the call flow between two real sessions on the deployed Dev build. The next step is section 19.4.
