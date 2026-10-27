@@ -1,10 +1,10 @@
 # Christian Match Ghana — Handover and Continuation Guide
 
-**Last updated:** 2026-10-23
+**Last updated:** 2026-10-27
 **Workspace:** `/Users/andrewstardie/Documents/TUTS/TESTS/cm/cmg-rebuilt`
 **Branch:** `sync/cmg-local-2026-10-13`
 **Remote:** `origin` → `https://github.com/rastardie/Christian-Match-Ghana.git`
-**Last pushed commit:** `d68fcb7 feat: complete admin messaging and PWA calls`
+**Last pushed commit:** `2249a39 fix: normalize SMTP secret newlines` (see section 19)
 
 ## 1. Current system snapshot
 
@@ -919,3 +919,95 @@ christian-match-ghana.web.app/ (production)
 Do not deploy a `/dev/`-base frontend build to the production Firebase root. Do not deploy to production while testing Admin, Payments, Notifications, or WebRTC calling.
 
 The custom development deploy remains blocked until `.deploy/stormerhost.env` has a non-empty `CMG_DEPLOY_HOST`. The value must be configured locally and must never be committed.
+
+## 19. Continuation update — 2026-10-27
+
+### 19.1 Commits pushed since 2026-10-23
+
+These commits were on `origin/sync/cmg-local-2026-10-13` (origin HEAD `2249a39`) but were not recorded in this handover before this update. Commit bodies are empty; the list below is from subject lines and diffs.
+
+```text
+2249a39 fix: normalize SMTP secret newlines
+7e38744 feat: enforce verified paid subscriptions
+c98a500 feat: complete Dev messaging and account workflows
+71bccdf feat: support multi-audience messaging and landing branding
+ffaa912 feat: refresh app branding and notifications
+4a2d9e0 fix: bind SMTP secret to offline notifications
+9d0189b fix: bind Dev Paystack webhook secret
+d234a93 fix: improve local chat calls and loading states
+d9c2070 feat: unify security and distribution groups
+e2f74fb fix: keep Admin Platform inside app window
+296b8ff feat: link users to permission groups
+3702d1f feat: sync default audiences automatically
+```
+
+Key content of `7e38744`:
+
+- New callable `verifyPaystackSubscription` verifies the transaction server-side with Paystack, matches amount and currency to the plan (6 months = GHS 150, 12 months = GHS 280), binds the payment to `metadata.userId`, and checks the payer email against the Auth account.
+- Payment references are stored as `payments/paystack_<reference>` for replay protection.
+- The `paystackWebhook` TODO stub was replaced with fulfilment logic.
+- Card payments are limited to users whose profile country is Ghana.
+- `infra/firebase/firestore.rules`, `MainApp.tsx`, `PaymentModal.tsx`, `chatService.ts`, `userService.ts`, and `types.ts` were updated to match.
+
+Deployment status of these commits is not recorded in this handover. Confirm with Firebase before assuming they are live in Dev or production.
+
+### 19.2 Voice and video calls — local changes (not committed)
+
+Status: local source changes only. Not committed, not pushed, not deployed. Pending local two-session testing and explicit approval under section 1.1.
+
+Working-tree changes:
+
+```text
+frontend/src/services/ringtoneService.ts     NEW  playRingtone('incoming' | 'ringback')
+frontend/scripts/generate-ringtones.mjs      NEW  regenerates the WAV assets (python3 + numpy)
+frontend/public/sounds/ringtone.wav          NEW  incoming ring, ~529 KB
+frontend/public/sounds/ringback.wav          NEW  caller ringback, ~529 KB
+frontend/src/MainApp.tsx                     MOD  ringtone wiring; oscillator beep removed
+frontend/src/services/callService.ts         MOD  ICE payload and connection-state mapping
+frontend/src/services/chatService.ts         MOD  initiateCall chatId handling
+```
+
+What each change does:
+
+- `ringtoneService.ts` loops the bundled WAV through `<audio loop>`. It resolves the asset with `import.meta.env.BASE_URL`, so it works under both `/` and `/dev/`. If autoplay is blocked, it retries on the next `pointerdown` or `keydown`. On the callee side it also vibrates.
+- Callee (`MainApp.tsx`): the incoming ring plays while `incomingCall` is set and no call is active. This replaces the Web Audio oscillator beep.
+- Caller (`CallView` in `MainApp.tsx`): ringback plays while status is `Calling…` or `Connecting…`. It stops when the call connects, fails, ends, or the component unmounts.
+- `chatService.initiateCall`: `chatId` is now always a non-empty string. If none is supplied, it falls back to `getCanonicalChatId(callerId, receiverId)`. It also checks that the chat document exists before creating the call, because the Firestore `calls` create rule requires `chatId is string` and a valid chat.
+- `callService.ts` ICE candidates: the payload is now built from the rule-allowed keys only (`senderId`, `candidate`, `sdpMid`, `sdpMLineIndex`, `usernameFragment`, `createdAt`), and null or undefined optional fields are omitted.
+- `callService.ts` connection states: `new` and `connecting` map to `connecting`, not `reconnecting`. `disconnected` maps to `reconnecting`.
+
+Validation completed:
+
+```text
+frontend: node_modules/.bin/tsc --noEmit    passed
+frontend: npm run build                     passed
+frontend: vite build --mode staging-web     passed (dist/sounds/ present)
+```
+
+Not verified:
+
+- No end-to-end call has been run between two sessions, so the fix for the reported call failure is not confirmed.
+- The ICE payload and chatId changes are defensive. The rule-rejection explanation for the failure is a hypothesis until a test or emulator log confirms it.
+- Callee autoplay behaviour on mobile browsers is untested.
+
+### 19.3 Known gaps
+
+- No TURN server. `VITE_WEBRTC_ICE_SERVERS` is not set in any env file, so calls use Google STUN only (`stun:stun.l.google.com:19302`). Google does not provide a TURN service. Calls on the same network may work. Calls between mobile data and other networks, including Ghana carrier CGNAT, are expected to fail for a meaningful share of users.
+- TURN decision is pending. Options checked on 2026-10-27:
+  - Metered Open Relay: listed at 20 GB/month free, then paid. Verify current terms before relying on it.
+  - Cloudflare Realtime TURN: listed at $0.05 per GB egress, with no meaningful standalone free tier.
+- TURN credentials must not be committed. Prefer short-lived credentials issued by a backend callable, so long-lived secrets never reach the client bundle.
+- Ringtone is a generic synthesized dual-tone ring. No licensed audio is used.
+- Background or closed-PWA incoming call notifications are not implemented (carried over from section 16).
+
+### 19.4 Next steps
+
+```text
+[ ] Start the local emulators (start-cmg-emulators.sh) and the PWA (run-cmg-pwa.sh).
+[ ] Two authenticated sessions on the same network: voice call. Check ringback on the caller, ringtone on the callee, connect, mute, end, decline, and the 60-second no-answer timeout.
+[ ] Same two sessions: video call. Check camera denial and recovery.
+[ ] Choose a TURN provider and obtain credentials. Keep them out of Git (local env file or backend-issued).
+[ ] Cross-network test: a phone on mobile data calling a device on Wi-Fi.
+[ ] Get explicit approval before any commit, push, staging deploy, or Dev deploy.
+[ ] On commit, add frontend/public/sounds/, frontend/scripts/generate-ringtones.mjs, and frontend/src/services/ringtoneService.ts. Keep firebase-export-*, frontend/dist.zip, and pubsub-debug.log out of Git.
+```

@@ -534,12 +534,26 @@ export async function initiateCall(
   chatId?: string,
 ): Promise<string> {
   try {
+    // The Firestore create rule requires chatId to be a string that points to
+    // an existing chat containing both participants. A null/undefined chatId
+    // would be rejected, so fall back to the canonical 1:1 chat id and ensure
+    // the chat document exists before creating the call.
+    let resolvedChatId = (chatId || '').trim();
+    if (!resolvedChatId) {
+      resolvedChatId = getCanonicalChatId(callerId, receiverId);
+    }
+    const chatRef = doc(db, CHATS_COLLECTION, resolvedChatId);
+    const chatSnapshot = await getDoc(chatRef);
+    if (!chatSnapshot.exists()) {
+      throw new Error('Start a conversation with this person before calling them.');
+    }
+
     const callData = {
       callerId,
       receiverId,
       callerName,
       callerPhoto,
-      chatId: chatId || null,
+      chatId: resolvedChatId,
       isVideo,
       protocolVersion: 1,
       status: 'ringing',

@@ -108,12 +108,19 @@ export async function startWebRtcCallSession(options: WebRtcCallSessionOptions):
   peer.onicecandidate = async (event) => {
     if (!event.candidate || disposed) return;
     try {
-      const candidate = event.candidate.toJSON();
-      await setDoc(candidateRef(callId), {
+      const json = event.candidate.toJSON();
+      // Write only the keys the Firestore rule allows (hasOnly). Omit any
+      // null/undefined optional fields so the payload never carries an
+      // unexpected key or value that would fail validation.
+      const payload: Record<string, unknown> = {
         senderId: userId,
-        ...candidate,
+        candidate: json.candidate ?? '',
         createdAt: serverTimestamp(),
-      });
+      };
+      if (json.sdpMid !== null && json.sdpMid !== undefined) payload.sdpMid = json.sdpMid;
+      if (json.sdpMLineIndex !== null && json.sdpMLineIndex !== undefined) payload.sdpMLineIndex = json.sdpMLineIndex;
+      if (json.usernameFragment !== null && json.usernameFragment !== undefined) payload.usernameFragment = json.usernameFragment;
+      await setDoc(candidateRef(callId), payload);
     } catch (error) {
       onError?.(error);
     }
@@ -124,8 +131,12 @@ export async function startWebRtcCallSession(options: WebRtcCallSessionOptions):
     if (peer.connectionState === 'connected') {
       onStateChange('connected');
       void updateDoc(callRef, { status: 'connected', connectedAt: serverTimestamp() }).catch(onError);
-    } else if (peer.connectionState === 'disconnected' || peer.connectionState === 'connecting') onStateChange('reconnecting');
-    else if (peer.connectionState === 'failed') {
+    } else if (peer.connectionState === 'connecting' || peer.connectionState === 'new') {
+      // Initial negotiation — keep showing "connecting", not "reconnecting".
+      onStateChange('connecting');
+    } else if (peer.connectionState === 'disconnected') {
+      onStateChange('reconnecting');
+    } else if (peer.connectionState === 'failed') {
       onStateChange('failed');
       void updateDoc(callRef, { status: 'failed', failedAt: serverTimestamp() }).catch(onError);
     } else if (peer.connectionState === 'closed') onStateChange('ended');

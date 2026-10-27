@@ -216,6 +216,7 @@ import { loginWithPin, setUserPin } from './services/pinAuthService';
 import { uploadProfilePhoto, uploadCoverPhoto, uploadGalleryPhoto, uploadFile } from './services/fileStorageService';
 import { getCurrentAdminAccess } from './services/adminRbacService';
 import { startWebRtcCallSession } from './services/callService';
+import { playRingtone } from './services/ringtoneService';
 import { App as CapacitorApp } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 import {
@@ -918,6 +919,16 @@ const CallView = ({
     }, 1000);
     return () => window.clearInterval(interval);
   }, [isCaller, status, onMissed, onEnd]);
+
+  // Caller hears the ringback tone while waiting for the callee to answer.
+  // It stops as soon as the call connects, fails, or ends.
+  useEffect(() => {
+    if (!isCaller) return;
+    const waiting = status === 'Calling…' || status === 'Connecting…';
+    if (!waiting) return;
+    const ring = playRingtone('ringback');
+    return () => ring.stop();
+  }, [isCaller, status]);
 
   return (
     <div className="fixed inset-0 z-[600] flex flex-col bg-gray-950 text-white">
@@ -7597,45 +7608,13 @@ const App = () => {
     };
   }, [user?.id, currentCallId]);
 
+  // Ring the default incoming-call tone (with vibration) while a call is
+  // ringing and has not yet been answered or dismissed.
   useEffect(() => {
-    if (!incomingCall) return;
-    let stopped = false;
-    let audioContext: AudioContext | null = null;
-    const AudioContextConstructor = window.AudioContext || (window as any).webkitAudioContext;
-
-    const playRing = () => {
-      if (stopped || !AudioContextConstructor) return;
-      try {
-        audioContext ||= new AudioContextConstructor();
-        void audioContext.resume().then(() => {
-          if (stopped || !audioContext) return;
-          const oscillator = audioContext.createOscillator();
-          const gain = audioContext.createGain();
-          oscillator.type = 'sine';
-          oscillator.frequency.setValueAtTime(880, audioContext.currentTime);
-          oscillator.frequency.setValueAtTime(660, audioContext.currentTime + 0.22);
-          gain.gain.setValueAtTime(0.0001, audioContext.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.16, audioContext.currentTime + 0.03);
-          gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.45);
-          oscillator.connect(gain).connect(audioContext.destination);
-          oscillator.start();
-          oscillator.stop(audioContext.currentTime + 0.5);
-        }).catch(() => undefined);
-      } catch (error) {
-        console.warn('Unable to play incoming call tone:', error);
-      }
-      navigator.vibrate?.([350, 150, 350]);
-    };
-
-    playRing();
-    const timer = window.setInterval(playRing, 1800);
-    return () => {
-      stopped = true;
-      window.clearInterval(timer);
-      navigator.vibrate?.(0);
-      void audioContext?.close().catch(() => undefined);
-    };
-  }, [incomingCall]);
+    if (!incomingCall || currentCallId) return;
+    const ring = playRingtone('incoming');
+    return () => ring.stop();
+  }, [incomingCall, currentCallId]);
 
   // Setup Push Notifications
   useEffect(() => {
