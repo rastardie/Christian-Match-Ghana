@@ -96,7 +96,7 @@ jobs:
           chmod 644 .ssh/known_hosts
           cat > .ssh/ssh_wrap <<EOF
           #!/bin/sh
-          exec ssh -a -x -i "$PWD/.ssh/id_deploy" -o UserKnownHostsFile="$PWD/.ssh/known_hosts" -o StrictHostKeyChecking=yes "\$@"
+          exec ssh -a -x -i "$PWD/.ssh/id_deploy" -o UserKnownHostsFile="$PWD/.ssh/known_hosts" -o StrictHostKeyChecking=yes -l "$SFTP_USER" "\$@"
           EOF
           chmod +x .ssh/ssh_wrap
           lftp -e "
