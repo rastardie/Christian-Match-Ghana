@@ -105,9 +105,9 @@ jobs:
             set net:reconnect-interval-base 5;
             set net:persist-retries 0;
             set sftp:connect-program $PWD/.ssh/ssh_wrap;
-            set cmd:fail-exit true;
             open sftp://$SFTP_USER@$SFTP_HOST:22;
             mkdir -p public_html/dev;
+            set cmd:fail-exit true;
             mirror -R --verbose --exclude-glob .DS_Store frontend/dist/ public_html/dev/;
             bye
           "
