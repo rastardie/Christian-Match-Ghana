@@ -82,27 +82,33 @@ jobs:
       - name: Install lftp
         run: sudo apt-get update && sudo apt-get install -y lftp
 
-      - name: Upload to /dev via FTPS
+      - name: Upload to /dev via SFTP (key auth)
         env:
-          FTPS_HOST: ${{ secrets.CMG_FTPS_HOST }}
-          FTPS_USER: ${{ secrets.CMG_FTPS_USER }}
-          FTPS_PASS: ${{ secrets.CMG_FTPS_PASS }}
+          SFTP_HOST: ${{ secrets.CMG_SFTP_HOST }}
+          SFTP_USER: ${{ secrets.CMG_SFTP_USER }}
+          SFTP_KEY: ${{ secrets.CMG_SFTP_KEY }}
+          SFTP_KNOWN_HOSTS: ${{ secrets.CMG_SFTP_KNOWN_HOSTS }}
         run: |
+          install -d -m 700 .ssh
+          printf '%s\n' "$SFTP_KEY" > .ssh/id_deploy
+          chmod 600 .ssh/id_deploy
+          printf '%s\n' "$SFTP_KNOWN_HOSTS" > .ssh/known_hosts
+          chmod 644 .ssh/known_hosts
+          KEY="$PWD/.ssh/id_deploy"
+          KH="$PWD/.ssh/known_hosts"
           lftp -e "
             set net:timeout 20;
             set net:max-retries 2;
             set net:reconnect-interval-base 5;
             set net:persist-retries 0;
-            set ftp:ssl-allow true;
-            set ftp:ssl-force true;
-            set ftp:ssl-protect-data true;
-            set ssl:verify-certificate no;
+            set sftp:connect-program \"ssh -a -x -i $KEY -o UserKnownHostsFile=$KH -o StrictHostKeyChecking=yes\";
             set cmd:fail-exit true;
-            open -u \"$FTPS_USER\",\"$FTPS_PASS\" ftp://$FTPS_HOST:21;
-            mkdir -p dev;
-            mirror -R --verbose --exclude-glob .DS_Store frontend/dist/ dev/;
+            open sftp://$SFTP_USER@$SFTP_HOST:22;
+            mkdir -p public_html/dev;
+            mirror -R --verbose --exclude-glob .DS_Store frontend/dist/ public_html/dev/;
             bye
           "
+          rm -f .ssh/id_deploy
 
       - name: Verify /dev responds
         run: |
