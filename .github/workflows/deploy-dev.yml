@@ -94,14 +94,17 @@ jobs:
           chmod 600 .ssh/id_deploy
           printf '%s\n' "$SFTP_KNOWN_HOSTS" > .ssh/known_hosts
           chmod 644 .ssh/known_hosts
-          KEY="$PWD/.ssh/id_deploy"
-          KH="$PWD/.ssh/known_hosts"
+          cat > .ssh/ssh_wrap <<EOF
+          #!/bin/sh
+          exec ssh -a -x -i "$PWD/.ssh/id_deploy" -o UserKnownHostsFile="$PWD/.ssh/known_hosts" -o StrictHostKeyChecking=yes "\$@"
+          EOF
+          chmod +x .ssh/ssh_wrap
           lftp -e "
             set net:timeout 20;
             set net:max-retries 2;
             set net:reconnect-interval-base 5;
             set net:persist-retries 0;
-            set sftp:connect-program \"ssh -a -x -i $KEY -o UserKnownHostsFile=$KH -o StrictHostKeyChecking=yes\";
+            set sftp:connect-program $PWD/.ssh/ssh_wrap;
             set cmd:fail-exit true;
             open sftp://$SFTP_USER@$SFTP_HOST:22;
             mkdir -p public_html/dev;
