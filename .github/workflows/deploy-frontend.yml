@@ -1,12 +1,26 @@
-name: Deploy frontend to Stormer Host
+name: Deploy frontend to production (Stormer Host)
 
-# Manual trigger only — production updates when you click "Run workflow".
+# Manual trigger only.
+#   mode = backup-only : snapshot the current production web root to an artifact
+#                        (READ-ONLY on the server; safe to run anytime).
+#   mode = full        : snapshot, then build + upload the production frontend to
+#                        public_html (root). Requires confirm = DEPLOY.
+# Uses key-based SFTP (christi3). FTPS password auth is NOT used — it is blocked
+# from GitHub runner IPs by the host.
 on:
   workflow_dispatch:
     inputs:
-      confirm:
-        description: 'Type DEPLOY to confirm a production frontend deploy'
+      mode:
+        description: 'backup-only (snapshot prod) or full (snapshot + deploy)'
         required: true
+        default: 'backup-only'
+        type: choice
+        options:
+          - backup-only
+          - full
+      confirm:
+        description: 'Type DEPLOY to confirm a PRODUCTION deploy (only used when mode=full)'
+        required: false
         default: ''
 
 concurrency:
@@ -16,19 +30,78 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
+    env:
+      SFTP_HOST: ${{ secrets.CMG_SFTP_HOST }}
+      SFTP_USER: ${{ secrets.CMG_SFTP_USER }}
     steps:
-      - name: Guard — require explicit confirmation
+      - name: Guard — confirm production deploy
         run: |
-          if [ "${{ github.event.inputs.confirm }}" != "DEPLOY" ]; then
-            echo "Confirmation not provided. Re-run and type DEPLOY to proceed."
+          MODE="${{ github.event.inputs.mode }}"
+          if [ "$MODE" = "full" ] && [ "${{ github.event.inputs.confirm }}" != "DEPLOY" ]; then
+            echo "mode=full requires confirm=DEPLOY. Aborting."
             exit 1
           fi
+          echo "mode=$MODE"
 
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Prepare SFTP key + pinned host key
+        env:
+          SFTP_KEY: ${{ secrets.CMG_SFTP_KEY }}
+          SFTP_KNOWN_HOSTS: ${{ secrets.CMG_SFTP_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 .ssh
+          printf '%s\n' "$SFTP_KEY" > .ssh/id_deploy
+          chmod 600 .ssh/id_deploy
+          printf '%s\n' "$SFTP_KNOWN_HOSTS" > .ssh/known_hosts
+          chmod 644 .ssh/known_hosts
+          cat > .ssh/ssh_wrap <<EOF
+          #!/bin/sh
+          exec ssh -a -x -i "$PWD/.ssh/id_deploy" -o UserKnownHostsFile="$PWD/.ssh/known_hosts" -o StrictHostKeyChecking=yes -l "$SFTP_USER" "\$@"
+          EOF
+          chmod +x .ssh/ssh_wrap
+
+      - name: Install lftp
+        run: sudo apt-get update && sudo apt-get install -y lftp
+
+      - name: Backup current production web root (read-only)
+        run: |
+          install -d backup
+          lftp -e "
+            set net:timeout 20;
+            set net:max-retries 2;
+            set net:reconnect-interval-base 5;
+            set net:persist-retries 0;
+            set sftp:connect-program $PWD/.ssh/ssh_wrap;
+            set cmd:fail-exit true;
+            open sftp://$SFTP_USER@$SFTP_HOST:22;
+            mirror --verbose \
+              --exclude-glob *.zip \
+              --exclude ^dev/ \
+              --exclude ^test\\.christianmatchghana\\.com/ \
+              --exclude ^\\.well-known/ \
+              public_html/ $PWD/backup/ ;
+            bye
+          "
+          echo '--- backup contents (top level) ---'
+          ls -la backup
+          tar -czf prod-root-backup.tgz -C backup .
+          echo "backup size: $(du -h prod-root-backup.tgz | cut -f1)"
+
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: prod-root-backup-${{ github.run_number }}
+          path: prod-root-backup.tgz
+          retention-days: 30
+          if-no-files-found: error
+
+      # ---- below here runs only for mode=full ----
+
       - name: Setup Node
+        if: ${{ github.event.inputs.mode == 'full' }}
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -36,10 +109,12 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
+        if: ${{ github.event.inputs.mode == 'full' }}
         working-directory: frontend
         run: npm ci
 
       - name: Write production environment
+        if: ${{ github.event.inputs.mode == 'full' }}
         working-directory: frontend
         env:
           FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
@@ -60,45 +135,37 @@ jobs:
             echo "VITE_PAYSTACK_PUBLIC_KEY=${PAYSTACK_PUBLIC_KEY}"
           } > .env.production
 
-      - name: Build
+      - name: Build (production)
+        if: ${{ github.event.inputs.mode == 'full' }}
         working-directory: frontend
         run: npm run build -- --mode production
 
       - name: Verify build output
+        if: ${{ github.event.inputs.mode == 'full' }}
         run: test -f frontend/dist/index.html
 
-      - name: Install lftp
-        run: sudo apt-get update && sudo apt-get install -y lftp
-
-      - name: Upload to Stormer Host
-        env:
-          DEPLOY_HOST: ${{ secrets.STORMERHOST_HOST }}
-          DEPLOY_PORT: ${{ secrets.STORMERHOST_PORT }}
-          DEPLOY_USER: ${{ secrets.STORMERHOST_USER }}
-          DEPLOY_PASS: ${{ secrets.STORMERHOST_PASS }}
-          DEPLOY_REMOTE_DIR: ${{ secrets.STORMERHOST_REMOTE_DIR }}
-          DEPLOY_PROTOCOL: ${{ secrets.STORMERHOST_PROTOCOL }}
+      - name: Deploy to production root via SFTP (key auth)
+        if: ${{ github.event.inputs.mode == 'full' }}
         run: |
-          PROTO="${DEPLOY_PROTOCOL:-sftp}"
-          PORT="${DEPLOY_PORT:-22}"
-          REMOTE="${DEPLOY_REMOTE_DIR:-public_html}"
           lftp -e "
-            set net:timeout 15;
+            set net:timeout 20;
             set net:max-retries 2;
             set net:reconnect-interval-base 5;
             set net:persist-retries 0;
-            set sftp:auto-confirm yes;
-            set ftp:ssl-allow true;
-            set ftp:ssl-force true;
-            set ftp:ssl-protect-data true;
-            set ssl:verify-certificate no;
+            set sftp:connect-program $PWD/.ssh/ssh_wrap;
             set cmd:fail-exit true;
-            open -u \"$DEPLOY_USER\",\"$DEPLOY_PASS\" $PROTO://$DEPLOY_HOST:$PORT;
-            mirror -R --verbose --exclude-glob .DS_Store frontend/dist/ \"$REMOTE/\";
+            open sftp://$SFTP_USER@$SFTP_HOST:22;
+            mirror -R --verbose --exclude-glob .DS_Store frontend/dist/ public_html/ ;
             bye
           "
 
       - name: Verify site responds
+        if: ${{ github.event.inputs.mode == 'full' }}
         run: |
           code="$(curl -s -o /dev/null -w '%{http_code}' https://christianmatchghana.com/ || true)"
           echo "HTTP ${code}"
+          [ "$code" = "200" ] || { echo "Verification failed: HTTP ${code}"; exit 1; }
+
+      - name: Cleanup key
+        if: ${{ always() }}
+        run: rm -f .ssh/id_deploy
