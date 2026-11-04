@@ -1,0 +1,83 @@
+name: Deploy Firebase backend to PRODUCTION (christianmatch-app)
+
+# Manual trigger only. Deploys Firestore rules/indexes and Functions to the
+# PRODUCTION Firebase project christianmatch-app (121785138277).
+#
+# PREREQUISITES (must be set before this can run):
+#   - Secret FIREBASE_SERVICE_ACCOUNT : JSON key for a service account on
+#       christianmatch-app with Firebase deploy permissions. Until this exists
+#       the workflow fails at auth and cannot modify production.
+#   - Production Secret Manager values already set in christianmatch-app:
+#       SMTP_PASS, PAYSTACK_SECRET_KEY  (do NOT copy from staging).
+#   - Take a Firestore backup/export FIRST (see HANDOVER §20).
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type DEPLOY-FIREBASE-PROD to confirm a PRODUCTION backend deploy'
+        required: true
+        default: ''
+      targets:
+        description: 'firebase deploy --only targets'
+        required: true
+        default: 'firestore:rules,firestore:indexes,functions'
+
+concurrency:
+  group: deploy-firebase-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Guard — require explicit confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "DEPLOY-FIREBASE-PROD" ]; then
+            echo "Confirmation not provided. Re-run and type DEPLOY-FIREBASE-PROD to proceed."
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: backend/functions/package-lock.json
+
+      - name: Install functions deps (provides pinned firebase-tools 15.33.0)
+        working-directory: backend/functions
+        run: npm ci
+
+      - name: Write service account credentials
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "FIREBASE_SERVICE_ACCOUNT secret is not set. Aborting before any production change."
+            exit 1
+          fi
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
+
+      - name: Confirm target project + current state (pre-deploy record)
+        run: |
+          FB=backend/functions/node_modules/.bin/firebase
+          "$FB" projects:list | grep christianmatch-app || true
+          echo '--- current functions (for rollback reference) ---'
+          "$FB" functions:list --project christianmatch-app || true
+
+      - name: Deploy to production
+        run: |
+          FB=backend/functions/node_modules/.bin/firebase
+          "$FB" deploy \
+            --project christianmatch-app \
+            --only "${{ github.event.inputs.targets }}" \
+            --non-interactive
+
+      - name: Cleanup credentials
+        if: ${{ always() }}
+        run: rm -f "$RUNNER_TEMP/sa.json"

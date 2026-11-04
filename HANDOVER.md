@@ -877,10 +877,16 @@ Do not copy or commit the StormerHost credentials.
 
 ## 18. Production rollback and corrected release flow — 2026-10-23
 
+> **CORRECTION (see §19.5, confirmed 2026-10-27):** The label below is WRONG.
+> `https://christian-match-ghana.web.app/` is the **Dev** project
+> (`christian-match-ghana`, 481815915882). **Production is `christianmatch-app`
+> (121785138277).** Read the "production" references in this section as "Dev".
+> The user-facing production site is the StormerHost root `https://christianmatchghana.com/`.
+
 The deployment boundary was corrected after confirming that the following Firebase Hosting URL is production:
 
 ```text
-https://christian-match-ghana.web.app/
+https://christian-match-ghana.web.app/   # INCORRECT — this URL is Dev; see correction above
 ```
 
 The development testing URL is the separate custom host:
@@ -1034,3 +1040,100 @@ Deployed to `christian-match-ghana` with `firebase deploy --project christian-ma
 Post-deploy checks: `https://christian-match-ghana.web.app/` serves the new bundle. `/sounds/ringtone.wav` and `/sounds/ringback.wav` return HTTP 200.
 
 Not yet verified: the call flow between two real sessions on the deployed Dev build. The next step is section 19.4.
+
+## 20. Automated deployment pipeline — 2026-11-04
+
+This session replaced the manual cPanel upload with reviewed GitHub Actions
+deployments (addresses §11 P2 item "Replace manual cPanel upload"). No
+production application change was made; `christianmatch-app` was not modified.
+
+### 20.1 Hosting surfaces (clarified)
+
+There are two hosting surfaces per environment:
+
+```text
+Dev  Firebase Hosting : https://christian-match-ghana.web.app   (root build, base /)
+Dev  StormerHost      : https://christianmatchghana.com/dev     (public_html/dev, base /dev/)
+Prod Firebase project : christianmatch-app (121785138277)
+Prod StormerHost      : https://christianmatchghana.com         (public_html root, base /)
+```
+
+The user-facing production site is the StormerHost static root, backed by the
+`christianmatch-app` Firebase project (Auth/Firestore/Functions, live Paystack key).
+
+### 20.2 Root cause of the long-standing automated-deploy failure
+
+Automated FTP/FTPS uploads returned `530 Login authentication failed` only from
+GitHub runners, while the same credentials worked locally. This is a **host-side
+source-IP restriction on FTP/FTPS** (cPHulk/account IP lock), not a credential
+problem. StormerHost's statement that GitHub IPs need no allowlisting is
+incorrect. **SSH/SFTP (port 22) is NOT restricted** — key-based SFTP as
+`christi3` works from GitHub Actions. All automation now uses SFTP + key.
+
+### 20.3 Workflows
+
+```text
+.github/workflows/deploy-dev.yml            Dev frontend -> public_html/dev  (SFTP key). WORKING, verified HTTP 200.
+.github/workflows/deploy-frontend.yml       Prod frontend -> public_html root (SFTP key).
+                                              mode=backup-only : snapshot prod root to artifact (READ-ONLY). Validated.
+                                              mode=full + confirm=DEPLOY : snapshot, then build (--mode production) + upload + verify. NOT yet run.
+.github/workflows/deploy-firebase-prod.yml  Prod Firebase (christianmatch-app): firestore rules/indexes + functions.
+                                              Guarded; requires secret FIREBASE_SERVICE_ACCOUNT (NOT set) so it cannot touch prod until configured. NOT run.
+```
+
+All three are manual-dispatch with explicit confirmation guards. The default
+branch is `sync/cmg-local-2026-10-13`; workflows must live there to be
+dispatchable. Frontend uploads are additive (`mirror -R` without `--delete`).
+
+### 20.4 Repository secrets
+
+```text
+CMG_SFTP_HOST          zeta.stormerhost.com
+CMG_SFTP_USER          christi3
+CMG_SFTP_KEY           passphrase-less ED25519 deploy key (public half already in christi3 authorized_keys)
+CMG_SFTP_KNOWN_HOSTS   pinned server host key (StrictHostKeyChecking=yes)
+STAGING_FIREBASE_API_KEY   dev Firebase web API key (used by deploy-dev.yml)
+FIREBASE_API_KEY, PAYSTACK_PUBLIC_KEY   used by the production build
+FIREBASE_SERVICE_ACCOUNT   REQUIRED but NOT yet set (blocks deploy-firebase-prod.yml)
+CMG_FTPS_*             legacy FTPS creds, now unused — safe to delete
+```
+
+### 20.5 Backups
+
+Prod static-root snapshots are produced by `deploy-frontend.yml` and stored as
+GitHub Actions artifacts (`prod-root-backup-<run#>`, 30-day retention) — this is
+the frontend rollback source. It is ephemeral; copy to durable storage for
+long-term archival. Production **Firestore data has no backups yet** — set a
+managed backup schedule before any backend promotion:
+
+```bash
+gcloud firestore backups schedules create --project=christianmatch-app \
+  --database='(default)' --recurrence=daily --retention=7d
+# on-demand before risky changes:
+gcloud firestore export gs://christianmatch-app-backups/$(date +%Y%m%d-%H%M%S) \
+  --project=christianmatch-app
+```
+
+### 20.6 Production promotion order (when approved)
+
+1. Backup Firestore (schedule + on-demand export).
+2. Set prod Secret Manager values in christianmatch-app: `SMTP_PASS`,
+   `PAYSTACK_SECRET_KEY` (do NOT copy from staging).
+3. Deploy backend FIRST: run `deploy-firebase-prod.yml` (rules/indexes/functions)
+   from the approved commit — prod backend is behind Dev (missing
+   `verifyPaystackSubscription`, admin distribution callables, hardened rules).
+4. Deploy frontend: run `deploy-frontend.yml` with `mode=full`, `confirm=DEPLOY`.
+5. Smoke test prod: login, Paystack path, admin access, notifications.
+
+Rollback: static -> re-upload backup artifact; Hosting -> `firebase hosting:rollback`;
+Functions -> redeploy prior recorded revision; rules/indexes -> redeploy from git;
+Firestore data -> restore from the step-1 backup.
+
+### 20.7 Security follow-ups (open)
+
+- Rotate the StormerHost key, its passphrase, and the FTP password — all were
+  sent in plaintext over the support ticket. Generate a fresh deploy key, install
+  the public half via cPanel, update `CMG_SFTP_KEY`.
+- The CI deploy key is stored passphrase-less in GitHub secrets (standard for CI;
+  the secret store is the protection). Rotation above addresses the exposure.
+- Public-readable archives in the web roots (`*.zip`, `dist/`) should be removed.
