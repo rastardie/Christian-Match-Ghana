@@ -1137,3 +1137,85 @@ Firestore data -> restore from the step-1 backup.
 - The CI deploy key is stored passphrase-less in GitHub secrets (standard for CI;
   the secret store is the protection). Rotation above addresses the exposure.
 - Public-readable archives in the web roots (`*.zip`, `dist/`) should be removed.
+
+## 21. Production promotion, cache fix, and ladmin sync — 2026-11-04
+
+First real promotion to production (`christianmatch-app` + StormerHost root).
+Dev = `christian-match-ghana` (481815915882); Prod = `christianmatch-app`
+(121785138277). User-facing prod site is the StormerHost root
+`https://christianmatchghana.com`.
+
+### 21.1 Backend deployed to christianmatch-app
+
+`firebase deploy --only firestore:rules,firestore:indexes,functions` from branch
+`sync/cmg-local-2026-10-13`. Functions went 7 → 30 (added admin RBAC, PIN
+`setUserPin`/`loginWithPin`, `adminCreateAdministrator`, distribution/messaging
+callables, `verifyPaystackSubscription`; updated the 7 existing). No functions
+deleted (all 7 prior names exist in current source).
+
+### 21.2 Production secrets / config (kept separate from dev)
+
+- `PAYSTACK_SECRET_KEY` created in prod Secret Manager from the **existing live
+  value** that was already on the deployed functions (sk_live…). Not the dev
+  test key. New code requires it as a Secret Manager secret (`runWith secrets`),
+  so this was mandatory — not optional.
+- `SMTP_PASS` prod secret validated to authenticate as
+  `info@christianmatchghana.com` (login test, no mail sent).
+- Prod non-secret config pinned in `backend/functions/.env.christianmatch-app`
+  (info@ / mail.christianmatchghana.com / prod URL). firebase loads
+  `.env` + `.env.<project>`; this stops dev and prod sharing one `.env`.
+- SECURITY: the old prod functions stored `PAYSTACK_SECRET_KEY` and the Gmail
+  SMTP password as PLAINTEXT env vars (visible via `gcloud functions describe`).
+  Paystack is now in Secret Manager. Rotating the live Paystack secret key and
+  the old Gmail app password is still recommended.
+
+### 21.3 Frontend deployed to prod root
+
+Built `--mode production` (base `/`, pk_live, christianmatch-app) and uploaded to
+`public_html` via `deploy-frontend.yml mode=full`. Verified the live bundle
+contains `pk_live_7bab1a…` and `christianmatch-app` (no dev project / pk_test).
+Site HTTP 200.
+
+### 21.4 Cache-control fix (stale page after deploy)
+
+Returning browsers loaded the old shell until a manual refresh. Cause: StormerHost
+served `index.html` with only `Last-Modified` and no `Cache-Control`, so browsers
+heuristically cached it. Fixed in `frontend/public/.htaccess` (and the dev
+workflow's inline `.htaccess`): `index.html`/SW/manifest → `no-cache, no-store,
+must-revalidate`; hashed `/assets/*` → `immutable, max-age=1y`. Not a service
+worker — the only SW is `firebase-messaging-sw.js` (push only, no asset caching).
+
+### 21.5 Backups (rollback sources)
+
+- Firestore export: `gs://christianmatch-app-fs-backups-121785138277/firestore-backup-20261104-230358` (SUCCESSFUL). Bucket `US` multi-region.
+- Static web root: GitHub artifacts `prod-root-backup-9` (pre-deploy) and `-8`.
+- Rollback: static → re-upload artifact; hosting → `firebase hosting:rollback`;
+  functions → prior revision; rules/indexes → git; data → the export.
+
+### 21.6 ladmin synced to prod (same details + credentials)
+
+uid `4mtjLfDRWDhQcFVdTEeGYZoDb7t2`, email `ladmin@christianmatchghana.com`,
+display name "Local Administrator".
+
+- Replicated dev → prod via Firestore REST (owner gcloud token): seeded all 6
+  `adminGroups`, created `adminUsers/<uid>` (isSuperAdmin, super-admins, 16
+  permissions), copied `users/<uid>` profile.
+- Auth account created via Admin SDK using a **short-lived service-account key on
+  the App Engine default SA that was created and then deleted** (no key retained;
+  temp script removed). Password set to the owner-provided value (not stored in
+  repo/handover/logs). PIN set to the owner-provided 4-digit value using the
+  app's `scrypt$salt$hash` scheme.
+- Verified: prod password login returns the correct uid; `adminUsers` shows
+  Super Admin with 16 permissions. `mustChangePassword` left `false` (matches dev).
+
+### 21.7 Notes
+
+- The red "INTERNAL" banner seen in a login screenshot is NOT part of the app
+  (absent from source and both live pages) — it is an external browser/OS
+  classification overlay on the viewing machine.
+- Deferred to a future update (unchanged): two-session voice/video call test,
+  TURN server, and credential rotation (StormerHost key already rotated in §20;
+  Paystack/Gmail still pending).
+- CI note: `deploy-firebase-prod.yml` still needs a `FIREBASE_SERVICE_ACCOUNT`
+  secret to run in CI; this promotion was done locally with the owner's
+  authenticated firebase CLI instead.
