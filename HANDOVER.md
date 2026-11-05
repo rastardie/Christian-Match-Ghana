@@ -1348,3 +1348,26 @@ recipients are frozen in `tmp/announcement_resend_targets.txt`, and
 - Deferred (unchanged): TURN server + re-enable calls; rotate Paystack/Gmail
   secrets; the `isSubscriptionActive` fallback is a safety net, not a substitute
   for keeping subscription Timestamps populated server-side.
+
+### 22.8 Auto-logout + dev brought to parity — 2026-11-05 (later)
+
+- Added 60-minute inactivity auto-logout (frontend). An idle timer in the main
+  authenticated component (`MainApp.tsx`) signs the user out via `handleLogout`
+  after 60 min with no pointer/keyboard/touch/scroll activity; any interaction
+  resets it. Commit `d11097c`.
+- Deployed the full current frontend to BOTH environments from
+  `sync/cmg-local-2026-10-13`:
+  - PROD (`christianmatch-app`) via `deploy-frontend.yml` (mode=full) →
+    `christianmatchghana.com`. Verified: auto-logout + disabled-calls live,
+    `christianmatch-app` + `pk_live`.
+  - DEV (`christian-match-ghana`) via `deploy-dev.yml` (DEPLOY-DEV) →
+    `christianmatchghana.com/dev/`. Verified: auto-logout + disabled-calls live,
+    dev project, no live Paystack key.
+  Dev now carries every frontend change made for prod this session
+  (subscription fallback, message line-break fix, disabled call buttons,
+  auto-logout).
+- Dev subscription data brought to parity: all 6 dev `free1month` users extended
+  to `2026-11-19T23:59:59.999Z` with the `subscriptionExpiresAt` Timestamp
+  backfilled where missing. Dev has no non-premium users, so no grant was
+  needed. Before-state saved to git-ignored `tmp/dev_sub_backup.json`.
+  (No dev emails/announcements were sent — comms were prod-only.)
