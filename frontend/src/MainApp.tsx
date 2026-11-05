@@ -5581,28 +5581,18 @@ const MessageThreadView = ({
         </div>
         <div className="flex gap-2 mr-2">
           <button
-            title="Start voice call"
-            onClick={() => {
-              if (isSubscriptionActive(currentUser)) {
-                onStartCall(false);
-              } else if (onOpenPayment) {
-                onOpenPayment();
-              }
-            }}
-            className="p-3 text-brand-blue bg-brand-surface rounded-2xl shadow-sm hover:text-brand-orange transition-colors"
+            title="Calls are temporarily unavailable"
+            disabled
+            aria-disabled="true"
+            className="p-3 text-gray-400 bg-brand-surface rounded-2xl shadow-sm opacity-50 cursor-not-allowed"
           >
             <Phone size={20} />
           </button>
           <button
-            title="Start video call"
-            onClick={() => {
-              if (isSubscriptionActive(currentUser)) {
-                onStartCall(true);
-              } else if (onOpenPayment) {
-                onOpenPayment();
-              }
-            }}
-            className="p-3 text-brand-blue bg-brand-surface rounded-2xl shadow-sm hover:text-brand-orange transition-colors"
+            title="Calls are temporarily unavailable"
+            disabled
+            aria-disabled="true"
+            className="p-3 text-gray-400 bg-brand-surface rounded-2xl shadow-sm opacity-50 cursor-not-allowed"
           >
             <Video size={20} />
           </button>
@@ -5700,7 +5690,7 @@ const MessageThreadView = ({
                          </a>
                     </div>
                 ) : (
-                    m.text
+                    <span className="whitespace-pre-line break-words">{m.text}</span>
                 )}
 
                 {/* Reply Popup Option */}
@@ -7278,14 +7268,29 @@ const FriendsView = ({
 export const isSubscriptionActive = (user: User | null | undefined): boolean => {
   if (!user) return false;
   if (user.isSystemAdmin === true) return true;
-  if (user.subscriptionStatus !== 'active' || !user.subscriptionExpiresAt) return false;
+  if (user.subscriptionStatus !== 'active') return false;
 
-  const rawExpiry = user.subscriptionExpiresAt as any;
-  let expiryMillis = 0;
-  if (typeof rawExpiry.toMillis === 'function') expiryMillis = rawExpiry.toMillis();
-  else if (typeof rawExpiry.toDate === 'function') expiryMillis = rawExpiry.toDate().getTime();
-  else if (typeof rawExpiry.seconds === 'number') expiryMillis = rawExpiry.seconds * 1000;
-  else if (typeof rawExpiry._seconds === 'number') expiryMillis = rawExpiry._seconds * 1000;
+  // Resolve the expiry from the server-owned Timestamp when present, and fall
+  // back to the legacy ISO `subscriptionEndDate` string for records written by
+  // older backends that never set the Timestamp field. Without this fallback,
+  // active legacy subscriptions read as expired.
+  const resolveExpiryMillis = (value: any): number => {
+    if (value == null) return 0;
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string') {
+      const parsed = new Date(value).getTime();
+      return Number.isNaN(parsed) ? 0 : parsed;
+    }
+    if (typeof value.toMillis === 'function') return value.toMillis();
+    if (typeof value.toDate === 'function') return value.toDate().getTime();
+    if (typeof value.seconds === 'number') return value.seconds * 1000;
+    if (typeof value._seconds === 'number') return value._seconds * 1000;
+    return 0;
+  };
+
+  const expiryMillis =
+    resolveExpiryMillis(user.subscriptionExpiresAt) ||
+    resolveExpiryMillis(user.subscriptionEndDate);
   return expiryMillis > Date.now();
 };
 

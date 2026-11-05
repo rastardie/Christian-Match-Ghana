@@ -23,3 +23,6 @@ firebase-debug.log
 firestore-debug.log
 unverified-users-production.xlsx
 ~$*.xlsx
+
+# Local operational scripts and data (never commit — may contain user PII)
+tmp/
