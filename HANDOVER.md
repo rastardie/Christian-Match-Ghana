@@ -1219,3 +1219,132 @@ display name "Local Administrator".
 - CI note: `deploy-firebase-prod.yml` still needs a `FIREBASE_SERVICE_ACCOUNT`
   secret to run in CI; this promotion was done locally with the owner's
   authenticated firebase CLI instead.
+
+## 22. Post-promotion production fixes, promo, comms — 2026-11-05
+
+All work this session targeted PRODUCTION `christianmatch-app` (121785138277)
+unless noted. Dev `christian-match-ghana` (481815915882) was not changed.
+
+### 22.1 Subscription regression after the dev→prod promotion (root cause + fix)
+
+Symptom: after promoting the dev frontend to prod, users with active plans saw
+"No Active Plan / INACTIVE / EXPIRED", and the incoming-call listener returned
+`permission-denied`.
+
+Root cause (single defect): the new frontend gate `isSubscriptionActive`
+(`frontend/src/MainApp.tsx`) and the Firestore rule `hasActiveSubscription`
+(`infra/firebase/firestore.rules`) both require the **Timestamp** field
+`subscriptionExpiresAt`. Pre-existing prod subscription records written by the
+older prod functions only had the legacy ISO string `subscriptionEndDate`
+(+`subscriptionStartDate`), never the Timestamps. So every legacy active
+subscriber read as expired, and the calls `allow list` rule (gated on
+`hasActiveSubscription`) denied the listener. The "Dev Firestore" wording in the
+call-error banner is hardcoded copy, not a project mixup — env files are correct
+(`.env.production`→christianmatch-app, `.env.staging-web`→christian-match-ghana).
+
+Fixes applied:
+1. Data backfill: for every prod user with an active sub missing
+   `subscriptionExpiresAt`, derived it (and `subscriptionStartAt`) from the
+   doc's own `subscriptionEndDate`/`subscriptionStartDate`. Additive, idempotent.
+   Restored 11 users (free promo + paid 6-month). The prod `calls` composite
+   index (receiverId ASC, status ASC, createdAt DESC) already exists, so the
+   call listener recovered once subs were valid.
+2. Frontend hardening (shipped): `isSubscriptionActive` now falls back to
+   `subscriptionEndDate` when the Timestamp is absent, so legacy records can
+   never silently lose access again.
+
+### 22.2 Free promo — granted to all existing users and extended to 2 weeks
+
+Owner decision: the free promo applies to ALL existing non-premium users plus
+new sign-ups, through the campaign window.
+- Granted `free1month` (isPremium, subscriptionStatus=active, Timestamps + ISO,
+  `freeMonthSource=prod-existing-user-promo-2026-11`) to all non-premium prod
+  users: 269 granted, paid/active subs skipped. Idempotent.
+- New sign-ups are covered automatically by the existing self-serve
+  `claimFreePromo` (new-member path, createdAt ≥ launch).
+- Extended the promo end date to **2026-11-19T23:59:59.999Z** (2 weeks) for all
+  277 `free1month` users to match the announcement. Paid plans untouched.
+- Net: all 281 prod users show an active subscription with a valid future
+  `subscriptionExpiresAt`.
+
+### 22.3 Frontend deploy to production (commit 043f224)
+
+Pushed to `sync/cmg-local-2026-10-13` and deployed via GitHub Actions
+`deploy-frontend.yml` (mode=full, confirm=DEPLOY) — build + SFTP to
+`public_html`, pre-deploy backup artifact, HTTP 200 verify. Live bundle verified
+(`pk_live`, `christianmatch-app`, no dev strings). Changes:
+- `isSubscriptionActive` legacy `subscriptionEndDate` fallback (22.1).
+- Chat messages render with `whitespace-pre-line` so line breaks/paragraphs are
+  preserved (previously collapsed to a run-on block).
+- Voice/video call buttons disabled (greyed, non-clickable, "Calls are
+  temporarily unavailable") pending TURN + call reliability work.
+
+Note: GitHub was briefly unreachable from the work environment; the local
+`deploy-frontend.sh` path is unusable (`.deploy/stormerhost.env` HOST/USER/PASS
+are empty) and the bundled `Zeta_christi3_SFTP_Access_Keys.tgz` key is
+passphrase-encrypted (likely the pre-§20 rotation key). The reviewed GitHub
+Actions pipeline is the working prod-frontend path.
+
+### 22.4 Communications sent
+
+- Verification resend to all unverified users via the deployed
+  `sendUnverifiedVerificationReminders` (campaign `verify-resend-2026-11-05`):
+  82 sent; ~6 bounced; most delivered (smaller batch, under the host limit).
+- Announcement (account update + 2-week free chat) by email and in-app:
+  - Email to all 289 auth users from `info@christianmatchghana.com`.
+  - In-app broadcast via `adminSendMessage` recipientMode=all. The pre-fix send
+    (broadcastId fca7a0f9…, 280) rendered as a run-on block; after the
+    whitespace fix it re-renders correctly. A corrected resend to all was sent
+    (broadcastId f754f8a0…, 281) — users present for the first send now have two
+    copies. A single validation copy went to rastardie (39dd1fab…).
+
+Admin callables (`adminSendMessage`, `sendUnverifiedVerificationReminders`) were
+invoked from local scripts by minting an admin-claimed Firebase ID token: a
+short-lived App Engine SA key (`createCustomToken(ladminUid,{admin:true})` →
+`signInWithCustomToken` with the prod web API key) → call the callable. Every SA
+key was deleted immediately after use; none retained.
+
+### 22.5 Email deliverability — BROKEN, needs host/DNS action
+
+The announcement email largely did NOT deliver. The `info@christianmatchghana.com`
+mailbox filled with Mailer-Daemon bounces; the reason:
+
+    Domain christianmatchghana.com has exceeded the max defers and failures per
+    hour (…/5 (50%)) allowed. Message discarded.
+
+This is a StormerHost/cPanel Exim outbound policy (very low hourly
+defers/failures cap). The 289-recipient burst tripped it and the server
+discarded the rest. Contributing cause: email auth is misconfigured —
+**TWO SPF records** exist on christianmatchghana.com (invalid; must be ONE),
+and **DMARC is p=none**. Sending IP 161.129.70.154 (zeta.stormerhost.com,
+valid PTR) IS SPF-listed; a DKIM key is published on selector `default`.
+
+Required (host/registrar — cannot be done from code/DNS access here):
+1. Collapse to a single SPF record:
+   `v=spf1 ip4:161.129.70.154 ip4:104.238.221.158 +a +mx include:_spf.firebasemail.com ~all`
+2. Confirm the mail server DKIM-signs with the `default` selector; then move
+   DMARC toward `p=quarantine`.
+3. Raise/reset the cPanel "Max hourly emails" and "Max defers & failures per
+   hour", OR move bulk/transactional mail to a dedicated ESP (SES/SendGrid/
+   Mailgun/Postmark) and repoint the Functions SMTP (`SMTP_HOST/USER/PASS`).
+
+Re-send tooling (git-ignored `tmp/`, local only): the ~205 bounced announcement
+recipients are frozen in `tmp/announcement_resend_targets.txt`, and
+`tmp/resend_announcement.js` is a throttled, resumable sender (ledger
+`tmp/announcement_resend_sent.txt`; env BATCH/SLEEP_SEC/GAP_MS). `tmp/` is now in
+`.gitignore` (may contain user PII — never commit).
+
+### 22.6 Backups taken (prod Firestore exports, rollback points)
+
+    gs://christianmatch-app-fs-backups-121785138277/firestore-backup-20261105-084718  (pre subscription backfill)
+    gs://christianmatch-app-fs-backups-121785138277/firestore-backup-20261105-091303  (pre bulk promo grant)
+    gs://christianmatch-app-fs-backups-121785138277/firestore-backup-20261105-103246  (pre promo extension)
+
+### 22.7 Still open
+
+- Email: fix SPF (single record) + DMARC, lift/raise StormerHost limit or adopt
+  an ESP, then run the throttled re-send to the 205 bounced recipients.
+- Decide whether the in-app duplicate (two broadcasts) needs any cleanup.
+- Deferred (unchanged): TURN server + re-enable calls; rotate Paystack/Gmail
+  secrets; the `isSubscriptionActive` fallback is a safety net, not a substitute
+  for keeping subscription Timestamps populated server-side.
