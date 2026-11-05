@@ -7530,6 +7530,30 @@ const App = () => {
     }
   };
 
+  // Security: automatically sign the user out after 60 minutes of inactivity.
+  // Any interaction (pointer, keyboard, touch, scroll) resets the countdown.
+  const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    // Only arm the timer for an authenticated, in-app session.
+    if (!user || currentView === "AUTH") return;
+    const INACTIVITY_LIMIT_MS = 60 * 60 * 1000;
+    const expire = () => {
+      showNotify("For your security, you were signed out after 1 hour of inactivity.", "error");
+      void handleLogout();
+    };
+    const reset = () => {
+      if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+      inactivityTimerRef.current = setTimeout(expire, INACTIVITY_LIMIT_MS);
+    };
+    const events: Array<keyof WindowEventMap> = ["mousemove", "mousedown", "keydown", "touchstart", "scroll", "click"];
+    events.forEach((evt) => window.addEventListener(evt, reset, { passive: true }));
+    reset();
+    return () => {
+      events.forEach((evt) => window.removeEventListener(evt, reset));
+      if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+    };
+  }, [user, currentView]);
+
   const handleUiBack = () => {
     if (showDeleteAccountModal) {
       setShowDeleteAccountModal(false);
