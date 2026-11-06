@@ -150,7 +150,7 @@ const LandingPage = ({  onGetStarted,
       {slide.type !== 'video' && (
         <div className="cmg-landing-approved-logo">
           <img
-            src={`${landingBase}landing-logo-circle.png`}
+            src={`${landingBase}landing-logo-circle-v3.png`}
             width={160}
             height={160}
             className="h-40 w-40 object-contain drop-shadow-2xl"

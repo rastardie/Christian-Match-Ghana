@@ -24,8 +24,9 @@ root.render(
   </React.StrictMode>
 );
 
-// Keep the platform-independent boot animation visible briefly after React
-// mounts so PWA and Capacitor launches have a consistent branded transition.
+// Keep the platform-independent boot animation visible long enough for the
+// logo entrance and heartbeat to play, so PWA and Capacitor launches show the
+// full branded transition before the app appears.
 window.setTimeout(() => {
   document.getElementById('cmg-boot-splash')?.classList.add('is-hidden');
-}, 550);
+}, 1600);
