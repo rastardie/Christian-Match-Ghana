@@ -8,7 +8,8 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, functions } from '../firebase';
+import { httpsCallable } from 'firebase/functions';
 
 const CALLS_COLLECTION = 'calls';
 const CANDIDATES_COLLECTION = 'candidates';
@@ -26,7 +27,14 @@ export interface WebRtcCallSessionOptions {
   onError?: (error: unknown) => void;
 }
 
-function getIceServers(): RTCIceServer[] {
+const STUN_FALLBACK: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
+
+/**
+ * ICE servers for this call. Order: explicit build-time override, then short-lived
+ * TURN credentials from the getCallIceServers callable (Metered), then STUN only.
+ * TURN is what lets calls connect across different networks.
+ */
+async function resolveIceServers(): Promise<RTCIceServer[]> {
   const configured = import.meta.env.VITE_WEBRTC_ICE_SERVERS;
   if (configured) {
     try {
@@ -36,7 +44,15 @@ function getIceServers(): RTCIceServer[] {
       console.warn('[WebRTC] Invalid VITE_WEBRTC_ICE_SERVERS configuration:', error);
     }
   }
-  return [{ urls: 'stun:stun.l.google.com:19302' }];
+  try {
+    const fetchIceServers = httpsCallable<unknown, { iceServers?: RTCIceServer[] }>(functions, 'getCallIceServers');
+    const result = await fetchIceServers({});
+    const servers = result.data?.iceServers;
+    if (Array.isArray(servers) && servers.length > 0) return servers;
+  } catch (error) {
+    console.warn('[WebRTC] TURN credentials unavailable, using STUN only:', error);
+  }
+  return STUN_FALLBACK;
 }
 
 /**
@@ -81,7 +97,7 @@ export async function startWebRtcCallSession(options: WebRtcCallSessionOptions):
   } = options;
   const callRef = doc(db, CALLS_COLLECTION, callId);
   const candidatesRef = collection(db, CALLS_COLLECTION, callId, CANDIDATES_COLLECTION);
-  const peer = new RTCPeerConnection({ iceServers: getIceServers() });
+  const peer = new RTCPeerConnection({ iceServers: await resolveIceServers() });
   const remoteStream = new MediaStream();
   const pendingCandidates: RTCIceCandidateInit[] = [];
   let remoteDescriptionSet = false;

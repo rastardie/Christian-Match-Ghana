@@ -1899,3 +1899,88 @@ exports.syncDefaultMessageAudienceMembership = functions.firestore
     );
     return null;
   });
+
+// ----------------------------------------------------------------------------
+// CALL TURN CREDENTIALS (Metered TURN, free tier)
+// ----------------------------------------------------------------------------
+// Issues short-lived TURN credentials to active subscribers so voice/video calls
+// can relay through NAT. The Metered secret key stays on the server. The client
+// receives only the temporary ICE server list.
+// Config (non-secret): METERED_DOMAIN in .env.<project>.
+// Secret: METERED_SECRET_KEY in Secret Manager.
+const CALL_TURN_CREDENTIAL_TTL_SECONDS = 2 * 60 * 60; // 2h: longer than a call
+const CALL_TURN_CACHE_MS = 60 * 60 * 1000; // reuse one credential per user for 1h
+const callTurnCache = new Map(); // uid -> { iceServers, expiresAt }
+
+function timestampMillis(value) {
+  if (!value) return 0;
+  if (typeof value.toMillis === 'function') return value.toMillis();
+  if (typeof value.toDate === 'function') return value.toDate().getTime();
+  const parsed = new Date(value).getTime();
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+// Mirrors the frontend entitlement rule: Timestamp expiry, with the legacy
+// ISO subscriptionEndDate as fallback.
+function isActiveSubscriberData(userData = {}) {
+  if (userData.subscriptionStatus !== 'active') return false;
+  const expiry = Math.max(
+    timestampMillis(userData.subscriptionExpiresAt),
+    timestampMillis(userData.subscriptionEndDate),
+  );
+  return expiry > Date.now();
+}
+
+exports.getCallIceServers = functions
+  .runWith({ secrets: ['METERED_SECRET_KEY'], timeoutSeconds: 30, memory: '256MB' })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'Authentication is required.');
+    }
+    const uid = context.auth.uid;
+    const userSnap = await db.collection('users').doc(uid).get();
+    if (!userSnap.exists || !isActiveSubscriberData(userSnap.data())) {
+      throw new functions.https.HttpsError('permission-denied', 'An active subscription is required for calls.');
+    }
+
+    const domain = String(process.env.METERED_DOMAIN || '').trim();
+    const secretKey = String(process.env.METERED_SECRET_KEY || '').trim();
+    if (!domain || !secretKey) {
+      throw new functions.https.HttpsError('failed-precondition', 'TURN relay is not configured.');
+    }
+
+    const cached = callTurnCache.get(uid);
+    if (cached && cached.expiresAt > Date.now()) {
+      return { iceServers: cached.iceServers };
+    }
+
+    // Opaque label: no user identifiers are sent to the TURN provider.
+    const label = `call-${crypto.createHash('sha256').update(uid).digest('hex').slice(0, 16)}`;
+    const createResponse = await fetch(
+      `https://${domain}/api/v1/turn/credential?secretKey=${encodeURIComponent(secretKey)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expiryInSeconds: CALL_TURN_CREDENTIAL_TTL_SECONDS, label }),
+      },
+    );
+    if (!createResponse.ok) {
+      console.error('Metered credential create failed:', createResponse.status);
+      throw new functions.https.HttpsError('unavailable', 'TURN relay is temporarily unavailable.');
+    }
+    const credential = await createResponse.json();
+    if (!credential || !credential.apiKey) {
+      throw new functions.https.HttpsError('unavailable', 'TURN relay is temporarily unavailable.');
+    }
+
+    const listResponse = await fetch(
+      `https://${domain}/api/v1/turn/credentials?apiKey=${encodeURIComponent(credential.apiKey)}`,
+    );
+    const iceServers = listResponse.ok ? await listResponse.json() : null;
+    if (!Array.isArray(iceServers) || iceServers.length === 0) {
+      throw new functions.https.HttpsError('unavailable', 'TURN relay is temporarily unavailable.');
+    }
+
+    callTurnCache.set(uid, { iceServers, expiresAt: Date.now() + CALL_TURN_CACHE_MS });
+    return { iceServers };
+  });
