@@ -787,6 +787,10 @@ const IncomingCallOverlay = ({
   );
 };
 
+// Voice/video calls are gated per environment. Dev sets VITE_CALLS_ENABLED=true;
+// production does not set it, so production keeps the buttons disabled.
+const CALLS_ENABLED = import.meta.env.VITE_CALLS_ENABLED === 'true';
+
 const CallView = ({
   isVideo,
   onEnd,
@@ -904,21 +908,30 @@ const CallView = ({
     }
   }, [isMuted, isCameraOff]);
 
+  // No-answer timeout for the caller. Callbacks go through refs so the timer is
+  // not restarted on every parent render, and no side effects run inside a
+  // state updater.
+  const statusRef = useRef(status);
+  statusRef.current = status;
+  const onMissedRef = useRef(onMissed);
+  onMissedRef.current = onMissed;
+  const onEndRef = useRef(onEnd);
+  onEndRef.current = onEnd;
   useEffect(() => {
-    if (!isCaller || status === 'Connected') return;
+    if (!isCaller) return;
+    let seconds = 0;
     const interval = window.setInterval(() => {
-      setElapsed((current) => {
-        if (current >= 60) {
-          window.clearInterval(interval);
-          onMissed();
-          onEnd();
-          return current;
-        }
-        return current + 1;
-      });
+      if (statusRef.current === 'Connected') return;
+      seconds += 1;
+      setElapsed(seconds);
+      if (seconds >= 60) {
+        window.clearInterval(interval);
+        onMissedRef.current();
+        onEndRef.current();
+      }
     }, 1000);
     return () => window.clearInterval(interval);
-  }, [isCaller, status, onMissed, onEnd]);
+  }, [isCaller]);
 
   // Caller hears the ringback tone while waiting for the callee to answer.
   // It stops as soon as the call connects, fails, or ends.
@@ -5580,22 +5593,55 @@ const MessageThreadView = ({
           </div>
         </div>
         <div className="flex gap-2 mr-2">
-          <button
-            title="Calls are temporarily unavailable"
-            disabled
-            aria-disabled="true"
-            className="p-3 text-gray-400 bg-brand-surface rounded-2xl shadow-sm opacity-50 cursor-not-allowed"
-          >
-            <Phone size={20} />
-          </button>
-          <button
-            title="Calls are temporarily unavailable"
-            disabled
-            aria-disabled="true"
-            className="p-3 text-gray-400 bg-brand-surface rounded-2xl shadow-sm opacity-50 cursor-not-allowed"
-          >
-            <Video size={20} />
-          </button>
+          {CALLS_ENABLED ? (
+            <>
+              <button
+                title="Start voice call"
+                onClick={() => {
+                  if (isSubscriptionActive(currentUser)) {
+                    onStartCall(false);
+                  } else if (onOpenPayment) {
+                    onOpenPayment();
+                  }
+                }}
+                className="p-3 text-brand-blue bg-brand-surface rounded-2xl shadow-sm hover:text-brand-orange transition-colors"
+              >
+                <Phone size={20} />
+              </button>
+              <button
+                title="Start video call"
+                onClick={() => {
+                  if (isSubscriptionActive(currentUser)) {
+                    onStartCall(true);
+                  } else if (onOpenPayment) {
+                    onOpenPayment();
+                  }
+                }}
+                className="p-3 text-brand-blue bg-brand-surface rounded-2xl shadow-sm hover:text-brand-orange transition-colors"
+              >
+                <Video size={20} />
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                title="Calls are temporarily unavailable"
+                disabled
+                aria-disabled="true"
+                className="p-3 text-gray-400 bg-brand-surface rounded-2xl shadow-sm opacity-50 cursor-not-allowed"
+              >
+                <Phone size={20} />
+              </button>
+              <button
+                title="Calls are temporarily unavailable"
+                disabled
+                aria-disabled="true"
+                className="p-3 text-gray-400 bg-brand-surface rounded-2xl shadow-sm opacity-50 cursor-not-allowed"
+              >
+                <Video size={20} />
+              </button>
+            </>
+          )}
           <button
             title="More options"
             onClick={() => setShowMenu(!showMenu)}

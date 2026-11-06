@@ -39,6 +39,25 @@ function getIceServers(): RTCIceServer[] {
   return [{ urls: 'stun:stun.l.google.com:19302' }];
 }
 
+/**
+ * Logs which ICE path carries the call: "host"/"srflx" is direct peer-to-peer,
+ * "relay" means a TURN server is carrying the media. Used to validate call
+ * connectivity on DEV without exposing candidate addresses.
+ */
+async function logSelectedPath(peer: RTCPeerConnection): Promise<void> {
+  try {
+    const stats = await peer.getStats();
+    stats.forEach((report) => {
+      if (report.type !== 'candidate-pair' || !report.nominated || report.state !== 'succeeded') return;
+      const local = stats.get(report.localCandidateId) as { candidateType?: string } | undefined;
+      const remote = stats.get(report.remoteCandidateId) as { candidateType?: string } | undefined;
+      console.info('[WebRTC] connected path', { local: local?.candidateType, remote: remote?.candidateType });
+    });
+  } catch (error) {
+    console.warn('[WebRTC] Unable to read selected candidate pair:', error);
+  }
+}
+
 function candidateRef(callId: string, candidateId?: string) {
   return candidateId
     ? doc(db, CALLS_COLLECTION, callId, CANDIDATES_COLLECTION, candidateId)
@@ -130,6 +149,7 @@ export async function startWebRtcCallSession(options: WebRtcCallSessionOptions):
     if (disposed) return;
     if (peer.connectionState === 'connected') {
       onStateChange('connected');
+      void logSelectedPath(peer);
       void updateDoc(callRef, { status: 'connected', connectedAt: serverTimestamp() }).catch(onError);
     } else if (peer.connectionState === 'connecting' || peer.connectionState === 'new') {
       // Initial negotiation — keep showing "connecting", not "reconnecting".

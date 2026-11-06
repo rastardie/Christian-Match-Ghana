@@ -59,6 +59,7 @@ jobs:
             echo "VITE_FIREBASE_FUNCTIONS_REGION=us-central1"
             echo "VITE_USE_FIREBASE_EMULATORS=false"
             echo "VITE_PUBLIC_APP_URL=https://christianmatchghana.com/dev"
+            echo "VITE_CALLS_ENABLED=true"
           } > .env.staging-web
 
       - name: Build (staging-web)
