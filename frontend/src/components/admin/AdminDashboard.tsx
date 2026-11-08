@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { signOut, onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../../firebase';
 import { getDashboardStats, getAdminUsers, getAdminPrayers, getAdminReports, deleteUser, toggleBlockUser, getAdminConnections, getAdminPayments, getAnalyticsData, AnalyticsData, adminCreateUser } from '../../services/adminService';
-import { LayoutDashboard, Users, Shield, Activity, LogOut, MessageSquare, Heart, Trash2, Search, CheckCircle, XCircle, Link as LinkIcon, CreditCard, DollarSign, Calendar, MoreHorizontal, ChevronDown, RefreshCw, ClipboardList, Settings, Menu, Power, FileText, Printer, KeyRound, X, Edit3, Send } from 'lucide-react';
+import { LayoutDashboard, Users, Shield, Activity, LogOut, MessageSquare, Heart, Trash2, Search, CheckCircle, XCircle, Link as LinkIcon, CreditCard, DollarSign, Calendar, MoreHorizontal, ChevronDown, RefreshCw, ClipboardList, Settings, Menu, Power, FileText, Printer, KeyRound, X, Edit3, Send, Filter, UserPlus, Download } from 'lucide-react';
 import { EditProfileView } from '../../MainApp';
 import { updateUserDocument } from '../../services/userService';
 import AdminAccessControl from './AdminAccessControl';
@@ -1182,85 +1182,6 @@ const UsersView = ({ focusUserId, onOpenGroup, onOpenPermissionGroup, onOpenMess
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center">
-                <div className="relative w-64">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                    <input 
-                        type="text" 
-                        placeholder="Search users..." 
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-orange/20 focus:border-brand-orange"
-                    />
-                </div>
-                <div className="flex gap-2 relative">
-                    <button 
-                        onClick={() => setShowFilterMenu(!showFilterMenu)}
-                        className={`px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 flex items-center gap-2 ${showFilterMenu ? 'bg-gray-50 ring-2 ring-brand-orange/20' : ''}`}
-                    >
-                        Filter
-                    </button>
-                    {showFilterMenu && (
-                        <div className="absolute top-12 right-0 w-64 bg-white rounded-xl shadow-xl border border-gray-100 z-50 p-4 animate-in fade-in zoom-in-95 duration-200">
-                            <h4 className="font-semibold text-gray-900 mb-3 text-sm">Filter Users</h4>
-                            
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="text-xs font-medium text-gray-500 mb-1 block">Status</label>
-                                    <div className="flex bg-gray-100 p-1 rounded-lg">
-                                        {['All', 'Active', 'Blocked'].map(status => (
-                                            <button 
-                                                key={status}
-                                                onClick={() => setFilterStatus(status as any)}
-                                                className={`flex-1 py-1 text-xs font-medium rounded-md transition-all ${filterStatus === status ? 'bg-white shadow-sm text-brand-orange' : 'text-gray-500 hover:text-gray-700'}`}
-                                            >
-                                                {status}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                                
-                                <div>
-                                    <label className="text-xs font-medium text-gray-500 mb-1 block">Role</label>
-                                    <select 
-                                        value={filterRole}
-                                        onChange={(e) => setFilterRole(e.target.value as any)}
-                                        className="w-full text-sm border border-gray-200 rounded-lg p-2 focus:outline-none focus:border-brand-orange"
-                                    >
-                                        <option value="All">All Roles</option>
-                                        <option value="User">User</option>
-                                        <option value="Subscriber">Subscriber</option>
-                                    </select>
-                                </div>
-
-                                <button 
-                                    onClick={() => {
-                                        setFilterStatus('All');
-                                        setFilterRole('All');
-                                    }}
-                                    className="w-full py-2 text-sm text-gray-500 hover:bg-gray-50 rounded-lg border border-gray-200 transition-colors"
-                                >
-                                    Reset Filters
-                                </button>
-                            </div>
-                        </div>
-                    )}
-                    
-                    <button 
-                        onClick={() => setIsAddUserModalOpen(true)}
-                        className="px-4 py-2 bg-brand-orange text-white rounded-lg text-sm hover:bg-brand-orange/90 shadow-sm shadow-brand-orange/20"
-                    >
-                        Add User
-                    </button>
-                    <button 
-                        onClick={handleExport}
-                        className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm hover:bg-slate-800 shadow-sm flex items-center gap-2"
-                    >
-                        Export CSV
-                    </button>
-                </div>
-            </div>
-
             {duplicateEmailRows > 0 && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                     <strong>{duplicateEmailRows} duplicate-email profile rows detected.</strong> Review each Firestore document ID before deleting anything; these rows are not automatically linked to Authentication accounts.
@@ -1274,13 +1195,100 @@ const UsersView = ({ focusUserId, onOpenGroup, onOpenPermissionGroup, onOpenMess
                 </div>
             )}
 
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden min-h-0">
-                <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
-                    <div className="min-w-0">
-                        <h3 className="flex items-center gap-2 font-black text-slate-800"><Users size={18} />Users</h3>
-                        <p className="mt-1 text-xs text-slate-500">Manage user profiles, account status, access, and administrative actions.</p>
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 min-h-0">
+                <div className="border-b border-slate-200 px-4 py-3">
+                    <div className="flex items-center gap-3">
+                        <h3 className="flex shrink-0 items-center gap-2 font-black text-slate-800"><Users size={18} />Users</h3>
+                        <div className="relative min-w-0 flex-1">
+                            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                            <input
+                                type="search"
+                                aria-label="Search users"
+                                placeholder="Search users..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full rounded-lg border border-gray-200 py-2 pl-9 pr-3 text-sm focus:border-brand-orange focus:outline-none focus:ring-2 focus:ring-brand-orange/20"
+                            />
+                        </div>
+                        <span className="shrink-0 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-bold text-slate-600">{users.length} users</span>
                     </div>
-                    <span className="shrink-0 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-bold text-slate-600">{users.length} users</span>
+                    <div className="mt-2 flex items-center justify-between gap-3">
+                        <p className="min-w-0 text-xs text-slate-500">Manage user profiles, account status, access, and administrative actions.</p>
+                        <div className="relative flex shrink-0 items-center gap-1.5">
+                            <button
+                                type="button"
+                                onClick={() => setShowFilterMenu(!showFilterMenu)}
+                                title="Filter users"
+                                aria-label="Filter users"
+                                aria-expanded={showFilterMenu}
+                                className={`rounded-lg border border-gray-200 bg-white p-2 text-gray-600 hover:bg-gray-50 ${showFilterMenu ? 'bg-gray-50 ring-2 ring-brand-orange/20' : ''}`}
+                            >
+                                <Filter size={16} />
+                            </button>
+                            {showFilterMenu && (
+                                <div className="absolute right-0 top-full z-50 mt-2 w-64 animate-in fade-in zoom-in-95 duration-200 rounded-xl border border-gray-100 bg-white p-4 shadow-xl">
+                                    <h4 className="mb-3 text-sm font-semibold text-gray-900">Filter Users</h4>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="mb-1 block text-xs font-medium text-gray-500">Status</label>
+                                            <div className="flex rounded-lg bg-gray-100 p-1">
+                                                {['All', 'Active', 'Blocked'].map((status) => (
+                                                    <button
+                                                        key={status}
+                                                        type="button"
+                                                        onClick={() => setFilterStatus(status as any)}
+                                                        className={`flex-1 rounded-md py-1 text-xs font-medium transition-all ${filterStatus === status ? 'bg-white text-brand-orange shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                                    >
+                                                        {status}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="mb-1 block text-xs font-medium text-gray-500">Role</label>
+                                            <select
+                                                value={filterRole}
+                                                onChange={(e) => setFilterRole(e.target.value as any)}
+                                                className="w-full rounded-lg border border-gray-200 p-2 text-sm focus:border-brand-orange focus:outline-none"
+                                            >
+                                                <option value="All">All Roles</option>
+                                                <option value="User">User</option>
+                                                <option value="Subscriber">Subscriber</option>
+                                            </select>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setFilterStatus('All');
+                                                setFilterRole('All');
+                                            }}
+                                            className="w-full rounded-lg border border-gray-200 py-2 text-sm text-gray-500 transition-colors hover:bg-gray-50"
+                                        >
+                                            Reset Filters
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                            <button
+                                type="button"
+                                onClick={() => setIsAddUserModalOpen(true)}
+                                title="Add user"
+                                aria-label="Add user"
+                                className="rounded-lg bg-brand-orange p-2 text-white shadow-sm shadow-brand-orange/20 hover:bg-brand-orange/90"
+                            >
+                                <UserPlus size={16} />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleExport}
+                                title="Export CSV"
+                                aria-label="Export CSV"
+                                className="rounded-lg bg-slate-900 p-2 text-white shadow-sm hover:bg-slate-800"
+                            >
+                                <Download size={16} />
+                            </button>
+                        </div>
+                    </div>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="cmg-admin-compact-table min-w-[1076px] w-full table-fixed border-collapse text-left">

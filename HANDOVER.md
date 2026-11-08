@@ -1610,3 +1610,30 @@ Deployed to Dev (these changes are frontend only; no functions or rules changed)
 - Production (`christianmatch-app`, `christianmatchghana.com` root): not deployed. Live bundle `assets/index-BnfUBPhK.js`, unchanged.
 
 Not yet tested on a device. The test checklists are in sections 23.11, 23.12, and 23.14. Test on Dev before any production release.
+
+### 23.16 Notification panel above all pages — 2026-11-08
+
+Problem (screenshot, 2026-11-08 14:30): the bell panel was cut off at the header and drawn underneath the page content. The app frame clips and stacks its children, so a panel rendered in place could not sit above them.
+
+Fix (local only, not committed or deployed): `frontend/src/components/MessageNotificationBell.tsx` now renders the panel and its backdrop into `document.body` with fixed positioning, placed under the bell's on-screen position.
+- Panel z-index `z-[1200]`, backdrop `z-[1199]`. This is above the page content, the header, the navigation bar, and the call overlay (`z-[600]`). It is below the sign-out dialog (`z-[2000]`) and the incoming-call overlay (`z-[700]`), which shows the call prompt first.
+- Closes on Escape, on page scroll (scrolling inside the panel is allowed), and on a tap outside it. Follows window resize.
+
+Verified: `tsc --noEmit` passes and the staging build succeeds. Not verified in a browser or on a device.
+
+Test:
+```text
+[ ] Open the bell on Discover, Likes, Messages, Profile, Admin, Edit Profile, and during a call: the panel is fully visible above the content.
+[ ] Scroll the page with the panel open: the panel closes.
+[ ] Tap outside the panel: it closes. Escape closes it on desktop.
+```
+
+### 23.17 Admin > Users layout — 2026-11-08
+
+Changes to the Users tab (`frontend/src/components/admin/AdminDashboard.tsx`), local only:
+1. The separate toolbar above the list (search, Filter, Add User, Export CSV) is removed. This gives the list more space.
+2. The search box is now in the Users card header, between the "Users" heading and the "N users" count. It fills the space between them.
+3. Filter, Add User, and Export CSV are icon-only buttons (Filter, UserPlus, Download), on the same line as the description, aligned right. Each has a title and aria-label.
+- The Filter popover is positioned under its button. The Users card no longer hides overflow, so the popover is not clipped.
+
+Verified: `tsc --noEmit` passes and the staging build succeeds. Not verified in a browser or on a phone.
