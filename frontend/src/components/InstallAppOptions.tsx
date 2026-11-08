@@ -148,7 +148,7 @@ const InstallAppOptions: React.FC = () => {
           disabledTitle={device.isAndroid ? 'Coming soon' : 'Available on Android'}
         />
         <button type="button" onClick={installWebApp} className="cmg-install-btn">
-          <Download size={20} />
+          <Download size={22} aria-hidden />
           <span>Install Web App</span>
         </button>
       </div>
