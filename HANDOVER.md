@@ -1471,3 +1471,129 @@ Icon fix (installed-app logo):
 - Change: `frontend/public/icon-512x512-v3.png`, `icon-192x192-v3.png`, and `apple-touch-icon-v3.png` were regenerated from `landing-logo-circle.png`. The ring now spans about 12% to 88% of the icon, inside the 80% maskable safe zone, on a white background.
 - Not changed: the Android native launcher icons in `frontend/android/app/src/main/res/mipmap-*`. If the phone app is the native Capacitor build, those need regenerating too.
 - Deployment: the icons take effect on the phone only after a Dev or production frontend deploy, and after the installed app is reinstalled or its icon is refreshed.
+
+### 23.10 Deploys and logout-on-close — 2026-11-08
+
+Deployed (icon fix, commit `a96c576`, pushed to `origin/sync/cmg-local-2026-10-13`):
+
+- Firebase Dev hosting (`christian-match-ghana.web.app`): root-base build from `a96c576`, hosting only. Verified: the live icon hash matches the fixed icon.
+- StormerHost Dev (`christianmatchghana.com/dev`): `deploy-dev.yml` run 42457104089 on `sync/cmg-local-2026-10-13`, completed with success. Verified: the live icon hash matches the fixed icon.
+- Production: not deployed.
+
+Correction to 23.2: the Dev hosting and `/dev` bundles were both replaced today, so both now include the Nov 6 call commits. The `getCallIceServers` string is in the lazy `services-*.js` chunk, so a grep on the index bundle alone returns 0. This is not evidence the TURN code is missing.
+
+Logout when the app closes (local, not committed, not deployed):
+
+- Before: the sign-in form had a "Keep me signed in" checkbox. When it was ticked, Firebase used local persistence and the session survived app restarts. Persistence was set only at sign-in time.
+- Change: `frontend/src/firebase.ts` sets `browserSessionPersistence` at startup. `frontend/src/MainApp.tsx` always uses session persistence for password, PIN, and social sign-in. The "Keep me signed in" checkbox and its state are removed. The biometric hint text no longer mentions the checkbox.
+- Expected result: closing the app or tab ends the session. The next launch shows the sign-in screen.
+- Verified: `tsc --noEmit` passes and the staging build succeeds.
+- Not verified: the behaviour in a browser or on the Android app. Test before release.
+
+Open decision: biometric quick login (`handleBiometricLogin`) reuses credentials saved at a previous password sign-in. It is user-triggered, not automatic, but a fingerprint unlock is not typed credentials. Confirm whether biometric login is acceptable under the "must sign in with credentials" rule, or disable it.
+
+Users who previously ticked "Keep me signed in" keep their existing local session until its next sign-in. Firebase moves the current session into session storage at startup, so it ends the next time the app closes.
+
+Test plan before release:
+
+```text
+[ ] run-cmg-pwa.sh with the emulators: sign in with password, reload (should stay signed in), close the tab, reopen (should show sign-in).
+[ ] Repeat for PIN sign-in and Google/Apple sign-in.
+[ ] Android: sign in, swipe the app away from recents, reopen (should show sign-in).
+[ ] Confirm the "Forgot password" link still sits on the right of the sign-in form.
+```
+
+### 23.11 Inactivity sign-out changed to 30 minutes — 2026-11-08
+
+Supersedes the 60-minute limit in section 22.8.
+
+- Change: `frontend/src/MainApp.tsx`, the inactivity effect. `INACTIVITY_LIMIT_MS` is now 30 minutes. The sign-out message now says 30 minutes.
+- Mobile fix: browsers pause timers while the app is backgrounded or the phone is locked. The effect now also records the last interaction time and checks elapsed time when the app regains focus or becomes visible. A 30-minute idle session therefore signs out on return, not later.
+- Interactions that reset the timer are unchanged: mouse move and down, key down, touch start, scroll, and click.
+- Local only. Not committed and not deployed.
+- Verified: `tsc --noEmit` passes and the staging build succeeds.
+- Not verified: the timer in a browser or on Android. Test before release:
+
+```text
+[ ] Sign in, leave the app idle for 30 minutes: expect sign-out and the message.
+[ ] Sign in, interact every few minutes: expect no sign-out.
+[ ] Android: sign in, lock the phone for more than 30 minutes, unlock: expect sign-out on return.
+```
+
+### 23.12 Message bell on every page; notification settings only from Profile — 2026-11-08
+
+Problem:
+- The header bell opened the notification settings page when there were no unread messages.
+- The Profile header bell also opened notification settings.
+- The bell was not available on Profile, Admin, or Edit Profile, which hide the shared header.
+- The Admin header bell opened the prayers tab, not messages.
+
+Change (local only, not committed or deployed):
+- New shared component `frontend/src/components/MessageNotificationBell.tsx`. It shows the unread-message count and a panel with:
+  - unread conversations (tap to open the chat);
+  - "Mark all as read" when there are unread messages;
+  - "Manage messages" (opens the Messages list);
+  - an empty state, "No unread messages.", when there are none.
+- The bell never navigates to settings.
+- `frontend/src/components/Layout.tsx`: uses the shared bell in the header. The old `onNotifications` prop is removed and `onOpenMessages` is added. A floating bell appears on pages without the shared header (Edit Profile).
+- `frontend/src/MainApp.tsx`: Profile header uses the shared bell (`onOpenSettings` is no longer wired to the bell). The Admin view receives the message props.
+- `frontend/src/components/admin/AdminDashboard.tsx`: the header bell is the shared message bell. The old prayers-tab shortcut is removed.
+- Notification settings: reachable only through Profile → Settings → Notifications.
+
+Verified: `tsc --noEmit` passes and the staging build succeeds.
+
+Not verified: rendering and behaviour in a browser or on Android. Test:
+
+```text
+[ ] Discover, Likes, Messages, Profile, Admin, Edit Profile: the bell is visible on each page.
+[ ] With unread messages: the badge shows the count, and the panel lists conversations. Tapping one opens that chat.
+[ ] "Mark all as read" clears the badge. "Manage messages" opens the Messages list.
+[ ] With no unread messages: the panel shows "No unread messages." and the bell does not open settings.
+[ ] Profile → Settings → Notifications still opens notification settings.
+```
+
+Open point: the Call screen is a full-screen overlay and does not show the bell. Confirm whether that is acceptable.
+
+### 23.13 Prayers shortcut restored; bell on the call screen — 2026-11-08
+
+- Admin header: restored the Prayers shortcut (heart icon, "Prayer requests") next to the message bell. The Prayers entry is also still in the Admin side menu.
+- Call screen (`CallView` in `MainApp.tsx`): the message bell now sits in the top bar, next to the local video preview.
+- During a call, opening a conversation or "Manage messages" would unmount the call, so both show "End the call to open messages." Mark-all-read still works during a call.
+- Pre-login screens (sign-in, onboarding) have no messages and do not show the bell.
+- Incoming-call overlay (full screen, above everything) does not show the bell until it is answered or declined.
+
+Verified: `tsc --noEmit` passes and the staging build succeeds. Not verified in a browser or on Android.
+
+### 23.14 Installed-app unread badge — 2026-11-08
+
+What already existed:
+- The app sets the installed-app badge with the Badging API (`navigator.setAppBadge`) from the total unread count (`syncAppBadge` in `notificationService.ts`).
+- The server sends `data.unreadCount` in every chat-message push (`backend/functions/src/index.js`, ~line 734). The deployed service worker uses it to update the badge while the app is closed.
+
+Platform support (checked 2026-11-08):
+- iPhone/iPad, Home Screen web app (iOS 16.4+): numeric red badge through the Badging API. Needs notification permission.
+- Desktop Chrome/Edge: numeric badge through the Badging API.
+- Android Chrome (installed PWA): the Badging API is not supported. Android shows a badge only while notifications are active, not a numeric count set by the web app.
+- Native Capacitor Android: native push is disabled unless `VITE_NATIVE_PUSH_ENABLED=true`, so this build gets no push badge.
+
+Changes (local only, not committed or deployed):
+- `frontend/scripts/generate-messaging-sw.mjs` (the deployed service worker):
+  - notifications use `icon-192x192-v3.png`, not the old `icon-192x192.png`;
+  - each notification stores `data.chatId`;
+  - the icon path honours a shell `VITE_BASE_PATH`, as Vite does. Before, root-base builds pointed at `/dev/`.
+- `frontend/public/firebase-messaging-sw.js`: the same notification changes, kept in sync with the generator.
+- `frontend/src/services/notificationService.ts`: new `closeDeliveredWebNotifications(chatId?)`. It closes this app's delivered notifications, optionally only one chat's.
+- `frontend/src/MainApp.tsx`:
+  - the badge sync waits for chats to load. Before, every launch cleared the badge briefly;
+  - when unread reaches 0, delivered notifications are closed;
+  - opening a chat closes that chat's notifications;
+  - "Mark all as read" closes all delivered notifications.
+
+Verified: `tsc --noEmit` passes. The generated service worker passes `node --check` and has the chat id data and the v3 icon. The root build uses `/icon-192x192-v3.png` and the dev build uses `/dev/icon-192x192-v3.png`.
+
+Not verified: a real iPhone, iPad, or Android device.
+
+Still open:
+- Android Chrome PWAs cannot show a numeric red count from the web app. A numeric count on Android needs the native app with push enabled (`VITE_NATIVE_PUSH_ENABLED`) and native badge handling.
+- Confirm the device model and that notification permission was granted.
+- The Dev hosting build from `a96c576` has the old service worker (`/dev/icon-192x192.png`). Redeploy Dev hosting and the `/dev` site before testing badges there.
