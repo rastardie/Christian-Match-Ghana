@@ -198,6 +198,7 @@ const LandingPage = ({  onGetStarted,
         <button type="button" onClick={onSignIn} className="cmg-landing-signin">
           Already a member? <span>Sign in</span>
         </button>
+        <InstallAppOptions />
       </div>
     </main>
   );
@@ -217,6 +218,7 @@ import { uploadProfilePhoto, uploadCoverPhoto, uploadGalleryPhoto, uploadFile } 
 import { getCurrentAdminAccess } from './services/adminRbacService';
 import { startWebRtcCallSession } from './services/callService';
 import MessageNotificationBell, { type MessageNotificationItem } from './components/MessageNotificationBell';
+import InstallAppOptions from './components/InstallAppOptions';
 import { playRingtone } from './services/ringtoneService';
 import { App as CapacitorApp } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";

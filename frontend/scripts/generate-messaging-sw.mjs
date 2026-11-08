@@ -69,6 +69,13 @@ messaging.onBackgroundMessage(async (payload) => {
   };
   await self.registration.showNotification(notificationTitle, notificationOptions);
 });
+
+// Chrome only offers the PWA install prompt when the service worker has a fetch
+// handler. This pass-through caches nothing; it sends requests to the network.
+self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET' || event.request.mode === 'navigate') return;
+  event.respondWith(fetch(event.request));
+});
 `;
 
 const destination = path.resolve('dist/firebase-messaging-sw.js');
