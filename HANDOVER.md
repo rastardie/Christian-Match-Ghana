@@ -1637,3 +1637,11 @@ Changes to the Users tab (`frontend/src/components/admin/AdminDashboard.tsx`), l
 - The Filter popover is positioned under its button. The Users card no longer hides overflow, so the popover is not clipped.
 
 Verified: `tsc --noEmit` passes and the staging build succeeds. Not verified in a browser or on a phone.
+
+### 23.18 Dev release — 2026-11-08 (Users layout and message panel)
+
+- GitHub: `origin/sync/cmg-local-2026-10-13` at `eeff21f`.
+- Firebase Dev hosting (`christian-match-ghana.web.app`): root-base build, hosting only. Live bundle `assets/index-CT-NhZL6.js`.
+- StormerHost Dev (`christianmatchghana.com/dev`): `deploy-dev.yml` run 42491555540, success. Live bundle `assets/index-axvhuKfM.js`.
+- Production (`christianmatch-app`, `christianmatchghana.com` root): not deployed. Live bundle `assets/index-BnfUBPhK.js`, unchanged.
+- GitLab: no GitLab remote is configured for this repository, so nothing was pushed there. A GitLab project URL is needed to add the remote.
