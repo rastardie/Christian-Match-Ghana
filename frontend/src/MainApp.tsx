@@ -6788,6 +6788,8 @@ const CommunityView = ({ user }: { user: User | null }) => {
   const [prayers, setPrayers] = useState<PrayerRequest[]>([]);
   const [showAddPrayer, setShowAddPrayer] = useState(false);
   const [newPrayerText, setNewPrayerText] = useState("");
+  const [postingPrayer, setPostingPrayer] = useState(false);
+  const [prayerError, setPrayerError] = useState<string | null>(null);
   const [selectedPrayer, setSelectedPrayer] = useState<PrayerRequest | null>(
     null
   );
@@ -6900,14 +6902,34 @@ const CommunityView = ({ user }: { user: User | null }) => {
   };
 
   const handlePostPrayer = async () => {
-    if (!newPrayerText.trim() || !user) return;
-    
+    if (!newPrayerText.trim() || postingPrayer) return;
+    if (!user) {
+      setPrayerError("You need to be signed in to post a prayer.");
+      return;
+    }
+
+    setPostingPrayer(true);
+    setPrayerError(null);
     try {
-      await addPrayerRequest(user.id, user.name, newPrayerText);
+      // Firestore's addDoc only resolves once the server acknowledges the write,
+      // so it can hang while offline. Time out so the user gets feedback.
+      await Promise.race([
+        addPrayerRequest(user.id, user.name, newPrayerText),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("timeout")), 15000)
+        ),
+      ]);
       setNewPrayerText("");
       setShowAddPrayer(false);
     } catch (error) {
       console.error("Error posting prayer:", error);
+      setPrayerError(
+        error instanceof Error && error.message === "timeout"
+          ? "Still waiting on the network. Check your connection and try again."
+          : "Could not post your prayer. Please try again."
+      );
+    } finally {
+      setPostingPrayer(false);
     }
   };
 
@@ -7077,12 +7099,17 @@ const CommunityView = ({ user }: { user: User | null }) => {
               placeholder="How can the community stand in faith with you today?"
               className="w-full h-40 p-5 bg-gray-50 rounded-3xl outline-none focus:ring-2 focus:ring-brand-orange/20 text-gray-900 font-medium resize-none mb-6"
             />
+            {prayerError && (
+              <p role="alert" className="text-red-600 text-sm font-medium mb-4">
+                {prayerError}
+              </p>
+            )}
             <button
               onClick={handlePostPrayer}
-              disabled={!newPrayerText.trim()}
+              disabled={!newPrayerText.trim() || postingPrayer}
               className="w-full py-4 bg-brand-orange text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-brand-orange/20 active:scale-95 disabled:opacity-50 transition-all"
             >
-              Post to Wall
+              {postingPrayer ? "Posting..." : "Post to Wall"}
             </button>
           </div>
         </div>
@@ -7354,6 +7381,14 @@ const FriendsView = ({
 };
 
 /** Premium card appears only this many days before the subscription ends (the free promo end). */
+/** Mirrors the Firestore rule hasActiveSubscription(): active status and a Timestamp expiry in the future. */
+export const hasCallEntitlement = (user: User | null | undefined): boolean => {
+  if (!user || user.subscriptionStatus !== 'active') return false;
+  const expiry = (user as any).subscriptionExpiresAt;
+  const millis = typeof expiry?.toMillis === 'function' ? expiry.toMillis() : null;
+  return millis !== null && millis > Date.now();
+};
+
 export const SUBSCRIPTION_ALERT_DAYS = 14;
 
 /** Whole days until the subscription ends (0 when ended), or null when no expiry is known. */
@@ -7730,7 +7765,8 @@ const App = () => {
     const setupSubscriptions = async () => {
       try {
         // Subscribe to incoming calls
-        unsubscribeCalls = subscribeToIncomingCalls(user.id, (call: any) => {
+        // Start the listener only when the Firestore call rule can allow it.
+        unsubscribeCalls = hasCallEntitlement(user) ? subscribeToIncomingCalls(user.id, (call: any) => {
              // Only set active incoming call if we are not already in a call
              if (call && !currentCallId) {
                setIncomingCall(call);
@@ -7745,8 +7781,8 @@ const App = () => {
             : code === 'permission-denied'
               ? 'Incoming calls are unavailable because Dev Firestore denied the call listener. Please sign out and sign in again.'
               : `Incoming calls are unavailable in Dev (${code}). Please try again.`;
-          showNotify(message, 'error');
-        });
+          if (code !== 'permission-denied') showNotify(message, 'error');
+        }) : undefined;
         
         unsubscribeChats = subscribeToChats(user.id, (updatedChats: ChatThread[]) => {
           console.log('📨 Chats updated:', updatedChats.length);
@@ -7765,7 +7801,7 @@ const App = () => {
       if (unsubscribeChats) unsubscribeChats();
       if (unsubscribeCalls) unsubscribeCalls();
     };
-  }, [user?.id, currentCallId]);
+  }, [user?.id, currentCallId, hasCallEntitlement(user)]);
 
   // Ring the default incoming-call tone (with vibration) while a call is
   // ringing and has not yet been answered or dismissed.
