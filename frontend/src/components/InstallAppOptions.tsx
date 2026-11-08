@@ -132,7 +132,7 @@ const InstallAppOptions: React.FC = () => {
         />
         <button type="button" onClick={installWebApp} className="cmg-install-btn">
           <Download size={20} />
-          <span>Install App</span>
+          <span>Install Web App</span>
         </button>
       </div>
 
