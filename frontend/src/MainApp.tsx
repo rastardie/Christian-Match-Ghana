@@ -6913,8 +6913,11 @@ const CommunityView = ({ user }: { user: User | null }) => {
     try {
       // Firestore's addDoc only resolves once the server acknowledges the write,
       // so it can hang while offline. Time out so the user gets feedback.
+      // The Firestore rule requires userId == request.auth.uid, so write the
+      // authenticated UID. Firestore also rejects undefined field values.
+      const authorId = auth.currentUser?.uid || user.id;
       await Promise.race([
-        addPrayerRequest(user.id, user.name, newPrayerText),
+        addPrayerRequest(authorId, user.name || "Someone", newPrayerText),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error("timeout")), 15000)
         ),
@@ -6923,10 +6926,11 @@ const CommunityView = ({ user }: { user: User | null }) => {
       setShowAddPrayer(false);
     } catch (error) {
       console.error("Error posting prayer:", error);
+      const code = (error as { code?: string })?.code;
       setPrayerError(
         error instanceof Error && error.message === "timeout"
           ? "Still waiting on the network. Check your connection and try again."
-          : "Could not post your prayer. Please try again."
+          : `Could not post your prayer${code ? ` (${code})` : ""}. Please try again.`
       );
     } finally {
       setPostingPrayer(false);
