@@ -1597,3 +1597,16 @@ Still open:
 - Android Chrome PWAs cannot show a numeric red count from the web app. A numeric count on Android needs the native app with push enabled (`VITE_NATIVE_PUSH_ENABLED`) and native badge handling.
 - Confirm the device model and that notification permission was granted.
 - The Dev hosting build from `a96c576` has the old service worker (`/dev/icon-192x192.png`). Redeploy Dev hosting and the `/dev` site before testing badges there.
+
+### 23.15 Dev release — 2026-11-08
+
+Pushed to `origin/sync/cmg-local-2026-10-13`:
+- `3b0ac55` session-only sign-in, 30-minute inactivity sign-out, message bell and app badge.
+- `bf0aa31` handover update.
+
+Deployed to Dev (these changes are frontend only; no functions or rules changed):
+- Firebase Dev hosting (`christian-match-ghana.web.app`): root-base build, hosting only. Live bundle `assets/index-hB5Jhi7i.js`.
+- StormerHost Dev (`christianmatchghana.com/dev`): `deploy-dev.yml` run 42460874989, completed with success. Live bundle `assets/index-EnedH55A.js`. Its service worker uses `/dev/icon-192x192-v3.png`.
+- Production (`christianmatch-app`, `christianmatchghana.com` root): not deployed. Live bundle `assets/index-BnfUBPhK.js`, unchanged.
+
+Not yet tested on a device. The test checklists are in sections 23.11, 23.12, and 23.14. Test on Dev before any production release.
