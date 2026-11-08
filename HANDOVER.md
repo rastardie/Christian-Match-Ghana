@@ -1645,3 +1645,55 @@ Verified: `tsc --noEmit` passes and the staging build succeeds. Not verified in 
 - StormerHost Dev (`christianmatchghana.com/dev`): `deploy-dev.yml` run 42491555540, success. Live bundle `assets/index-axvhuKfM.js`.
 - Production (`christianmatch-app`, `christianmatchghana.com` root): not deployed. Live bundle `assets/index-BnfUBPhK.js`, unchanged.
 - GitLab: no GitLab remote is configured for this repository, so nothing was pushed there. A GitLab project URL is needed to add the remote.
+
+### 23.19 Profile page cleanup — 2026-11-08 (local, not committed or deployed)
+
+Changes in `frontend/src/MainApp.tsx` (ProfileView and helpers):
+- "Spiritually Solid / Your profile is 100% complete!" card: removed. It shows only while the profile is incomplete ("Complete Your Profile"). The blue verified check beside the name already marks a complete profile.
+- Subscription card (Free Premium Access / paid plans): shown only in the last `SUBSCRIPTION_ALERT_DAYS` (14) days before expiry, as a shorter card. It is hidden the rest of the time. Helpers: `SUBSCRIPTION_ALERT_DAYS` and `subscriptionDaysLeft()` (exported beside `isSubscriptionActive`).
+- The "Inactive / Expired" Subscribe card is unchanged, so users without a plan are still prompted.
+- Cover photo and avatar: a photo that fails to load is hidden, so no broken image or alt text shows. The avatar falls back to initials. Before, a broken cover showed "Andrews's cover", and a broken avatar showed "Profile" over the photo area.
+
+Verified: `tsc --noEmit` passes and the staging build succeeds. Not verified in a browser.
+
+Open: the cover and avatar images failed to load on the test account. Check the stored photo URLs in Firestore and Storage access for that profile, since the fallback only hides the symptom.
+
+Test:
+```text
+[ ] Profile with 100% completion: no "Spiritually Solid" card; the blue check beside the name shows.
+[ ] Incomplete profile: "Complete Your Profile" card shows.
+[ ] Free promo with more than 14 days left: no subscription card. Within 14 days: the shorter card with Renew shows.
+[ ] Expired or no plan: the Subscribe card shows.
+[ ] Broken or missing cover/avatar: no alt text; avatar shows initials.
+```
+
+### 23.20 Pencil edit button per profile section — 2026-11-08 (local, not committed or deployed)
+
+- Profile (`ProfileView` in `frontend/src/MainApp.tsx`): a pencil button in each section header:
+  - A. Basic Information → Edit Profile, "Basic Details"
+  - B. Personal & Lifestyle → "Personal & Lifestyle"
+  - C. Education & Work → "Education & Work"
+  - D. Relationship Intentions → "Relationship Intentions"
+  - Walk with Christ → "Faith Statement"
+- Each pencil opens the existing Edit Profile form and scrolls to the matching section. The form has anchor ids `edit-section-basic`, `-faith`, `-personal`, `-work`, `-intentions`. Opening Edit Profile from anywhere else clears the focus target.
+- Validation: unchanged. Save runs the existing `getMissingFields` checks in `EditProfileView.saveProfile`, so a section edit is rejected for the same reasons a full edit is. Consequence: a section cannot be saved on its own while another required field is still empty. A per-section save with its own validation would be a separate change.
+
+Verified: `tsc --noEmit` passes and the staging build succeeds. Not verified in a browser.
+
+Test:
+```text
+[ ] Each pencil opens Edit Profile scrolled to the matching section.
+[ ] Edit a field, Save with all required fields filled: saved and back on Profile.
+[ ] Save with a required field empty: the existing "Please fill in: ..." message appears and nothing is saved.
+[ ] Edit Profile opened from the settings menu starts at the top.
+```
+
+### 23.21 Profile settings menu reorganized — 2026-11-08
+
+- The Profile settings dropdown (`ProfileView`, `frontend/src/MainApp.tsx`) is rebuilt:
+  - width 256px, so every label fits on one line; items use `whitespace-nowrap`;
+  - tighter item padding (`py-2.5`) and no extra group gaps;
+  - a divider between every item.
+- Items, in order: Edit Profile, Security & login, Notifications, Daily Word & Prayer Wall, Dark Mode, Report a Problem, Log Out, Delete Account. Every action is unchanged.
+
+Verified: `tsc --noEmit` passes and the staging build succeeds. Not verified in a browser.

@@ -2921,12 +2921,23 @@ export const EditProfileView = ({
   onCancel,
   onSave,
   onNotify,
+  focusSection,
 }: {
   user: User;
   onCancel: () => void;
   onSave: (u: User) => void;
   onNotify: (msg: string, type: "success" | "error") => void;
+  focusSection?: string | null;
 }) => {
+  // Opening from a profile section's pencil scrolls straight to that section.
+  // Saving still runs the full existing validation in saveProfile.
+  React.useEffect(() => {
+    if (!focusSection) return;
+    const timer = window.setTimeout(() => {
+      document.getElementById(`edit-section-${focusSection}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [focusSection]);
   const editDraftStorageKey = `cmg_edit_profile_draft_${user.id}`;
   const loadLocalDraft = () => {
     try {
@@ -3541,7 +3552,7 @@ export const EditProfileView = ({
         </div>
 
         {/* Basic Info */}
-        <div className="cmg-edit-category space-y-4">
+        <div id="edit-section-basic" className="cmg-edit-category space-y-4">
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
             B. Basic Details
           </h3>
@@ -3646,7 +3657,7 @@ export const EditProfileView = ({
         </div>
 
         {/* Faith */}
-        <div className="cmg-edit-category space-y-4">
+        <div id="edit-section-faith" className="cmg-edit-category space-y-4">
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
             C. Faith Profile
           </h3>
@@ -3705,7 +3716,7 @@ export const EditProfileView = ({
         </div>
 
         {/* Personal & Lifestyle */}
-        <div className="cmg-edit-category space-y-4">
+        <div id="edit-section-personal" className="cmg-edit-category space-y-4">
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
             D. Personal & Lifestyle
           </h3>
@@ -3833,7 +3844,7 @@ export const EditProfileView = ({
         </div>
 
         {/* Education & Work */}
-        <div className="cmg-edit-category space-y-4">
+        <div id="edit-section-work" className="cmg-edit-category space-y-4">
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
             E. Education & Work
           </h3>
@@ -3881,7 +3892,7 @@ export const EditProfileView = ({
         </div>
 
         {/* Relationship Intentions */}
-        <div className="cmg-edit-category space-y-4">
+        <div id="edit-section-intentions" className="cmg-edit-category space-y-4">
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
             F. Relationship Intentions
           </h3>
@@ -4431,6 +4442,7 @@ const ProfileView = ({
   onOpenMessages,
   onOpenSupport,
   onRefresh,
+  onEditSection,
 }: {
   user: User;
   onEdit: () => void;
@@ -4446,6 +4458,7 @@ const ProfileView = ({
   onMarkAllNotificationsRead?: () => Promise<void>;
   onOpenMessages?: () => void;
   onOpenSupport?: () => void;
+  onEditSection?: (section: string) => void;
   onRefresh?: () => void;
 }) => {
   const strength = user.isSystemAdmin === true
@@ -4454,6 +4467,9 @@ const ProfileView = ({
   const firstName = (user.name || '').trim().split(/\s+/)[0] || 'there';
   const initials = (user.name || '').trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase() || 'CM';
   const [showSettings, setShowSettings] = React.useState(false);
+  // Photos that fail to load are hidden, so no broken image or alt text shows.
+  const [brokenPhotos, setBrokenPhotos] = React.useState<Record<string, boolean>>({});
+  const markPhotoBroken = (url: string) => setBrokenPhotos((previous) => ({ ...previous, [url]: true }));
   const [isDarkMode, setIsDarkMode] = React.useState(false);
 
   const toggleDarkMode = () => {
@@ -4482,94 +4498,97 @@ const ProfileView = ({
             className="fixed inset-0 z-40 bg-black/20"
             onClick={() => setShowSettings(false)}
           ></div>
-          <div className="absolute top-16 right-6 z-50 bg-white rounded-2xl shadow-2xl p-2 w-56 border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
-            <button
-              onClick={() => {
-                setShowSettings(false);
-                onEdit();
-              }}
-              className="w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-50 text-gray-700 font-bold text-sm"
-            >
-              <Edit2 size={16} /> Edit Profile
-            </button>
-            {onOpenSettings && (
-              <>
-                <div className="h-px bg-gray-100 my-1"></div>
+          <div className="absolute top-16 right-6 z-50 w-64 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            {/* One item per line, with a divider between every item. */}
+            <div className="divide-y divide-gray-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSettings(false);
+                  onEdit();
+                }}
+                className="flex w-full items-center gap-3 whitespace-nowrap px-4 py-2.5 text-left text-sm font-bold text-gray-700 transition-colors hover:bg-gray-50"
+              >
+                <Edit2 size={16} /> Edit Profile
+              </button>
+              {onOpenSettings && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowSettings(false);
+                      onOpenSettings();
+                    }}
+                    className="flex w-full items-center gap-3 whitespace-nowrap px-4 py-2.5 text-left text-sm font-bold text-gray-700 transition-colors hover:bg-gray-50"
+                  >
+                    <Lock size={16} /> Security &amp; login
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowSettings(false);
+                      onOpenSettings();
+                    }}
+                    className="flex w-full items-center gap-3 whitespace-nowrap px-4 py-2.5 text-left text-sm font-bold text-gray-700 transition-colors hover:bg-gray-50"
+                  >
+                    <Bell size={16} /> Notifications
+                  </button>
+                </>
+              )}
+              {onOpenCommunity && (
                 <button
-                  onClick={() => {
-                    setShowSettings(false);
-                    onOpenSettings();
-                  }}
-                  className="w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-50 text-gray-700 font-bold text-sm"
-                >
-                  <Lock size={16} /> Security &amp; login
-                </button>
-                <button
-                  onClick={() => {
-                    setShowSettings(false);
-                    onOpenSettings();
-                  }}
-                  className="w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-50 text-gray-700 font-bold text-sm"
-                >
-                  <Bell size={16} /> Notifications
-                </button>
-              </>
-            )}
-            {onOpenCommunity && (
-              <>
-                <div className="h-px bg-gray-100 my-1"></div>
-                <button
+                  type="button"
                   onClick={() => {
                     setShowSettings(false);
                     onOpenCommunity();
                   }}
-                  className="w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-50 text-gray-700 font-bold text-sm"
+                  className="flex w-full items-center gap-3 whitespace-nowrap px-4 py-2.5 text-left text-sm font-bold text-gray-700 transition-colors hover:bg-gray-50"
                 >
-                  <BookOpen size={16} /> Daily Word & Prayer Wall
+                  <BookOpen size={16} /> Daily Word &amp; Prayer Wall
                 </button>
-              </>
-            )}
-            <div className="h-px bg-gray-100 my-1"></div>
-            <button
-              onClick={toggleDarkMode}
-              className="w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-50 text-gray-700 font-bold text-sm justify-between"
-            >
-              <div className="flex items-center gap-3">
-                <Moon size={16} /> Dark Mode
-              </div>
-              <div
-                className={`w-8 h-4 rounded-full transition-colors relative ${
-                  isDarkMode ? "bg-brand-orange" : "bg-gray-200"
-                }`}
+              )}
+              <button
+                type="button"
+                onClick={toggleDarkMode}
+                className="flex w-full items-center gap-3 whitespace-nowrap px-4 py-2.5 text-left text-sm font-bold text-gray-700 transition-colors hover:bg-gray-50 justify-between"
               >
-                <div
-                  className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-all ${
-                    isDarkMode ? "left-[18px]" : "left-0.5"
+                <span className="flex items-center gap-3">
+                  <Moon size={16} /> Dark Mode
+                </span>
+                <span
+                  className={`relative h-4 w-8 rounded-full transition-colors ${
+                    isDarkMode ? "bg-brand-orange" : "bg-gray-200"
                   }`}
-                ></div>
-              </div>
-            </button>
-            <div className="h-px bg-gray-100 my-1"></div>
-            <button
-              onClick={handleReport}
-              className="w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-50 text-gray-700 font-bold text-sm"
-            >
-              <Flag size={16} /> Report a Problem
-            </button>
-            <div className="h-px bg-gray-100 my-1"></div>
-            <button
-              onClick={onLogout}
-              className="w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-50 text-gray-700 font-bold text-sm"
-            >
-              <LogOut size={16} /> Log Out
-            </button>
-            <div className="h-px bg-gray-100 my-1"></div>
-            <button
-              onClick={onDeleteAccount}
-              className="w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-red-50 text-red-500 font-bold text-sm"
-            >
-              <Trash2 size={16} /> Delete Account
-            </button>
+                >
+                  <span
+                    className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-all ${
+                      isDarkMode ? "left-[18px]" : "left-0.5"
+                    }`}
+                  ></span>
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={handleReport}
+                className="flex w-full items-center gap-3 whitespace-nowrap px-4 py-2.5 text-left text-sm font-bold text-gray-700 transition-colors hover:bg-gray-50"
+              >
+                <Flag size={16} /> Report a Problem
+              </button>
+              <button
+                type="button"
+                onClick={onLogout}
+                className="flex w-full items-center gap-3 whitespace-nowrap px-4 py-2.5 text-left text-sm font-bold text-gray-700 transition-colors hover:bg-gray-50"
+              >
+                <LogOut size={16} /> Log Out
+              </button>
+              <button
+                type="button"
+                onClick={onDeleteAccount}
+                className="flex w-full items-center gap-3 whitespace-nowrap px-4 py-2.5 text-left text-sm font-bold text-red-500 transition-colors hover:bg-red-50"
+              >
+                <Trash2 size={16} /> Delete Account
+              </button>
+            </div>
           </div>
         </>
       )}
@@ -4632,11 +4651,12 @@ const ProfileView = ({
           </div>
 
           <div className="cmg-profile-banner relative h-40 w-full overflow-hidden rounded-[2rem] shadow-[0_18px_44px_rgba(9,40,71,0.22)]">
-            {user.photos?.[1] ? (
+            {user.photos?.[1] && !brokenPhotos[user.photos[1]] ? (
               <img
                 src={user.photos[1]}
                 className="h-full w-full object-cover"
-                alt={`${firstName}'s cover`}
+                alt=""
+                onError={() => markPhotoBroken(user.photos[1])}
               />
             ) : null}
           </div>
@@ -4645,8 +4665,13 @@ const ProfileView = ({
         {/* Avatar overlapping the cover card. */}
         <div className="flex justify-center -mt-14">
           <div className="cmg-profile-avatar flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border-4 border-white shadow-[0_15px_40px_rgba(9,40,71,0.25)] z-20">
-            {user.photos?.[0] ? (
-              <img src={user.photos[0]} className="h-full w-full object-cover" alt="Profile" />
+            {user.photos?.[0] && !brokenPhotos[user.photos[0]] ? (
+              <img
+                src={user.photos[0]}
+                className="h-full w-full object-cover"
+                alt={`${firstName} profile photo`}
+                onError={() => markPhotoBroken(user.photos[0])}
+              />
             ) : (
               <span className="text-3xl font-black tracking-tight text-white">{initials}</span>
             )}
@@ -4744,26 +4769,13 @@ const ProfileView = ({
               </div>
             </div>
           </div>
-        ) : (
-          <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-6 rounded-[2.5rem] shadow-xl text-white flex items-center justify-between animate-in zoom-in duration-500">
-            <div>
-              <h3 className="text-[10px] font-black uppercase tracking-widest opacity-80 mb-1">
-                Spiritually Solid
-              </h3>
-              <p className="font-bold text-sm">
-                Your profile is 100% complete!
-              </p>
-            </div>
-            <div className="bg-white/20 p-3 rounded-2xl">
-              <CheckCircle size={28} />
-            </div>
-          </div>
-        )}
+        ) : null}
 
         {/* Subscription Status Card */}
         {isSubscriptionActive(user) ? (
-          <div className="bg-gradient-to-br from-brand-blue to-blue-900 p-6 rounded-[2.5rem] shadow-xl text-white relative overflow-hidden group">
-            <div className="absolute right-0 bottom-0 w-32 h-32 bg-white/5 rounded-full translate-x-10 translate-y-10 group-hover:scale-110 transition-transform duration-1000"></div>
+          (subscriptionDaysLeft(user) ?? Infinity) <= SUBSCRIPTION_ALERT_DAYS ? (
+          <div className="bg-gradient-to-br from-brand-blue to-blue-900 px-5 py-4 rounded-[1.75rem] shadow-lg text-white relative overflow-hidden group">
+            <div className="absolute right-0 bottom-0 w-24 h-24 bg-white/5 rounded-full translate-x-10 translate-y-10 group-hover:scale-110 transition-transform duration-1000"></div>
             <div className="relative z-10 flex justify-between items-center">
               <div className="space-y-1">
                 <span className="text-[9px] font-black uppercase tracking-widest bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full border border-emerald-500/30">
@@ -4813,6 +4825,7 @@ const ProfileView = ({
               )}
             </div>
           </div>
+          ) : null
         ) : (
           <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-red-100/50 relative overflow-hidden group">
             <div className="absolute right-0 bottom-0 w-32 h-32 bg-red-500/5 rounded-full translate-x-10 translate-y-10 group-hover:scale-110 transition-transform duration-1000"></div>
@@ -4841,9 +4854,12 @@ const ProfileView = ({
         {/* Faith Walk Quote */}
         <div className="bg-white p-7 rounded-[2.5rem] shadow-sm border border-gray-100 relative overflow-hidden group">
           <div className="absolute top-0 left-0 w-1.5 h-full bg-brand-orange opacity-20 group-hover:opacity-100 transition-opacity"></div>
-          <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 px-1">
-            Walk with Christ
-          </h3>
+          <div className="mb-4 flex items-center justify-between gap-3 px-1">
+            <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+              Walk with Christ
+            </h3>
+            <button type="button" onClick={() => onEditSection?.("faith")} aria-label="Edit Faith Statement" title="Edit Faith Statement" className="shrink-0 rounded-full bg-gray-100 p-2 text-gray-600 transition hover:bg-gray-200 active:scale-95"><Pencil size={14} /></button>
+          </div>
           <p className="text-gray-700 italic leading-relaxed text-[15px] font-bold border-l-4 border-brand-orange pl-5 bg-brand-surface/50 py-6 rounded-r-3xl">
             "
             {user.faithStatement ||
@@ -4855,9 +4871,12 @@ const ProfileView = ({
         {/* Profile Sections matching signup structure */}
         <div className="space-y-6">
           <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-            <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">
-              A. Basic Information
-            </h3>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">
+                A. Basic Information
+              </h3>
+              <button type="button" onClick={() => onEditSection?.("basic")} aria-label="Edit Basic Information" title="Edit Basic Information" className="shrink-0 rounded-full bg-gray-100 p-2 text-gray-600 transition hover:bg-gray-200 active:scale-95"><Pencil size={14} /></button>
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <div className="text-[11px] text-gray-500 font-black">Name</div>
@@ -4921,9 +4940,12 @@ const ProfileView = ({
           </div>
 
           <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-            <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">
-              B. Personal & Lifestyle
-            </h3>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">
+                B. Personal & Lifestyle
+              </h3>
+              <button type="button" onClick={() => onEditSection?.("personal")} aria-label="Edit Personal & Lifestyle" title="Edit Personal & Lifestyle" className="shrink-0 rounded-full bg-gray-100 p-2 text-gray-600 transition hover:bg-gray-200 active:scale-95"><Pencil size={14} /></button>
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <div className="text-[11px] text-gray-500 font-black">
@@ -5001,9 +5023,12 @@ const ProfileView = ({
           </div>
 
           <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-            <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">
-              C. Education & Work
-            </h3>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">
+                C. Education & Work
+              </h3>
+              <button type="button" onClick={() => onEditSection?.("work")} aria-label="Edit Education & Work" title="Edit Education & Work" className="shrink-0 rounded-full bg-gray-100 p-2 text-gray-600 transition hover:bg-gray-200 active:scale-95"><Pencil size={14} /></button>
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <div className="text-[11px] text-gray-500 font-black">
@@ -5033,9 +5058,12 @@ const ProfileView = ({
           </div>
 
           <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-            <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">
-              D. Relationship Intentions
-            </h3>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">
+                D. Relationship Intentions
+              </h3>
+              <button type="button" onClick={() => onEditSection?.("intentions")} aria-label="Edit Relationship Intentions" title="Edit Relationship Intentions" className="shrink-0 rounded-full bg-gray-100 p-2 text-gray-600 transition hover:bg-gray-200 active:scale-95"><Pencil size={14} /></button>
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <div className="text-[11px] text-gray-500 font-black">
@@ -7325,6 +7353,28 @@ const FriendsView = ({
   );
 };
 
+/** Premium card appears only this many days before the subscription ends (the free promo end). */
+export const SUBSCRIPTION_ALERT_DAYS = 14;
+
+/** Whole days until the subscription ends (0 when ended), or null when no expiry is known. */
+export const subscriptionDaysLeft = (user: User | null | undefined): number | null => {
+  if (!user) return null;
+  const toMillis = (value: any): number | null => {
+    if (value == null) return null;
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string') {
+      const parsed = new Date(value).getTime();
+      return Number.isNaN(parsed) ? null : parsed;
+    }
+    if (typeof value.toMillis === 'function') return value.toMillis();
+    if (typeof value.toDate === 'function') return value.toDate().getTime();
+    return null;
+  };
+  const expiry = toMillis((user as any).subscriptionExpiresAt) ?? toMillis(user.subscriptionEndDate);
+  if (expiry == null) return null;
+  return Math.max(0, Math.ceil((expiry - Date.now()) / (1000 * 60 * 60 * 24)));
+};
+
 export const isSubscriptionActive = (user: User | null | undefined): boolean => {
   if (!user) return false;
   if (user.isSystemAdmin === true) return true;
@@ -7654,6 +7704,11 @@ const App = () => {
   // Subscribe to real-time chats
   // Call States
   const [currentCallId, setCurrentCallId] = useState<string | null>(null);
+  // Section the Edit Profile form should scroll to (set from a profile pencil).
+  const [editFocusSection, setEditFocusSection] = useState<string | null>(null);
+  useEffect(() => {
+    if (currentView !== "EDIT_PROFILE") setEditFocusSection(null);
+  }, [currentView]);
   const [incomingCall, setIncomingCall] = useState<any>(null);
   const [isCaller, setIsCaller] = useState(false);
   const [callPartner, setCallPartner] = useState<{id?: string, name: string, photo: string} | null>(null);
@@ -8474,7 +8529,14 @@ const App = () => {
       {currentView === "PROFILE" && user && (
         <ProfileView
           user={user}
-          onEdit={() => setCurrentView("EDIT_PROFILE")}
+          onEdit={() => {
+            setEditFocusSection(null);
+            setCurrentView("EDIT_PROFILE");
+          }}
+          onEditSection={(section) => {
+            setEditFocusSection(section);
+            setCurrentView("EDIT_PROFILE");
+          }}
           onBack={() => setCurrentView("BROWSE")}
           onLogout={handleLogout}
           onDeleteAccount={() => {
@@ -8495,6 +8557,7 @@ const App = () => {
       {currentView === "EDIT_PROFILE" && user && (
         <EditProfileView
           user={user}
+          focusSection={editFocusSection}
           onCancel={() => setCurrentView("PROFILE")}
           onNotify={showNotify}
           onSave={(u) => {
