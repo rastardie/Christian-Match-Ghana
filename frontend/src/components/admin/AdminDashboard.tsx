@@ -261,9 +261,9 @@ const AdminDashboard: React.FC<{ onClose?: () => void; messages?: AdminMessageBe
       <div className={`cmg-admin-page relative flex h-full min-h-full flex-col bg-[#f6f8fc] font-sans text-slate-900 ${ribbonScrolling ? 'is-ribbon-scrolling' : ''}`}>
       {/* Mobile-first CMG Admin header, based on the Onboard Admin pattern. */}
       <header className="cmg-admin-header shrink-0 bg-white shadow-sm">
-        <div className="mx-auto flex w-full items-center justify-between gap-3 px-4 py-3 sm:px-6">
+        <div className="mx-auto flex w-full items-center justify-between gap-2 px-3 py-3 sm:gap-3 sm:px-6">
           <div className="flex items-center gap-2">
-            <button type="button" title="Close Admin" aria-label="Close Admin" onClick={handleClose} className="rounded-xl p-2 text-slate-700 transition hover:bg-slate-100">
+            <button type="button" title="Close Admin" aria-label="Close Admin" onClick={handleClose} className="rounded-xl p-1.5 sm:p-2 text-slate-700 transition hover:bg-slate-100">
               <X size={21} />
             </button>
             <button type="button" onClick={selectDashboard} className="text-left">
@@ -273,11 +273,11 @@ const AdminDashboard: React.FC<{ onClose?: () => void; messages?: AdminMessageBe
             <div className="text-xs font-bold text-slate-500 sm:text-sm">Christian Match Ghana</div>
           </button>
           </div>
-          <div className="flex items-center gap-1 sm:gap-2">
-            <button type="button" title={refreshing ? 'Refreshing admin data' : 'Refresh'} aria-label={refreshing ? 'Refreshing admin data' : 'Refresh'} aria-busy={refreshing} disabled={refreshing} onClick={() => void handleRefresh()} className="rounded-xl p-2 text-slate-700 transition hover:bg-slate-100 disabled:cursor-wait disabled:opacity-60">
+          <div className="flex shrink-0 items-center gap-0 sm:gap-2">
+            <button type="button" title={refreshing ? 'Refreshing admin data' : 'Refresh'} aria-label={refreshing ? 'Refreshing admin data' : 'Refresh'} aria-busy={refreshing} disabled={refreshing} onClick={() => void handleRefresh()} className="rounded-xl p-1.5 sm:p-2 text-slate-700 transition hover:bg-slate-100 disabled:cursor-wait disabled:opacity-60">
               {refreshing ? <LoadingSpinner size={21} /> : <RefreshCw size={21} />}
             </button>
-            <button type="button" title="Prayer requests" aria-label="Prayer requests" onClick={() => selectTab('prayers')} className="rounded-xl p-2 text-slate-700 transition hover:bg-slate-100">
+            <button type="button" title="Prayer requests" aria-label="Prayer requests" onClick={() => selectTab('prayers')} className="rounded-xl p-1.5 sm:p-2 text-slate-700 transition hover:bg-slate-100">
               <Heart size={21} />
             </button>
             <MessageNotificationBell
@@ -288,12 +288,12 @@ const AdminDashboard: React.FC<{ onClose?: () => void; messages?: AdminMessageBe
                 await messages?.onMarkAllRead();
               }}
               onOpenMessages={() => messages?.onOpenMessages()}
-              buttonClassName="rounded-xl p-2 text-slate-700 transition hover:bg-slate-100"
+              buttonClassName="rounded-xl p-1.5 sm:p-2 text-slate-700 transition hover:bg-slate-100"
             />
-            <button type="button" title="Sign out" aria-label="Sign out" onClick={requestSignOut} className="rounded-xl p-2 text-slate-700 transition hover:bg-slate-100">
+            <button type="button" title="Sign out" aria-label="Sign out" onClick={requestSignOut} className="rounded-xl p-1.5 sm:p-2 text-slate-700 transition hover:bg-slate-100">
               <Power size={21} />
             </button>
-            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-sm font-black text-white">A</span>
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-sm font-black text-white sm:h-9 sm:w-9">A</span>
           </div>
         </div>
           <div className="bg-slate-900 px-3 py-3 sm:px-6">
