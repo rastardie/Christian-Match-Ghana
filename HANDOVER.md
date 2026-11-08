@@ -1,10 +1,10 @@
 # Christian Match Ghana — Handover and Continuation Guide
 
-**Last updated:** 2026-10-27
+**Last updated:** 2026-11-07
 **Workspace:** `/Users/andrewstardie/Documents/TUTS/TESTS/cm/cmg-rebuilt`
 **Branch:** `sync/cmg-local-2026-10-13`
 **Remote:** `origin` → `https://github.com/rastardie/Christian-Match-Ghana.git`
-**Last pushed commit:** `2249a39 fix: normalize SMTP secret newlines` (see section 19)
+**Last pushed commit:** `c2a90e0 feat(badges): update installed app icon badge from background push unread count` (see section 23)
 
 ## 1. Current system snapshot
 
@@ -68,7 +68,7 @@ The current feature branch has been pushed successfully:
 ```text
 Branch:  sync/cmg-local-2026-10-13
 Remote:  origin
-HEAD:    d68fcb79abc224e9272d76366583f1717b02e851
+HEAD:    superseded — see section 23 for the current commit
 ```
 
 Recent commits:
@@ -1371,3 +1371,103 @@ recipients are frozen in `tmp/announcement_resend_targets.txt`, and
   backfilled where missing. Dev has no non-premium users, so no grant was
   needed. Before-state saved to git-ignored `tmp/dev_sub_backup.json`.
   (No dev emails/announcements were sent — comms were prod-only.)
+
+## 23. Current state snapshot — 2026-11-07
+
+This section supersedes the open-item statements in sections 19.3 and 19.4 where they conflict. Section 19.3 says the TURN decision is pending. That is no longer true.
+
+### 23.1 Repository
+
+```text
+Branch:       sync/cmg-local-2026-10-13
+HEAD:         c2a90e0 (equals origin/sync/cmg-local-2026-10-13)
+Tracked tree: clean
+Untracked (keep out of Git): firebase-export-*/, frontend/dist.zip, pubsub-debug.log
+```
+
+Commits from 2026-10-27 to 2026-11-06, oldest first: `2b8a3f5` call ringtones and call signaling, `8539b9a` Dev deploy record, then the Nov 4–6 series from sections 20–22 (CI, production promotion, subscription fixes, auto-logout), `9bb233f` brand refresh, `22e66a4`, `12e655b`, and `57bf7b0` call enablement on Dev, `49be590` Metered TURN, and `c2a90e0` badge update.
+
+### 23.2 Environments and what each serves
+
+```text
+Dev         christian-match-ghana  (481815915882)  https://christianmatchghana.com/dev/   calls ON (VITE_CALLS_ENABLED=true, deploy-dev.yml)
+Prod        christianmatch-app     (121785138277)  https://christianmatchghana.com        calls OFF (VITE_CALLS_ENABLED not set)
+Firebase    christian-match-ghana.web.app  (Dev project hosting)
+```
+
+Firebase Dev hosting (`christian-match-ghana.web.app`) was last deployed from `2b8a3f5` (section 19.5). It does not include the Nov 4–6 frontend or call commits. Redeploy it before using it for call tests.
+
+The StormerHost `/dev` site was last deployed on 2026-11-05 (section 22.8). It does not include the Nov 6 call fixes or the TURN change. Redeploy it before testing calls there.
+
+Prod has not been redeployed since 2026-11-05. Commits `9bb233f` (brand and boot splash) and `c2a90e0` (badge update) are not in prod. Confirm before any production promotion.
+
+### 23.3 Calls and TURN
+
+- Voice and video are gated per environment by `VITE_CALLS_ENABLED`. Dev enables them. Prod disables them and shows "Calls are temporarily unavailable".
+- TURN is implemented. The `getCallIceServers` callable (`backend/functions/src/index.js`, ~line 1934) mints short-lived Metered credentials. The client calls it from `callService.ts` and falls back to Google STUN if the callable fails.
+- Dev has `getCallIceServers` deployed (Node.js 22). The Secret Manager secret `METERED_SECRET_KEY` exists in `christian-match-ghana`. `METERED_DOMAIN` is set in `backend/functions/.env.christian-match-ghana`.
+- Prod does not have `getCallIceServers` deployed. Do not enable calls in prod until it is deployed and the Metered secret is set in `christianmatch-app`.
+- Ringtone and ringback (section 19.2) are on this branch.
+
+Not verified: an end-to-end call between two real sessions, with and without TURN, on any deployed environment. The Metered account, quota, and credential behaviour have not been checked in this session.
+
+### 23.4 Security checks (2026-11-07)
+
+- No tracked file in Git matched common secret patterns (`.tgz`, `.pem`, `.key`, service-account, `.env`, credentials, SFTP). Re-check before each commit.
+- No Metered key or long hex secret is hardcoded in `backend/functions/src/index.js`.
+- The `ladmin` password and PIN in section 21.6 are placeholders. Keep them that way.
+- Still open from section 22.7: rotate Paystack and Gmail secrets, and fix the email SPF (single record) and DMARC records.
+
+### 23.5 Tooling note
+
+On this machine the agent shell flagged `VITE_BASE_PATH=/ npm run build:staging` as an interactive editor. Use the form `env VITE_BASE_PATH=/ npm run build:staging` instead. The root-base build is needed for Firebase Hosting (section 19.5). The `/dev/` build is needed for StormerHost.
+
+### 23.6 Local artifacts
+
+- `/Users/andrewstardie/Desktop/CMG-staging-dist-20261027-082941.zip` is the `/dev/`-base build from `2b8a3f5`. Use it only for a StormerHost upload, and rebuild first, because it lacks the Nov 4–6 changes.
+
+### 23.7 Next steps
+
+```text
+[ ] Two-session call test on christianmatchghana.com/dev/ with TURN enabled (cross-network: mobile data to Wi-Fi).
+[ ] Confirm the Metered free-tier quota and the account owner. Do not commit the key.
+[ ] Redeploy Firebase Dev hosting and the StormerHost /dev site from c2a90e0, then re-run the call test.
+[ ] Before enabling calls in prod: deploy getCallIceServers to christianmatch-app, set METERED_SECRET_KEY there, run the call test on Dev, and get explicit approval.
+[ ] Email: SPF, DMARC, and the throttled resend (section 22.5).
+[ ] Rotate Paystack and Gmail secrets (section 22.7).
+```
+
+### 23.8 Test status — reported 2026-11-07
+
+- Voice and video calls work between two sessions on the same Wi-Fi network. The build and URL used for this test are not recorded here. Confirm before the next test.
+- Cross-network calls (mobile data to Wi-Fi, or two different carriers) are not yet tested. This is the test that exercises TURN. Same-network success does not prove the TURN relay works.
+- Recommended check before the cross-network test: in Chrome `chrome://webrtc-internals`, the selected candidate pair during a call should show `relay` on at least one side when the devices are on different networks. A `host` or `srflx` pair on the same network does not prove TURN is used.
+
+### 23.9 Environment model (authoritative) and icon fix — 2026-11-07
+
+Use "dev" only for `christian-match-ghana` (481815915882) and "production" only for `christianmatch-app` (121785138277). Each environment has two surfaces: a Firebase Hosting site and a StormerHost static site.
+
+```text
+                    Dev                                              Production
+Firebase project    christian-match-ghana (481815915882)             christianmatch-app (121785138277)
+Firebase Hosting    christian-match-ghana.web.app (root)             christianmatch-app (Hosting)
+StormerHost site    https://christianmatchghana.com/dev              https://christianmatchghana.com
+StormerHost path    public_html/dev/                                 public_html/ (site root)
+Frontend build      npm run build:staging (--mode staging-web,       vite build --mode production (base /, live Paystack key)
+                    base /dev/ for StormerHost)
+Deploy workflow     deploy-dev.yml (confirm DEPLOY-DEV), SFTP key   deploy-frontend.yml (mode full, confirm DEPLOY), currently blocked
+                    working                                          (FTPS password IP-blocked) + firebase deploy
+```
+
+All StormerHost targets use the SFTP account `christi3` on `zeta.stormerhost.com`, port 22.
+
+Discrepancy to resolve: section 22.8 records a production frontend deploy via `deploy-frontend.yml` on 2026-11-05. The environment table above lists that workflow as blocked. Confirm which mechanism is currently reliable before the next production frontend deploy.
+
+Correction to section 18: `christian-match-ghana.web.app` is the Dev Firebase Hosting site, not production.
+
+Icon fix (installed-app logo):
+
+- Problem: the black logo ring touched the image edges. The rounded-square home-screen mask clipped it at the corners.
+- Change: `frontend/public/icon-512x512-v3.png`, `icon-192x192-v3.png`, and `apple-touch-icon-v3.png` were regenerated from `landing-logo-circle.png`. The ring now spans about 12% to 88% of the icon, inside the 80% maskable safe zone, on a white background.
+- Not changed: the Android native launcher icons in `frontend/android/app/src/main/res/mipmap-*`. If the phone app is the native Capacitor build, those need regenerating too.
+- Deployment: the icons take effect on the phone only after a Dev or production frontend deploy, and after the installed app is reinstalled or its icon is refreshed.
