@@ -112,8 +112,9 @@ const InstallAppOptions: React.FC = () => {
   }, []);
 
   // The native Capacitor apps are distributed through the stores, so the
-  // landing page offers no install buttons inside them.
-  if (Capacitor.isNativePlatform() || installed) return null;
+  // landing page offers no install buttons inside them. The row stays visible
+  // on the web even when the web app is installed; only Install Web App is disabled.
+  if (Capacitor.isNativePlatform()) return null;
 
   const iosEnabled = device.isIOS && IOS_APP_STORE_URL !== '';
   const playEnabled = device.isAndroid && PLAY_STORE_URL !== '';
@@ -147,7 +148,15 @@ const InstallAppOptions: React.FC = () => {
           href={playEnabled ? PLAY_STORE_URL : undefined}
           disabledTitle={device.isAndroid ? 'Coming soon' : 'Available on Android'}
         />
-        <button type="button" onClick={installWebApp} className="cmg-install-btn">
+        <button
+          type="button"
+          onClick={installWebApp}
+          disabled={installed}
+          aria-disabled={installed}
+          title={installed ? 'Already installed on this device' : 'Install Web App'}
+          aria-label={installed ? 'Install Web App (already installed)' : 'Install Web App'}
+          className="cmg-install-btn"
+        >
           <Download size={22} aria-hidden />
           <span>Install Web App</span>
         </button>

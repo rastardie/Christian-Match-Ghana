@@ -262,15 +262,15 @@ const AdminDashboard: React.FC<{ onClose?: () => void; messages?: AdminMessageBe
       {/* Mobile-first CMG Admin header, based on the Onboard Admin pattern. */}
       <header className="cmg-admin-header shrink-0 bg-white shadow-sm">
         <div className="mx-auto flex w-full items-center justify-between gap-2 px-3 py-3 sm:gap-3 sm:px-6">
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-1 sm:gap-2">
             <button type="button" title="Close Admin" aria-label="Close Admin" onClick={handleClose} className="rounded-xl p-1.5 sm:p-2 text-slate-700 transition hover:bg-slate-100">
               <X size={21} />
             </button>
-            <button type="button" onClick={selectDashboard} className="text-left">
-            <div className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
+            <button type="button" onClick={selectDashboard} className="min-w-0 text-left">
+            <div className="text-xl font-black tracking-tight text-slate-900 sm:text-3xl">
               <span>CMG</span><span className="text-brand-orange"> Admin</span>
             </div>
-            <div className="text-xs font-bold text-slate-500 sm:text-sm">Christian Match Ghana</div>
+            <div className="text-[11px] font-bold text-slate-500 sm:text-sm">Christian Match Ghana</div>
           </button>
           </div>
           <div className="flex shrink-0 items-center gap-0 sm:gap-2">
