@@ -7,16 +7,11 @@
 
 import React, { useRef, useState } from 'react';
 import { ViewState } from '../types';
-import { Compass, MessageCircle, User, Heart, Bell, RotateCcw, Power, ArrowLeft, ShieldCheck } from 'lucide-react';
+import { Compass, MessageCircle, User, Heart, RotateCcw, Power, ArrowLeft, ShieldCheck } from 'lucide-react';
 import Logo from './Logo';
 import LoadingSpinner from './LoadingSpinner';
+import MessageNotificationBell, { type MessageNotificationItem } from './MessageNotificationBell';
 
-
-interface NotificationItem {
-  id: string;
-  label: string;
-  unreadCount: number;
-}
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -24,11 +19,11 @@ interface LayoutProps {
   onChangeView: (view: ViewState) => void;
   onBack?: () => void;
   onLogout?: () => void;
-  onNotifications?: () => void;
   notificationCount?: number;
-  notificationItems?: NotificationItem[];
+  notificationItems?: MessageNotificationItem[];
   onNotificationSelect?: (notificationId: string) => void;
   onMarkAllNotificationsRead?: () => Promise<void>;
+  onOpenMessages?: () => void;
   onRefresh?: () => void | Promise<void>;
   onAdmin?: () => void;
   isSystemAdmin?: boolean;
@@ -36,16 +31,19 @@ interface LayoutProps {
   hideHeader?: boolean;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, onBack, onLogout, onNotifications, notificationCount = 0, notificationItems = [], onNotificationSelect, onMarkAllNotificationsRead, onRefresh, onAdmin, isSystemAdmin, hideNav, hideHeader }) => {
+const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, onBack, onLogout, notificationCount = 0, notificationItems = [], onNotificationSelect, onMarkAllNotificationsRead, onOpenMessages, onRefresh, onAdmin, isSystemAdmin, hideNav, hideHeader }) => {
   // Keep the shared lower navigation available in Admin so users can move
   // between Discover, Likes, Messages, Profile, and Admin without closing the
   // management surface. The Admin header itself remains view-specific.
   const shouldShowNav = !hideNav && !['AUTH', 'ONBOARDING', 'EDIT_PROFILE'].includes(currentView);
   const shouldShowMainHeader = shouldShowNav && !hideHeader && currentView !== 'PROFILE' && currentView !== 'ADMIN';
+  // Profile and Admin render their own message bell in their headers. Every
+  // other in-app page without the shared header gets a floating bell instead,
+  // so unread messages are reachable on every page.
+  const hasOwnMessageBell = currentView === 'PROFILE' || currentView === 'ADMIN';
+  const showFloatingBell = !shouldShowMainHeader && !hasOwnMessageBell && !['AUTH', 'ONBOARDING'].includes(currentView);
   const [ribbonScrolling, setRibbonScrolling] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
-  const [showNotificationMenu, setShowNotificationMenu] = useState(false);
-  const [markingAllNotificationsRead, setMarkingAllNotificationsRead] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const userScrollIntentRef = useRef(false);
   const ribbonBoundaryTimerRef = useRef<number | undefined>(undefined);
@@ -101,26 +99,17 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
     }
   };
 
-  const handleNotificationsClick = () => {
-    if (notificationCount > 0 && notificationItems.length > 0) {
-      setShowNotificationMenu((visible) => !visible);
-      return;
-    }
-    onNotifications?.();
-  };
-
-  const handleMarkAllNotificationsRead = async () => {
-    if (!onMarkAllNotificationsRead || markingAllNotificationsRead) return;
-    setMarkingAllNotificationsRead(true);
-    try {
-      await onMarkAllNotificationsRead();
-      setShowNotificationMenu(false);
-    } catch (error) {
-      console.error('Unable to mark all notifications as read:', error);
-    } finally {
-      setMarkingAllNotificationsRead(false);
-    }
-  };
+  const messageBell = (
+    <MessageNotificationBell
+      unreadCount={notificationCount}
+      items={notificationItems}
+      onSelect={(chatId) => onNotificationSelect?.(chatId)}
+      onMarkAllRead={async () => {
+        await onMarkAllNotificationsRead?.();
+      }}
+      onOpenMessages={() => (onOpenMessages ? onOpenMessages() : onChangeView('CHAT'))}
+    />
+  );
 
   // Admin uses the exact same centered app frame as every other view so it
   // always renders inside the app shell rather than ballooning to a wide,
@@ -169,25 +158,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
               </div>
               <Logo size={160} className="cmg-main-header__logo drop-shadow-lg rounded-full" />
               <div className="cmg-main-header__side cmg-main-header__side--right">
-                {onNotifications && (
-                  <button
-                    type="button"
-                    title={notificationCount > 0 ? `${notificationCount} unread message${notificationCount === 1 ? '' : 's'}` : 'Notifications'}
-                    aria-label={notificationCount > 0 ? `Notifications, ${notificationCount} unread message${notificationCount === 1 ? '' : 's'}` : 'Notifications'}
-                    onClick={handleNotificationsClick}
-                    className="cmg-main-icon-button relative"
-                  >
-                    <Bell size={18} />
-                    {notificationCount > 0 && (
-                      <span
-                        aria-live="polite"
-                        className="absolute -right-1 -top-1 min-w-4 rounded-full bg-brand-orange px-1 text-center text-[9px] font-black leading-4 text-white shadow-sm"
-                      >
-                        {notificationCount > 99 ? '99+' : notificationCount}
-                      </span>
-                    )}
-                  </button>
-                )}
+                {messageBell}
                 {onLogout && (
                   <button
                     type="button"
@@ -201,51 +172,18 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
                 )}
               </div>
             </div>
-            {showNotificationMenu && (
-              <>
-                <button
-                  type="button"
-                  aria-label="Close notifications"
-                  className="fixed inset-0 z-40 cursor-default"
-                  onClick={() => setShowNotificationMenu(false)}
-                />
-                <div className="absolute right-5 top-full z-50 mt-2 w-72 max-w-[calc(100%-2.5rem)] rounded-2xl border border-gray-100 bg-white p-3 shadow-2xl">
-                  <div className="flex items-center justify-between gap-3 px-2 pb-2">
-                    <h2 className="text-sm font-black text-gray-900">Notifications</h2>
-                    <span className="text-[10px] font-black uppercase tracking-wider text-brand-orange">
-                      {notificationCount} unread
-                    </span>
-                  </div>
-                  <div className="max-h-64 space-y-1 overflow-y-auto">
-                    {notificationItems.map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => {
-                          setShowNotificationMenu(false);
-                          onNotificationSelect?.(item.id);
-                        }}
-                        className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-orange-50"
-                      >
-                        <span className="min-w-0 truncate text-xs font-bold text-gray-700">{item.label}</span>
-                        <span className="shrink-0 rounded-full bg-brand-orange px-2 py-0.5 text-[10px] font-black text-white">
-                          {item.unreadCount > 99 ? '99+' : item.unreadCount}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleMarkAllNotificationsRead}
-                    disabled={markingAllNotificationsRead}
-                    className="mt-2 w-full rounded-xl border border-brand-orange/20 px-3 py-2.5 text-xs font-black uppercase tracking-wider text-brand-orange transition hover:bg-orange-50 disabled:cursor-wait disabled:opacity-50"
-                  >
-                    {markingAllNotificationsRead ? 'Marking as read…' : 'Mark all as read'}
-                  </button>
-                </div>
-              </>
-            )}
           </header>
+        )}
+
+        {/* Pages without the shared header (for example Edit Profile) keep the
+            message bell reachable through a floating control. */}
+        {showFloatingBell && (
+          <div
+            className="absolute right-4 z-50"
+            style={{ top: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)' }}
+          >
+            {messageBell}
+          </div>
         )}
 
         {/* Scrollable view area with a base ribbon overlay that content scrolls beneath. */}

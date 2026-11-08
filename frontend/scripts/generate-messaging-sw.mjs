@@ -37,8 +37,8 @@ if (missing.length) {
 const config = Object.fromEntries(
   Object.entries(keys).map(([name, envKey]) => [name, values[envKey]])
 );
-const basePath = values.VITE_BASE_PATH || '/';
-const iconPath = `${basePath.replace(/\/$/, '')}/icon-192x192.png`;
+const basePath = process.env.VITE_BASE_PATH || values.VITE_BASE_PATH || '/';
+const iconPath = `${basePath.replace(/\/$/, '')}/icon-192x192-v3.png`;
 const output = `importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js');
 
@@ -63,7 +63,9 @@ messaging.onBackgroundMessage(async (payload) => {
   const notificationOptions = {
     body: payload.notification?.body || 'You have a new message.',
     icon: '${iconPath}',
-    badge: '${iconPath}'
+    badge: '${iconPath}',
+    // Chat id lets the app close only this chat's notification once it is read.
+    data: { chatId: payload.data?.chatId || null }
   };
   await self.registration.showNotification(notificationTitle, notificationOptions);
 });

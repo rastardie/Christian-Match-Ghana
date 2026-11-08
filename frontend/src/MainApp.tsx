@@ -204,18 +204,19 @@ const LandingPage = ({  onGetStarted,
 };
 
 import { auth, db, functions } from './firebase';
-import { onAuthStateChanged, signOut, GoogleAuthProvider, OAuthProvider, signInWithPopup, setPersistence, browserLocalPersistence, browserSessionPersistence, signInWithEmailAndPassword, signInWithCustomToken, createUserWithEmailAndPassword, sendEmailVerification, reload, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
+import { onAuthStateChanged, signOut, GoogleAuthProvider, OAuthProvider, signInWithPopup, setPersistence, browserSessionPersistence, signInWithEmailAndPassword, signInWithCustomToken, createUserWithEmailAndPassword, sendEmailVerification, reload, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
 import { doc, onSnapshot, collection, query, where, getDocs, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { createSupportTicket, type SupportCategory, type SupportContactPreference } from './services/supportService';
 import { subscribeToCallStatus, subscribeToMessages, markMessagesAsRead, sendMessage, editMessage, deleteMessage, subscribeToChats, subscribeToIncomingCalls } from './services/chatService';
 import { subscribeToPrayerRequests, subscribeToComments, togglePray, addPrayerRequest, addComment } from './services/prayerService';
 import { getUserDocument, createUserDocument, updateUserDocument, getAllUsers, claimFreePromo, checkSignupEligibility } from './services/userService';
-import { setupPushNotifications, clearNativeNotificationBadge, syncAppBadge } from './services/notificationService';
+import { setupPushNotifications, clearNativeNotificationBadge, syncAppBadge, closeDeliveredWebNotifications } from './services/notificationService';
 import { loginWithPin, setUserPin } from './services/pinAuthService';
 import { uploadProfilePhoto, uploadCoverPhoto, uploadGalleryPhoto, uploadFile } from './services/fileStorageService';
 import { getCurrentAdminAccess } from './services/adminRbacService';
 import { startWebRtcCallSession } from './services/callService';
+import MessageNotificationBell, { type MessageNotificationItem } from './components/MessageNotificationBell';
 import { playRingtone } from './services/ringtoneService';
 import { App as CapacitorApp } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
@@ -801,6 +802,11 @@ const CallView = ({
   userId,
   remoteUserId,
   isCaller,
+  notificationCount,
+  notificationItems,
+  onNotificationSelect,
+  onMarkAllNotificationsRead,
+  onOpenMessages,
 }: {
   isVideo: boolean;
   onEnd: () => void;
@@ -811,6 +817,11 @@ const CallView = ({
   userId?: string;
   remoteUserId?: string;
   isCaller?: boolean;
+  notificationCount?: number;
+  notificationItems?: MessageNotificationItem[];
+  onNotificationSelect?: (chatId: string) => void;
+  onMarkAllNotificationsRead?: () => Promise<void>;
+  onOpenMessages?: () => void;
 }) => {
   const [isMuted, setIsMuted] = useState(false);
   const [isCameraOff, setIsCameraOff] = useState(!isVideo);
@@ -956,7 +967,18 @@ const CallView = ({
       <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-transparent to-black/85" />
       <div className="relative z-10 flex items-start justify-between p-5">
         <div><h2 className="text-xl font-black">{partnerName}</h2><p className="text-sm font-bold text-white/75">{status}{isCaller && status !== 'Connected' ? ` · ${elapsed}s` : ''}</p></div>
-        {isVideo && localStream && <video ref={localVideoRef} autoPlay muted playsInline className={`h-28 w-20 rounded-xl border border-white/30 object-cover shadow-xl ${isCameraOff ? 'hidden' : ''}`} />}
+        <div className="flex items-start gap-2">
+          <MessageNotificationBell
+            unreadCount={notificationCount ?? 0}
+            items={notificationItems ?? []}
+            onSelect={(chatId) => onNotificationSelect?.(chatId)}
+            onMarkAllRead={async () => {
+              await onMarkAllNotificationsRead?.();
+            }}
+            onOpenMessages={() => onOpenMessages?.()}
+          />
+          {isVideo && localStream && <video ref={localVideoRef} autoPlay muted playsInline className={`h-28 w-20 rounded-xl border border-white/30 object-cover shadow-xl ${isCameraOff ? 'hidden' : ''}`} />}
+        </div>
       </div>
       <div className="relative z-10 mt-auto flex items-center justify-center gap-6 px-6 pb-12">
         <button type="button" onClick={() => setIsMuted((value) => !value)} aria-label={isMuted ? 'Unmute microphone' : 'Mute microphone'} className={`rounded-full p-4 ${isMuted ? 'bg-white text-gray-900' : 'bg-white/15 text-white'}`}>
@@ -1052,7 +1074,6 @@ const AuthView = ({
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [biometricOptIn, setBiometricOptIn] = useState(false);
   const [biometricBusy, setBiometricBusy] = useState(false);
-  const [keepSignedIn, setKeepSignedIn] = useState(false);
   const [signupScrolled, setSignupScrolled] = useState(false);
   const [signupRibbonScrolling, setSignupRibbonScrolling] = useState(false);
   const signupRibbonTimerRef = useRef<number | undefined>(undefined);
@@ -1170,7 +1191,7 @@ const AuthView = ({
       if (!credentials) {
         setBiometricEnabled(false);
         setBiometricOptIn(false);
-        onNotify('Sign in once with "Keep me signed in" and enable biometrics to use this.', 'error');
+        onNotify('Sign in with your password and enable biometrics to use this.', 'error');
         return;
       }
 
@@ -1190,7 +1211,7 @@ const AuthView = ({
     setSocialBusy(providerName);
     try {
       try {
-        await setPersistence(auth, keepSignedIn ? browserLocalPersistence : browserSessionPersistence);
+        await setPersistence(auth, browserSessionPersistence);
       } catch (persistenceError) {
         console.warn('Unable to set auth persistence:', persistenceError);
       }
@@ -1312,7 +1333,7 @@ const AuthView = ({
         console.log('🔐 Attempting login with:', submittedEmail);
         try {
           try {
-            await setPersistence(auth, keepSignedIn ? browserLocalPersistence : browserSessionPersistence);
+            await setPersistence(auth, browserSessionPersistence);
           } catch (persistenceError) {
             console.warn('Unable to set auth persistence:', persistenceError);
           }
@@ -2219,16 +2240,7 @@ const AuthView = ({
 
         {isLogin && (
           <div className="space-y-2">
-            <div className="flex items-center justify-between px-1">
-              <label className="flex items-center gap-2 cursor-pointer text-sm font-medium text-gray-600">
-                <input
-                  type="checkbox"
-                  checked={keepSignedIn}
-                  onChange={(e) => setKeepSignedIn(e.target.checked)}
-                  className="h-4 w-4 shrink-0 rounded accent-brand-orange"
-                />
-                Keep me signed in
-              </label>
+            <div className="flex items-center justify-end px-1">
               <button
                 type="button"
                 tabIndex={-1}
@@ -4413,6 +4425,10 @@ const ProfileView = ({
   onOpenCommunity,
   onOpenSettings,
   notificationCount,
+  notificationItems,
+  onNotificationSelect,
+  onMarkAllNotificationsRead,
+  onOpenMessages,
   onOpenSupport,
   onRefresh,
 }: {
@@ -4425,6 +4441,10 @@ const ProfileView = ({
   onOpenCommunity?: () => void;
   onOpenSettings?: () => void;
   notificationCount?: number;
+  notificationItems?: MessageNotificationItem[];
+  onNotificationSelect?: (chatId: string) => void;
+  onMarkAllNotificationsRead?: () => Promise<void>;
+  onOpenMessages?: () => void;
   onOpenSupport?: () => void;
   onRefresh?: () => void;
 }) => {
@@ -4571,23 +4591,16 @@ const ProfileView = ({
               <ArrowLeft size={20} />
             </button>
             <div className="flex gap-2">
-              {onOpenSettings && (
-                <button
-                  title={notificationCount ? `${notificationCount} unread message${notificationCount === 1 ? '' : 's'}` : 'Notifications'}
-                  aria-label={notificationCount ? `Notifications, ${notificationCount} unread message${notificationCount === 1 ? '' : 's'}` : 'Notifications'}
-                  onClick={onOpenSettings}
-                  className="cmg-main-icon-button relative"
-                >
-                  <Bell size={18} />
-                  {!!notificationCount && (
-                    <span
-                      aria-live="polite"
-                      className="absolute -right-1 -top-1 min-w-4 rounded-full bg-brand-orange px-1 text-center text-[9px] font-black leading-4 text-white shadow-sm"
-                    >
-                      {notificationCount > 99 ? '99+' : notificationCount}
-                    </span>
-                  )}
-                </button>
+              {onOpenMessages && (
+                <MessageNotificationBell
+                  unreadCount={notificationCount ?? 0}
+                  items={notificationItems ?? []}
+                  onSelect={(chatId) => onNotificationSelect?.(chatId)}
+                  onMarkAllRead={async () => {
+                    await onMarkAllNotificationsRead?.();
+                  }}
+                  onOpenMessages={onOpenMessages}
+                />
               )}
               {onRefresh && (
                 <button
@@ -5270,6 +5283,7 @@ const MessageThreadView = ({
         // Mark messages as read when viewing
         if (currentUserId) {
           await markMessagesAsRead(chatId, currentUserId);
+          void closeDeliveredWebNotifications(chatId);
         }
       } catch (error) {
         console.error('❌ Error subscribing to messages:', error);
@@ -7576,26 +7590,41 @@ const App = () => {
     }
   };
 
-  // Security: automatically sign the user out after 60 minutes of inactivity.
+  // Security: automatically sign the user out after 30 minutes of inactivity.
   // Any interaction (pointer, keyboard, touch, scroll) resets the countdown.
+  // Mobile browsers pause timers while the app is backgrounded or the phone is
+  // locked, so the elapsed time is also checked when the app is foregrounded.
+  const INACTIVITY_LIMIT_MS = 30 * 60 * 1000;
   const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastActivityRef = useRef<number>(Date.now());
   useEffect(() => {
     // Only arm the timer for an authenticated, in-app session.
     if (!user || currentView === "AUTH") return;
-    const INACTIVITY_LIMIT_MS = 60 * 60 * 1000;
+    let expired = false;
     const expire = () => {
-      showNotify("For your security, you were signed out after 1 hour of inactivity.", "error");
+      if (expired) return;
+      expired = true;
+      showNotify("For your security, you were signed out after 30 minutes of inactivity.", "error");
       void handleLogout();
     };
     const reset = () => {
+      lastActivityRef.current = Date.now();
       if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
       inactivityTimerRef.current = setTimeout(expire, INACTIVITY_LIMIT_MS);
     };
+    const checkElapsed = () => {
+      if (document.visibilityState !== "visible") return;
+      if (Date.now() - lastActivityRef.current >= INACTIVITY_LIMIT_MS) expire();
+    };
     const events: Array<keyof WindowEventMap> = ["mousemove", "mousedown", "keydown", "touchstart", "scroll", "click"];
     events.forEach((evt) => window.addEventListener(evt, reset, { passive: true }));
+    window.addEventListener("focus", checkElapsed);
+    document.addEventListener("visibilitychange", checkElapsed);
     reset();
     return () => {
       events.forEach((evt) => window.removeEventListener(evt, reset));
+      window.removeEventListener("focus", checkElapsed);
+      document.removeEventListener("visibilitychange", checkElapsed);
       if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
     };
   }, [user, currentView]);
@@ -7959,8 +7988,12 @@ const App = () => {
     0,
   );
   useEffect(() => {
+    // Wait until chats have loaded; before that the count is 0 and would wrongly
+    // clear the badge and any unread notifications on every launch.
+    if (isLoadingChats) return;
     void syncAppBadge(unreadMessageCount);
-  }, [unreadMessageCount]);
+    if (unreadMessageCount === 0) void closeDeliveredWebNotifications();
+  }, [unreadMessageCount, isLoadingChats]);
 
   if (currentView === "CHANGE_PASSWORD" && user)
     return (
@@ -8160,6 +8193,7 @@ const App = () => {
         unreadNotificationItems.map((item) => markMessagesAsRead(item.id, user.id)),
       );
       await clearNativeNotificationBadge();
+      await closeDeliveredWebNotifications();
     } catch (error) {
       console.error('❌ Error marking all notifications as read:', error);
       showNotify('Some messages could not be marked as read. Please try again.', 'error');
@@ -8176,11 +8210,9 @@ const App = () => {
       currentView={currentView}
       onBack={handleUiBack}
       onLogout={handleLogout}
-      onNotifications={() => setCurrentView(unreadMessageCount > 0 ? "CHAT" : "SETTINGS")}
-      notificationCount={unreadMessageCount}
-      notificationItems={unreadNotificationItems}
       onNotificationSelect={openNotificationChat}
       onMarkAllNotificationsRead={markAllNotificationsRead}
+      onOpenMessages={() => setCurrentView("CHAT")}
       onRefresh={refreshCurrentPage}
       isSystemAdmin={hasAdminAccess}
       onAdmin={() => setCurrentView("ADMIN")}
@@ -8244,7 +8276,16 @@ const App = () => {
 
       {currentView === "ADMIN" && hasAdminAccess && (
         <React.Suspense fallback={<div className="flex h-full items-center justify-center text-brand-blue font-black">Loading Admin…</div>}>
-          <AdminDashboard onClose={() => setCurrentView("BROWSE")} />
+          <AdminDashboard
+            onClose={() => setCurrentView("BROWSE")}
+            messages={{
+              unreadCount: unreadMessageCount,
+              items: unreadNotificationItems,
+              onSelect: openNotificationChat,
+              onMarkAllRead: markAllNotificationsRead,
+              onOpenMessages: () => setCurrentView("CHAT"),
+            }}
+          />
         </React.Suspense>
       )}
 
@@ -8366,6 +8407,11 @@ const App = () => {
           userId={user?.id}
           remoteUserId={activeChat?.partnerId || callPartner?.id}
           isCaller={isCaller}
+          notificationCount={unreadMessageCount}
+          notificationItems={unreadNotificationItems}
+          onNotificationSelect={() => showNotify('End the call to open messages.', 'error')}
+          onMarkAllNotificationsRead={markAllNotificationsRead}
+          onOpenMessages={() => showNotify('End the call to open messages.', 'error')}
         />
       )}
       
@@ -8438,6 +8484,10 @@ const App = () => {
           onOpenCommunity={() => setCurrentView("COMMUNITY")}
           onOpenSettings={() => setCurrentView("SETTINGS")}
           notificationCount={unreadMessageCount}
+          notificationItems={unreadNotificationItems}
+          onNotificationSelect={openNotificationChat}
+          onMarkAllNotificationsRead={markAllNotificationsRead}
+          onOpenMessages={() => setCurrentView("CHAT")}
           onOpenSupport={() => setCurrentView("SUPPORT")}
           onRefresh={refreshCurrentPage}
         />

@@ -35,7 +35,10 @@ messaging.onBackgroundMessage((payload) => {
   const notificationTitle = payload.notification?.title || 'New Notification';
   const notificationOptions = {
     body: payload.notification?.body || 'You have a new message.',
-    icon: '/logo192.png', // Replace with your app's icon
+    icon: '/icon-192x192-v3.png',
+    // Keep the chat id so the app can close just this chat's notification
+    // once the messages are read, which lowers the system unread count.
+    data: { chatId: payload.data?.chatId || null },
   };
 
   self.registration.showNotification(notificationTitle, notificationOptions);

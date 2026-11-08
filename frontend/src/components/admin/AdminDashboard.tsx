@@ -9,6 +9,15 @@ import { EditProfileView } from '../../MainApp';
 import { updateUserDocument } from '../../services/userService';
 import AdminAccessControl from './AdminAccessControl';
 import LoadingSpinner from '../LoadingSpinner';
+import MessageNotificationBell, { type MessageNotificationItem } from '../MessageNotificationBell';
+
+interface AdminMessageBellProps {
+  unreadCount: number;
+  items: MessageNotificationItem[];
+  onSelect: (chatId: string) => void;
+  onMarkAllRead: () => Promise<void> | void;
+  onOpenMessages: () => void;
+}
 import { AdminActionProvider, useAdminActionConfirmation } from './AdminActionConfirmation';
 
 import { getCurrentAdminAccess, listAdminAccessControl, assignAdminUserGroups, listAdminDistributionGroups, createAdminDistributionGroup, updateAdminDistributionGroup, deleteAdminDistributionGroup, previewAdminDistributionGroup, getAdminDistributionMemberships, adminSendMessage, adminSendPasswordResetEmail, adminSetUserPassword, type DistributionGroup, type DistributionGroupCriteria, type AdminMessageRecipientMode } from '../../services/adminRbacService';
@@ -61,7 +70,7 @@ function readAdminNavigationState(): { activeTab: string; selectedMenuGroup: str
   }
 }
 
-const AdminDashboard: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
+const AdminDashboard: React.FC<{ onClose?: () => void; messages?: AdminMessageBellProps }> = ({ onClose, messages }) => {
   const initialNavigation = readAdminNavigationState();
   const [activeTab, setActiveTab] = useState(initialNavigation.activeTab);
   const [selectedMenuGroup, setSelectedMenuGroup] = useState(initialNavigation.selectedMenuGroup);
@@ -268,9 +277,19 @@ const AdminDashboard: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
             <button type="button" title={refreshing ? 'Refreshing admin data' : 'Refresh'} aria-label={refreshing ? 'Refreshing admin data' : 'Refresh'} aria-busy={refreshing} disabled={refreshing} onClick={() => void handleRefresh()} className="rounded-xl p-2 text-slate-700 transition hover:bg-slate-100 disabled:cursor-wait disabled:opacity-60">
               {refreshing ? <LoadingSpinner size={21} /> : <RefreshCw size={21} />}
             </button>
-            <button type="button" title="Notifications" aria-label="Notifications" onClick={() => selectTab('prayers')} className="rounded-xl p-2 text-slate-700 transition hover:bg-slate-100">
-              <MessageSquare size={21} />
+            <button type="button" title="Prayer requests" aria-label="Prayer requests" onClick={() => selectTab('prayers')} className="rounded-xl p-2 text-slate-700 transition hover:bg-slate-100">
+              <Heart size={21} />
             </button>
+            <MessageNotificationBell
+              unreadCount={messages?.unreadCount ?? 0}
+              items={messages?.items ?? []}
+              onSelect={(chatId) => messages?.onSelect(chatId)}
+              onMarkAllRead={async () => {
+                await messages?.onMarkAllRead();
+              }}
+              onOpenMessages={() => messages?.onOpenMessages()}
+              buttonClassName="rounded-xl p-2 text-slate-700 transition hover:bg-slate-100"
+            />
             <button type="button" title="Sign out" aria-label="Sign out" onClick={requestSignOut} className="rounded-xl p-2 text-slate-700 transition hover:bg-slate-100">
               <Power size={21} />
             </button>

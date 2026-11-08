@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAnalytics, isSupported as analyticsSupported } from 'firebase/analytics';
-import { getAuth, connectAuthEmulator } from 'firebase/auth';
+import { getAuth, connectAuthEmulator, setPersistence, browserSessionPersistence } from 'firebase/auth';
 import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { getStorage, connectStorageEmulator } from 'firebase/storage';
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
@@ -26,6 +26,11 @@ if (missingConfig.length > 0) {
 
 const app = initializeApp(requiredConfig);
 const auth = getAuth(app);
+// Sessions live only as long as the app/tab. Closing the app ends the session,
+// so the next launch requires signing in with credentials again.
+void setPersistence(auth, browserSessionPersistence).catch((error) => {
+  console.warn('Unable to set session-only auth persistence:', error);
+});
 const db = getFirestore(app);
 const storage = getStorage(app);
 const functions = getFunctions(

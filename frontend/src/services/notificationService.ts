@@ -112,6 +112,21 @@ export async function syncAppBadge(unreadCount: number): Promise<void> {
   }
 }
 
+/** Close delivered web notifications, optionally only those for one chat. */
+export async function closeDeliveredWebNotifications(chatId?: string): Promise<void> {
+  if (Capacitor.isNativePlatform() || typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+  try {
+    const registration = await navigator.serviceWorker.getRegistration();
+    if (!registration) return;
+    const notifications = await registration.getNotifications();
+    notifications
+      .filter((notification) => !chatId || (notification.data as { chatId?: string | null } | null)?.chatId === chatId)
+      .forEach((notification) => notification.close());
+  } catch (error) {
+    console.warn('Unable to close delivered message notifications:', error);
+  }
+}
+
 /** Clear native delivered notifications and the installed-app badge. */
 export async function clearNativeNotificationBadge(): Promise<void> {
   await syncAppBadge(0);
