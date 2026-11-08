@@ -1194,10 +1194,19 @@ body {
   transform: scale(0.97);
 }
 
+/* Disabled buttons fade rather than recolour, so official store badges keep
+   their artwork. */
 .cmg-install-btn:disabled {
-  opacity: 0.4;
-  filter: grayscale(1);
+  opacity: 0.45;
   cursor: not-allowed;
+}
+
+/* Google's badge is wide; fit it to one column and keep its aspect ratio. */
+.cmg-install-badge {
+  display: block;
+  width: 100%;
+  max-width: 6.75rem;
+  height: auto;
 }
 
 .cmg-install-btn:focus-visible {

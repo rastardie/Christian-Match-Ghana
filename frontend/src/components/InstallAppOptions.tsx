@@ -1,11 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { Apple, Download, Play, Share, X } from 'lucide-react';
+import { Download, Share, X } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 
 // Store listing links. Each stays empty until that store version is published;
 // its button remains disabled while the value is empty.
 const IOS_APP_STORE_URL: string = import.meta.env.VITE_IOS_APP_STORE_URL || '';
 const PLAY_STORE_URL: string = import.meta.env.VITE_PLAY_STORE_URL || '';
+
+// Store badges served from public/store-badges/. The Google Play badge is
+// Google's official English artwork; the App Store badge is the supplied
+// "Download on the App Store" artwork with its background removed.
+const GOOGLE_PLAY_BADGE = `${import.meta.env.BASE_URL || '/'}store-badges/google-play-badge-en.png`;
+const APP_STORE_BADGE = `${import.meta.env.BASE_URL || '/'}store-badges/app-store-badge-en.png`;
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -45,18 +51,30 @@ const detectDevice = () => {
   return { isIOS, isAndroid };
 };
 
+// Renders either the store's official badge image or an icon with a label.
 const InstallButton = ({
   label,
   icon,
+  badge,
   href,
   disabledTitle,
 }: {
   label: string;
-  icon: React.ReactNode;
+  icon?: React.ReactNode;
+  badge?: string;
   href?: string;
   disabledTitle: string;
-}) =>
-  href ? (
+}) => {
+  const content = badge ? (
+    <img src={badge} alt={label} className="cmg-install-badge" draggable={false} />
+  ) : (
+    <>
+      {icon}
+      <span>{label}</span>
+    </>
+  );
+
+  return href ? (
     <a
       href={href}
       target="_blank"
@@ -64,8 +82,7 @@ const InstallButton = ({
       className="cmg-install-btn"
       aria-label={label}
     >
-      {icon}
-      <span>{label}</span>
+      {content}
     </a>
   ) : (
     <button
@@ -76,10 +93,10 @@ const InstallButton = ({
       aria-label={`${label} (${disabledTitle})`}
       className="cmg-install-btn"
     >
-      {icon}
-      <span>{label}</span>
+      {content}
     </button>
   );
+};
 
 const InstallAppOptions: React.FC = () => {
   const [installed, setInstalled] = useState(() => isInstalledApp());
@@ -109,7 +126,7 @@ const InstallAppOptions: React.FC = () => {
       setHelpOpen(true);
       return;
     }
-    // A install prompt can only be shown once.
+    // An install prompt can only be shown once.
     deferredInstallPrompt = null;
     await prompt.prompt();
     await prompt.userChoice;
@@ -120,13 +137,13 @@ const InstallAppOptions: React.FC = () => {
       <div className="cmg-install-row" role="group" aria-label="Install options">
         <InstallButton
           label="App Store"
-          icon={<Apple size={20} />}
+          badge={APP_STORE_BADGE}
           href={iosEnabled ? IOS_APP_STORE_URL : undefined}
           disabledTitle={device.isIOS ? 'Coming soon' : 'Available on iPhone'}
         />
         <InstallButton
           label="Google Play"
-          icon={<Play size={20} fill="currentColor" />}
+          badge={GOOGLE_PLAY_BADGE}
           href={playEnabled ? PLAY_STORE_URL : undefined}
           disabledTitle={device.isAndroid ? 'Coming soon' : 'Available on Android'}
         />
