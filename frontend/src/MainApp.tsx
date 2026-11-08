@@ -7620,6 +7620,49 @@ const App = () => {
     return unsubscribe;
   }, [user?.id]);
 
+  // The cached profile is restored synchronously for a fast first paint, but
+  // Firebase Auth sessions are per tab. After a restart the cache can exist
+  // with no Auth session, so Firestore sees an unauthenticated request and the
+  // rules deny it. Wait for Auth to settle, then drop a cache that does not
+  // match a live Firebase session for the same UID.
+  useEffect(() => {
+    const cachedRaw = localStorage.getItem('cmg_demo_user');
+    if (!cachedRaw) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        await auth.authStateReady();
+        if (cancelled) return;
+        // A fresh sign-in may have replaced the cache while Auth was loading.
+        if (localStorage.getItem('cmg_demo_user') !== cachedRaw) return;
+
+        let cachedId: string | undefined;
+        try {
+          const cached = JSON.parse(cachedRaw);
+          cachedId = cached?.id || cached?.uid;
+        } catch {
+          cachedId = undefined;
+        }
+        const authUid = auth.currentUser?.uid;
+        if (authUid && authUid === cachedId) return;
+
+        localStorage.removeItem('cmg_demo_user');
+        localStorage.removeItem('cmg_current_view');
+        setUser(null);
+        setActiveChatId(null);
+        setCurrentView('AUTH');
+        setAuthMode('login');
+        setShowLanding(false);
+        setNotification({ message: 'Please sign in again to continue.', type: 'error' });
+      } catch (error) {
+        console.error('Unable to verify the stored session:', error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Handle the native Android back button. Close overlays and nested views
   // first; exit only when the user is already at the app root.
   useEffect(() => {
