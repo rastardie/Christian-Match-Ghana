@@ -1697,3 +1697,11 @@ Test:
 - Items, in order: Edit Profile, Security & login, Notifications, Daily Word & Prayer Wall, Dark Mode, Report a Problem, Log Out, Delete Account. Every action is unchanged.
 
 Verified: `tsc --noEmit` passes and the staging build succeeds. Not verified in a browser.
+
+### 23.22 Dev release — 2026-11-08 (profile pencils, settings menu, photo fallbacks)
+
+- GitHub: `origin/sync/cmg-local-2026-10-13` at `8200d1e`, plus this record.
+- Firebase Dev hosting (`christian-match-ghana.web.app`): root-base build, hosting only. Live bundle `assets/index-BFUkjodd.js`.
+- StormerHost Dev (`christianmatchghana.com/dev`): `deploy-dev.yml` run 42501752100, success. Live bundle `assets/index-D-nYw6sx.js`.
+- Production (`christianmatch-app`, `christianmatchghana.com` root): not deployed. Live bundle `assets/index-BnfUBPhK.js`, unchanged.
+- GitLab: no GitLab remote is configured for this repository.
