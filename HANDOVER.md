@@ -1705,3 +1705,16 @@ Verified: `tsc --noEmit` passes and the staging build succeeds. Not verified in 
 - StormerHost Dev (`christianmatchghana.com/dev`): `deploy-dev.yml` run 42501752100, success. Live bundle `assets/index-D-nYw6sx.js`.
 - Production (`christianmatch-app`, `christianmatchghana.com` root): not deployed. Live bundle `assets/index-BnfUBPhK.js`, unchanged.
 - GitLab: no GitLab remote is configured for this repository.
+
+### 23.23 Incoming-call listener denial banner — 2026-11-08 (local, not committed or deployed)
+
+Cause (confirmed in code): the app started the incoming-call listener for every signed-in user. The Firestore `calls` list rule (`hasActiveSubscription`) denies users who lack an active plan with a Timestamp expiry in the future. Each denial showed the banner "Dev Firestore denied the call listener".
+
+Change (`frontend/src/MainApp.tsx`):
+- `hasCallEntitlement(user)` mirrors the rule: `subscriptionStatus == 'active'` and `subscriptionExpiresAt` is a Timestamp in the future.
+- The listener starts only for entitled users, and re-runs when entitlement changes.
+- A permission-denied error is logged and no longer shown as a banner. Other errors still show.
+
+Not confirmed: why an entitled user is denied after a refresh. The Dev profile tested passes the rule. Confirm by capturing `Incoming call listener failed` from the console on the affected device, with the user's entitlement state.
+
+Verified: `tsc --noEmit` passes and the staging build succeeds. Not verified in a browser.
