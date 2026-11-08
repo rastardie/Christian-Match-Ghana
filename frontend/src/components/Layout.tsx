@@ -7,7 +7,7 @@
 
 import React, { useRef, useState } from 'react';
 import { ViewState } from '../types';
-import { Compass, MessageCircle, User, Heart, RotateCcw, Power, ArrowLeft, ShieldCheck } from 'lucide-react';
+import { Compass, MessageCircle, User, Heart, RotateCcw, Power, ArrowLeft, ShieldCheck, Users } from 'lucide-react';
 import Logo from './Logo';
 import LoadingSpinner from './LoadingSpinner';
 import MessageNotificationBell, { type MessageNotificationItem } from './MessageNotificationBell';
@@ -223,6 +223,12 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
               onClick={() => onChangeView('FRIENDS')}
               icon={<Heart size={20} />}
               label="Likes"
+            />
+            <NavButton
+              active={currentView === 'COMMUNITY'}
+              onClick={() => onChangeView('COMMUNITY')}
+              icon={<Users size={20} />}
+              label="Community"
             />
             <NavButton
               active={currentView === 'CHAT'}
