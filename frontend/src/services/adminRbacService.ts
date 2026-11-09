@@ -1,6 +1,6 @@
 import { httpsCallable } from 'firebase/functions';
 import { auth, db } from '../firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, orderBy, query } from 'firebase/firestore';
 
 export const ADMIN_PERMISSION_CATALOG = [
   'users.view', 'users.create', 'users.edit', 'users.suspend', 'users.delete',
@@ -157,4 +157,83 @@ export async function adminSendMessage(input: {
 }): Promise<AdminSendMessageResult> {
   const call = httpsCallable(functions, 'adminSendMessage');
   return (await call(input)).data as AdminSendMessageResult;
+}
+
+export interface AdminAudienceMember {
+  id: string;
+  name: string;
+  gender: string;
+  country: string;
+  location: string;
+  accountState: string;
+}
+
+export interface AdminAudiencePreview {
+  count: number;
+  members: AdminAudienceMember[];
+}
+
+const asText = (value: unknown): string => (typeof value === 'string' ? value : '');
+
+/**
+ * Typed wrapper around previewAdminDistributionGroup. Accepts either a saved
+ * audience (groupId) or unsaved criteria. The server returns at most 100 sample members.
+ */
+export async function previewAdminAudience(input: {
+  groupId?: string;
+  criteria?: DistributionGroupCriteria;
+}): Promise<AdminAudiencePreview> {
+  const result = await previewAdminDistributionGroup(input);
+  const rows: unknown[] = Array.isArray(result.preview) ? result.preview : [];
+  return {
+    count: typeof result.count === 'number' ? result.count : 0,
+    members: rows
+      .filter((row): row is Record<string, string> => typeof row === 'object' && row !== null)
+      .map((row) => ({
+        id: asText(row.id),
+        name: asText(row.name) || 'Unnamed user',
+        gender: asText(row.gender),
+        country: asText(row.country),
+        location: asText(row.location),
+        accountState: asText(row.accountState),
+      })),
+  };
+}
+
+export interface AdminConversation {
+  id: string;
+  participantNames: [string, string];
+  lastMessage: string;
+  lastMessageTime: unknown;
+  createdAt: unknown;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/**
+ * Conversation list for the Messages panel. Reads the same `chats` collection as
+ * getAdminConnections, but keeps lastMessageTime and surfaces query errors instead
+ * of returning an empty list. Chats without lastMessageTime are excluded by Firestore ordering.
+ */
+export async function listAdminConversations(): Promise<AdminConversation[]> {
+  const snapshot = await getDocs(query(collection(db, 'chats'), orderBy('lastMessageTime', 'desc')));
+  return snapshot.docs.map((chatDoc) => {
+    const data: Record<string, unknown> = chatDoc.data();
+    const participants: unknown[] = Array.isArray(data.participants) ? data.participants : [];
+    const details: Record<string, unknown> = isRecord(data.participantDetails) ? data.participantDetails : {};
+    const nameAt = (index: number): string => {
+      const participantId = participants[index];
+      const entry = typeof participantId === 'string' ? details[participantId] : undefined;
+      const name = isRecord(entry) ? asText(entry.name).trim() : '';
+      return name || 'Unknown';
+    };
+    return {
+      id: chatDoc.id,
+      participantNames: [nameAt(0), nameAt(1)],
+      lastMessage: asText(data.lastMessage),
+      lastMessageTime: data.lastMessageTime ?? null,
+      createdAt: data.createdAt ?? null,
+    };
+  });
 }

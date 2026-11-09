@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { collection, deleteDoc, doc, getDocs } from 'firebase/firestore';
-import { db } from '../../firebase';
 import { getAdminPrayers } from '../../services/adminService';
+import { deletePrayerRequest, downloadCsv, toCsv } from '../../services/adminAccessActions';
+import AdminActionDialog from './AdminActionDialog';
 import { buttonClass, formatDate, inputClass, tableClass, tdClass, thClass, truncate } from './shared';
 
 type PrayerRow = {
@@ -11,19 +11,30 @@ type PrayerRow = {
   prayingCount?: number;
   commentCount?: number;
   isPublic?: boolean;
+  reported?: boolean;
   createdAt?: unknown;
+};
+
+type StatusFilter = 'all' | 'active' | 'reported';
+
+const STATUS_LABELS: Record<StatusFilter, string> = {
+  all: 'All requests',
+  active: 'Active',
+  reported: 'Reported',
 };
 
 const PrayersPanel: React.FC = () => {
   const [prayers, setPrayers] = useState<PrayerRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const [status, setStatus] = useState<StatusFilter>('all');
+  const [pendingDelete, setPendingDelete] = useState<PrayerRow | null>(null);
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    setPrayers((await getAdminPrayers()) as PrayerRow[]);
+    const rows: PrayerRow[] = await getAdminPrayers();
+    setPrayers(rows);
     setLoading(false);
   }, []);
 
@@ -33,33 +44,46 @@ const PrayersPanel: React.FC = () => {
 
   const filtered = useMemo(() => {
     const term = query.trim().toLowerCase();
-    if (!term) return prayers;
-    return prayers.filter((prayer) =>
-      [prayer.userName, prayer.content].some((field) => typeof field === 'string' && field.toLowerCase().includes(term))
-    );
-  }, [prayers, query]);
+    return prayers.filter((prayer) => {
+      const matchesText =
+        !term || [prayer.userName, prayer.content].some((field) => typeof field === 'string' && field.toLowerCase().includes(term));
+      const matchesStatus =
+        status === 'all' || (status === 'reported' ? prayer.reported === true : prayer.reported !== true);
+      return matchesText && matchesStatus;
+    });
+  }, [prayers, query, status]);
 
-  const handleDelete = async (prayer: PrayerRow) => {
-    if (!window.confirm('Delete this prayer request and its comments? This cannot be undone.')) return;
-    setBusyId(prayer.id);
+  const exportCsv = () => {
+    const headers = ['User', 'Content', 'Likes', 'Comments', 'Date', 'Status'];
+    const rows = filtered.map((prayer) => [
+      prayer.userName || 'Anonymous',
+      prayer.content || '',
+      prayer.prayingCount ?? 0,
+      prayer.commentCount ?? 0,
+      formatDate(prayer.createdAt),
+      prayer.reported === true ? 'Reported' : 'Active',
+    ]);
+    downloadCsv('prayer_requests.csv', toCsv(headers, rows));
+    setMessage({ type: 'ok', text: `Exported ${filtered.length} prayer ${filtered.length === 1 ? 'request' : 'requests'}.` });
+  };
+
+  const confirmDelete = async () => {
+    const target = pendingDelete;
+    if (!target) return;
     try {
-      // Remove the comments first so none are left behind on a deleted prayer.
-      const comments = await getDocs(collection(db, 'prayer_requests', prayer.id, 'comments'));
-      await Promise.all(comments.docs.map((comment) => deleteDoc(comment.ref)));
-      await deleteDoc(doc(db, 'prayer_requests', prayer.id));
-      setPrayers((rows) => rows.filter((row) => row.id !== prayer.id));
-      setMessage({ type: 'ok', text: 'Prayer request deleted.' });
+      await deletePrayerRequest(target.id);
+      setPrayers((rows) => rows.filter((row) => row.id !== target.id));
+      setMessage({ type: 'ok', text: 'Prayer request and its comments deleted.' });
     } catch (error) {
       console.error('Deleting prayer failed:', error);
-      setMessage({ type: 'error', text: 'The prayer request could not be deleted.' });
-    } finally {
-      setBusyId(null);
+      // Thrown so the confirmation dialog stays open and shows the reason.
+      throw new Error('The prayer request could not be deleted. Try again.');
     }
   };
 
   return (
-    <div>
-      <div className="mb-4 flex flex-wrap items-center gap-3">
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-3">
         <input
           type="search"
           value={query}
@@ -68,14 +92,36 @@ const PrayersPanel: React.FC = () => {
           aria-label="Search prayers"
           className={inputClass}
         />
-        <button type="button" onClick={() => void load()} className={`${buttonClass} bg-slate-900 text-white`}>
+        <select
+          value={status}
+          onChange={(event) => setStatus(event.target.value as StatusFilter)}
+          aria-label="Filter by status"
+          className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-orange focus:outline-none"
+        >
+          {(Object.keys(STATUS_LABELS) as StatusFilter[]).map((key) => (
+            <option key={key} value={key}>
+              {STATUS_LABELS[key]}
+            </option>
+          ))}
+        </select>
+        <button type="button" onClick={() => void load()} disabled={loading} className={`${buttonClass} bg-slate-900 text-white`}>
           Refresh
         </button>
-        <span className="text-sm text-slate-500">{filtered.length} of {prayers.length} requests</span>
+        <button
+          type="button"
+          onClick={exportCsv}
+          disabled={loading || filtered.length === 0}
+          className={`${buttonClass} bg-brand-orange px-3 py-2 text-sm text-white`}
+        >
+          Export CSV
+        </button>
+        <span className="text-sm text-slate-500">
+          {filtered.length} of {prayers.length} requests
+        </span>
       </div>
 
       {message && (
-        <p role="status" className={`mb-4 text-sm font-semibold ${message.type === 'ok' ? 'text-emerald-700' : 'text-red-600'}`}>
+        <p role={message.type === 'error' ? 'alert' : 'status'} className={`text-sm font-semibold ${message.type === 'ok' ? 'text-emerald-700' : 'text-red-600'}`}>
           {message.text}
         </p>
       )}
@@ -87,42 +133,66 @@ const PrayersPanel: React.FC = () => {
           <p className="p-6 text-slate-600">No prayer requests match this search.</p>
         ) : (
           <table className={tableClass}>
+            <caption className="sr-only">Prayer requests</caption>
             <thead>
               <tr>
-                <th className={thClass}>Posted</th>
-                <th className={thClass}>By</th>
-                <th className={thClass}>Request</th>
-                <th className={thClass}>Praying</th>
-                <th className={thClass}>Comments</th>
-                <th className={thClass}>Visibility</th>
-                <th className={thClass}>Actions</th>
+                <th scope="col" className={thClass}>Posted</th>
+                <th scope="col" className={thClass}>By</th>
+                <th scope="col" className={thClass}>Request</th>
+                <th scope="col" className={thClass}>Praying</th>
+                <th scope="col" className={thClass}>Comments</th>
+                <th scope="col" className={thClass}>Visibility</th>
+                <th scope="col" className={thClass}>Status</th>
+                <th scope="col" className={thClass}>
+                  <span className="sr-only">Actions</span>
+                </th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((prayer) => (
-                <tr key={prayer.id}>
-                  <td className={tdClass}>{formatDate(prayer.createdAt)}</td>
-                  <td className={tdClass}>{prayer.userName || '—'}</td>
-                  <td className={`${tdClass} max-w-md`}>{truncate(prayer.content)}</td>
-                  <td className={tdClass}>{prayer.prayingCount ?? 0}</td>
-                  <td className={tdClass}>{prayer.commentCount ?? 0}</td>
-                  <td className={tdClass}>{prayer.isPublic === false ? 'Private' : 'Public'}</td>
-                  <td className={`${tdClass} whitespace-nowrap`}>
-                    <button
-                      type="button"
-                      disabled={busyId === prayer.id}
-                      onClick={() => void handleDelete(prayer)}
-                      className={`${buttonClass} bg-red-600 text-white`}
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {filtered.map((prayer) => {
+                const author = prayer.userName || 'Anonymous';
+                return (
+                  <tr key={prayer.id}>
+                    <td className={tdClass}>{formatDate(prayer.createdAt)}</td>
+                    <td className={tdClass}>{prayer.userName || '—'}</td>
+                    <td className={`${tdClass} max-w-md`}>{truncate(prayer.content)}</td>
+                    <td className={tdClass}>{prayer.prayingCount ?? 0}</td>
+                    <td className={tdClass}>{prayer.commentCount ?? 0}</td>
+                    <td className={tdClass}>{prayer.isPublic === false ? 'Private' : 'Public'}</td>
+                    <td className={tdClass}>
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${prayer.reported ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}
+                      >
+                        {prayer.reported ? 'Reported' : 'Active'}
+                      </span>
+                    </td>
+                    <td className={`${tdClass} whitespace-nowrap`}>
+                      <button
+                        type="button"
+                        onClick={() => setPendingDelete(prayer)}
+                        aria-label={`Delete prayer by ${author}`}
+                        className={`${buttonClass} bg-red-600 text-white`}
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
       </div>
+
+      <AdminActionDialog
+        open={pendingDelete !== null}
+        title="Delete this prayer request?"
+        description={`The request by ${pendingDelete?.userName || 'Anonymous'} and its ${pendingDelete?.commentCount ?? 0} comments will be permanently removed. This cannot be undone.`}
+        confirmLabel="Delete prayer"
+        danger
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 };

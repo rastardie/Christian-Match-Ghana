@@ -1984,3 +1984,224 @@ exports.getCallIceServers = functions
     callTurnCache.set(uid, { iceServers, expiresAt: Date.now() + CALL_TURN_CACHE_MS });
     return { iceServers };
   });
+
+// ----------------------------------------------------------------------------
+// ADMIN CONSOLE: USER MANAGEMENT (parity with the legacy admin menu)
+// ----------------------------------------------------------------------------
+// Each callable checks its permission, refuses to act on the caller's own
+// account where that would lock them out, protects administrator accounts for
+// non-super-admins, and writes an audit entry.
+
+const ADMIN_DAY_MS = 24 * 60 * 60 * 1000;
+const ADMIN_PROFILE_FIELDS = ['name', 'phone', 'age', 'gender', 'location', 'country', 'bio', 'denomination'];
+
+function isStrongAdminPassword(password) {
+  return password.length >= 12 && password.length <= 128 && /[A-Z]/.test(password) && /[a-z]/.test(password) && /[0-9]/.test(password) && /[^A-Za-z0-9]/.test(password);
+}
+
+function sanitizeAdminProfileValue(key, value) {
+  if (key === 'age') {
+    const age = Number(value);
+    if (!Number.isInteger(age) || age < 0 || age > 120) throw new functions.https.HttpsError('invalid-argument', 'Age must be between 0 and 120.');
+    return age;
+  }
+  const limits = { name: 120, phone: 32, gender: 30, location: 120, country: 80, bio: 1000, denomination: 80 };
+  return String(value ?? '').trim().slice(0, limits[key] || 120);
+}
+
+exports.adminCreateUser = functions
+  .runWith({ secrets: ['SMTP_PASS'] })
+  .https.onCall(async (data, context) => {
+    await requireAdminPermission(context, 'users.create');
+    const name = String(data?.name || '').trim().slice(0, 120);
+    const email = String(data?.email || '').trim().toLowerCase();
+    const phone = String(data?.phone || '').trim().slice(0, 32);
+    const password = String(data?.password || '');
+    if (!name || !/^\S+@\S+\.\S+$/.test(email)) {
+      throw new functions.https.HttpsError('invalid-argument', 'A name and a valid email address are required.');
+    }
+    if (!isStrongAdminPassword(password)) {
+      throw new functions.https.HttpsError('invalid-argument', 'Password must be 12–128 characters and include uppercase, lowercase, number, and special character.');
+    }
+
+    let userRecord;
+    try {
+      userRecord = await auth.createUser({ email, password, displayName: name, emailVerified: false });
+    } catch (error) {
+      if (error.code === 'auth/email-already-exists') throw new functions.https.HttpsError('already-exists', 'An account with this email already exists.');
+      if (error.code === 'auth/invalid-email') throw new functions.https.HttpsError('invalid-argument', 'The email address is not valid.');
+      console.error('Unable to create user as administrator:', error);
+      throw new functions.https.HttpsError('internal', 'The account could not be created.');
+    }
+
+    await db.collection('users').doc(userRecord.uid).set({
+      id: userRecord.uid,
+      name,
+      email,
+      phone,
+      role: 'User',
+      status: 'Active',
+      isBlocked: false,
+      isVerified: false,
+      verificationStatus: 'unverified',
+      age: 0,
+      gender: '',
+      location: 'N/A',
+      country: 'Ghana',
+      bio: 'New user.',
+      photos: [],
+      denomination: 'N/A',
+      profileCompletion: 0,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    let verificationEmailSent = false;
+    try {
+      const appBaseUrl = process.env.APP_BASE_URL || 'https://christianmatchghana.com';
+      const link = await auth.generateEmailVerificationLink(email, { url: appBaseUrl, handleCodeInApp: false });
+      const transporter = createVerificationReminderTransporter();
+      await transporter.sendMail({
+        from: process.env.CAMPAIGN_FROM_EMAIL || process.env.SMTP_USER,
+        to: email,
+        replyTo: process.env.CAMPAIGN_REPLY_TO || process.env.SMTP_USER,
+        subject: 'Verify your Christian Match Ghana email',
+        text: `Welcome to Christian Match Ghana. Verify your email address: ${link}`,
+        html: `<p>Welcome to Christian Match Ghana.</p><p><a href="${escapeEmailHtml(link)}">Verify your email address</a></p>`,
+      });
+      verificationEmailSent = true;
+    } catch (error) {
+      console.warn('Verification email for administrator-created user was not sent:', error.message);
+    }
+
+    await recordAdminAudit(context, 'user.created', userRecord.uid, { email, verificationEmailSent });
+    return { userId: userRecord.uid, verificationEmailSent };
+  });
+
+exports.adminUpdateUserProfile = functions.https.onCall(async (data, context) => {
+  await requireAdminPermission(context, 'users.edit');
+  const targetUserId = String(data?.userId || '').trim();
+  if (!targetUserId) throw new functions.https.HttpsError('invalid-argument', 'A target user is required.');
+  const source = data?.fields && typeof data.fields === 'object' ? data.fields : {};
+  const update = {};
+  for (const key of ADMIN_PROFILE_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(source, key)) update[key] = sanitizeAdminProfileValue(key, source[key]);
+  }
+  if (Object.keys(update).length === 0) throw new functions.https.HttpsError('invalid-argument', 'No editable profile fields were provided.');
+
+  const userRef = db.collection('users').doc(targetUserId);
+  const snapshot = await userRef.get();
+  if (!snapshot.exists) throw new functions.https.HttpsError('not-found', 'The selected user profile could not be found.');
+  await userRef.set({ ...update, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  await recordAdminAudit(context, 'user.profile.updated', targetUserId, { fields: Object.keys(update) });
+  return { updated: true, fields: Object.keys(update) };
+});
+
+exports.adminSetUserBlocked = functions.https.onCall(async (data, context) => {
+  await requireAdminPermission(context, 'users.suspend');
+  const targetUserId = String(data?.userId || '').trim();
+  if (!targetUserId) throw new functions.https.HttpsError('invalid-argument', 'A target user is required.');
+  if (targetUserId === context.auth.uid) throw new functions.https.HttpsError('failed-precondition', 'You cannot block your own account.');
+  const blocked = data?.blocked === true;
+
+  const userRef = db.collection('users').doc(targetUserId);
+  const snapshot = await userRef.get();
+  if (!snapshot.exists) throw new functions.https.HttpsError('not-found', 'The selected user profile could not be found.');
+  await userRef.set({ isBlocked: blocked, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  if (blocked) {
+    // Ends existing sessions so a blocked account cannot keep working until its token expires.
+    await auth.revokeRefreshTokens(targetUserId).catch((error) => console.warn('Could not revoke sessions for blocked user:', error.message));
+  }
+  await recordAdminAudit(context, blocked ? 'user.blocked' : 'user.unblocked', targetUserId, {});
+  return { isBlocked: blocked };
+});
+
+exports.adminResetUserPin = functions.https.onCall(async (data, context) => {
+  const access = await requireAdminPermission(context, 'users.edit');
+  const targetUserId = String(data?.userId || '').trim();
+  if (!targetUserId) throw new functions.https.HttpsError('invalid-argument', 'A target user is required.');
+  if (targetUserId === context.auth.uid) throw new functions.https.HttpsError('failed-precondition', 'Change your own PIN from your profile.');
+  const mode = data?.mode === 'set' ? 'set' : 'clear';
+
+  const [targetProfile, targetAdmin] = await Promise.all([
+    db.collection('users').doc(targetUserId).get(),
+    db.collection('adminUsers').doc(targetUserId).get(),
+  ]);
+  if (!targetProfile.exists) throw new functions.https.HttpsError('not-found', 'The selected user profile could not be found.');
+  if (targetAdmin.exists && access.isSuperAdmin !== true) throw new functions.https.HttpsError('permission-denied', 'Only a Super Admin can reset an administrator PIN.');
+
+  let update;
+  if (mode === 'set') {
+    const newPin = String(data?.newPin || '').trim();
+    if (!PIN_PATTERN.test(newPin)) throw new functions.https.HttpsError('invalid-argument', 'PIN must contain 4 to 6 digits.');
+    update = { pinHash: await hashUserPin(newPin), hasPin: true };
+  } else {
+    update = { pinHash: FieldValue.delete(), hasPin: false };
+  }
+  await db.collection('users').doc(targetUserId).set({ ...update, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  // The PIN itself is never written to the audit log.
+  await recordAdminAudit(context, mode === 'set' ? 'user.pin.admin_set' : 'user.pin.admin_cleared', targetUserId, { targetWasAdmin: targetAdmin.exists });
+  return { hasPin: mode === 'set' };
+});
+
+exports.adminSetSubscription = functions.https.onCall(async (data, context) => {
+  await requireAdminPermission(context, 'subscriptions.manage');
+  const targetUserId = String(data?.userId || '').trim();
+  if (!targetUserId) throw new functions.https.HttpsError('invalid-argument', 'A target user is required.');
+  const action = String(data?.action || '');
+  if (!['grant', 'extend', 'revoke'].includes(action)) {
+    throw new functions.https.HttpsError('invalid-argument', 'Choose grant, extend, or revoke.');
+  }
+
+  const userRef = db.collection('users').doc(targetUserId);
+  const snapshot = await userRef.get();
+  if (!snapshot.exists) throw new functions.https.HttpsError('not-found', 'The selected user profile could not be found.');
+  const existing = snapshot.data() || {};
+  const now = new Date();
+  const toDate = (value) => (value && typeof value.toDate === 'function' ? value.toDate() : null);
+  let update;
+  let details = { action };
+
+  if (action === 'grant') {
+    const plan = String(data?.plan || '');
+    const planConfig = getSubscriptionPlan(plan);
+    if (!planConfig) throw new functions.https.HttpsError('invalid-argument', 'Choose the 6-month or 12-month plan.');
+    const endDate = new Date(now.getTime() + planConfig.durationDays * ADMIN_DAY_MS);
+    update = subscriptionFields(now, endDate, plan);
+    details = { ...details, plan, endsAt: endDate.toISOString() };
+  } else if (action === 'extend') {
+    const days = Number(data?.days);
+    if (!Number.isInteger(days) || days < 1 || days > 730) {
+      throw new functions.https.HttpsError('invalid-argument', 'Enter a whole number of days from 1 to 730.');
+    }
+    const currentExpiry = toDate(existing.subscriptionExpiresAt);
+    const base = currentExpiry && currentExpiry > now ? currentExpiry : now;
+    const endDate = new Date(base.getTime() + days * ADMIN_DAY_MS);
+    const startDate = toDate(existing.subscriptionStartAt) || now;
+    update = subscriptionFields(startDate, endDate, existing.subscriptionType || 'admin_extension');
+    details = { ...details, days, endsAt: endDate.toISOString() };
+  } else {
+    update = {
+      isPremium: false,
+      subscriptionStatus: 'revoked',
+      subscriptionExpiresAt: Timestamp.fromDate(now),
+      subscriptionEndDate: now.toISOString(),
+    };
+  }
+
+  await userRef.set({ ...update, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  await recordAdminAudit(context, `subscription.${action}`, targetUserId, details);
+  return { action, subscriptionStatus: update.subscriptionStatus, expiresAt: update.subscriptionEndDate || null };
+});
+
+exports.adminSetMustChangePassword = functions.https.onCall(async (data, context) => {
+  const { targetUserId, targetAdmin } = await resolveAdminPasswordTarget(context, data);
+  const value = data?.value === true;
+  const now = FieldValue.serverTimestamp();
+  const batch = db.batch();
+  batch.set(db.collection('users').doc(targetUserId), { mustChangePassword: value, updatedAt: now }, { merge: true });
+  if (targetAdmin.exists) batch.update(db.collection('adminUsers').doc(targetUserId), { mustChangePassword: value, updatedAt: now });
+  await batch.commit();
+  await recordAdminAudit(context, 'admin.password.must_change', targetUserId, { value, targetWasAdmin: targetAdmin.exists });
+  return { mustChangePassword: value };
+});

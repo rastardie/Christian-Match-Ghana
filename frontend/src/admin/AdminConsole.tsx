@@ -36,9 +36,9 @@ const SECTIONS: { key: Section; label: string; permission: string | null }[] = [
   { key: 'moderation', label: 'Moderation', permission: 'messages.moderate' },
   { key: 'messages', label: 'Messages', permission: 'messages.view' },
   { key: 'payments', label: 'Payments', permission: 'payments.view' },
-  { key: 'groups', label: 'Groups', permission: 'groups.manage' },
+  { key: 'groups', label: 'Audiences', permission: 'messages.groups.manage' },
   { key: 'audit', label: 'Audit log', permission: 'audit.view' },
-  { key: 'access', label: 'Access control', permission: 'permissions.manage' },
+  { key: 'access', label: 'Access control', permission: 'groups.manage' },
 ];
 
 const canSee = (access: Access, permission: string | null) =>
@@ -254,15 +254,20 @@ const AdminConsole: React.FC = () => {
         <h1 className="text-2xl font-black text-slate-900">{current?.label ?? 'Overview'}</h1>
         <div className="mt-6">
           {section === 'overview' && <OverviewPanel />}
-          {section === 'users' && <UsersPanel />}
+          {section === 'users' && <UsersPanel permissions={access.permissions} isSuperAdmin={access.isSuperAdmin} />}
           {section === 'prayers' && <PrayersPanel />}
           {section === 'moderation' && <ModerationPanel />}
           {section === 'payments' && <PaymentsPanel />}
           {section === 'audit' && <AuditPanel />}
           {section === 'access' && <AccessPanel />}
-          {section === 'groups' && <GroupsPanel />}
+          {section === 'groups' && (
+            <GroupsPanel canManage={access.isSuperAdmin || access.permissions.includes('messages.groups.manage')} />
+          )}
           {section === 'messages' && (
-            <MessagesPanel canSend={access.isSuperAdmin || access.permissions.includes('messages.send')} />
+            <MessagesPanel
+              canSend={access.isSuperAdmin || access.permissions.includes('messages.send') || access.permissions.includes('messages.moderate')}
+              onManageAudiences={() => setSection('groups')}
+            />
           )}
           {!['overview', 'users', 'prayers', 'moderation', 'payments', 'audit', 'access', 'groups', 'messages'].includes(section) && (
             <div className="rounded-2xl bg-white p-8 text-slate-600 shadow-sm">
