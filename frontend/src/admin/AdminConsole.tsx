@@ -4,6 +4,10 @@ import { doc, getDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { auth, db, functions } from '../firebase';
 import { getCurrentAdminAccess } from '../services/adminRbacService';
+import OverviewPanel from './panels/OverviewPanel';
+import UsersPanel from './panels/UsersPanel';
+import PrayersPanel from './panels/PrayersPanel';
+import ModerationPanel from './panels/ModerationPanel';
 
 type Access = { isSuperAdmin: boolean; permissions: string[] };
 
@@ -243,10 +247,16 @@ const AdminConsole: React.FC = () => {
 
       <main className="flex-1 overflow-auto p-8">
         <h1 className="text-2xl font-black text-slate-900">{current?.label ?? 'Overview'}</h1>
-        <div className="mt-6 rounded-2xl bg-white p-8 text-slate-600 shadow-sm">
-          {section === 'overview'
-            ? 'Desktop admin console. Dashboard statistics arrive in Phase 2.'
-            : 'This section is part of the next phase and will be added here.'}
+        <div className="mt-6">
+          {section === 'overview' && <OverviewPanel />}
+          {section === 'users' && <UsersPanel />}
+          {section === 'prayers' && <PrayersPanel />}
+          {section === 'moderation' && <ModerationPanel />}
+          {!['overview', 'users', 'prayers', 'moderation'].includes(section) && (
+            <div className="rounded-2xl bg-white p-8 text-slate-600 shadow-sm">
+              This section is part of the next phase and will be added here.
+            </div>
+          )}
         </div>
       </main>
     </div>
