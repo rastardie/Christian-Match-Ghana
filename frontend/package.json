@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/generate-messaging-sw.mjs",
-    "build:staging": "vite build --mode staging-web && node scripts/generate-messaging-sw.mjs --mode=staging-web && node scripts/dev-install-identity.mjs --mode=staging-web",
+    "build": "vite build && node scripts/place-admin-entry.mjs && node scripts/generate-messaging-sw.mjs",
+    "build:staging": "vite build --mode staging-web && node scripts/place-admin-entry.mjs && node scripts/generate-messaging-sw.mjs --mode=staging-web && node scripts/dev-install-identity.mjs --mode=staging-web",
     "preview": "vite preview"
   },
   "dependencies": {
