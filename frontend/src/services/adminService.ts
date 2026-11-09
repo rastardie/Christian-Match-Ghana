@@ -227,6 +227,25 @@ export async function getAdminPayments(): Promise<any[]> {
 }
 
 /**
+ * Payment records for the Payments panel. Unlike getAdminPayments, failures are
+ * thrown so the console can show the real reason instead of an empty table.
+ */
+export async function loadAdminPayments(): Promise<any[]> {
+    const q = query(collection(db, 'payments'), orderBy('createdAt', 'desc'));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+}
+
+/**
+ * Users who have (or had) a subscription. Single equality filter, so no composite index is needed.
+ */
+export async function loadAdminSubscriptions(): Promise<any[]> {
+    const q = query(collection(db, 'users'), where('isPremium', '==', true));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+}
+
+/**
  * Delete a user and their profile
  */
 export async function deleteUser(userId: string): Promise<boolean> {
