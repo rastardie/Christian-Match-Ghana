@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from 'firebase/auth';
-import { auth } from '../firebase';
+import { onAuthStateChanged, signInWithCustomToken, signInWithEmailAndPassword, signOut, type User } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
+import { auth, db, functions } from '../firebase';
 import { getCurrentAdminAccess } from '../services/adminRbacService';
 
 type Access = { isSuperAdmin: boolean; permissions: string[] };
@@ -38,8 +40,8 @@ const AdminConsole: React.FC = () => {
   const [access, setAccess] = useState<Access | null>(null);
   const [checking, setChecking] = useState(true);
   const [section, setSection] = useState<Section>('overview');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [login, setLogin] = useState('');
+  const [secret, setSecret] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -77,10 +79,43 @@ const AdminConsole: React.FC = () => {
     setBusy(true);
     setError(null);
     try {
-      await signInWithEmailAndPassword(auth, email.trim(), password);
+      // Accept a login name (like the Dev admin account) or an email address.
+      const identifier = login.trim();
+      let loginEmail = identifier;
+      if (!identifier.includes('@')) {
+        const resolve = httpsCallable(functions, 'resolveLoginIdentifier');
+        const result = await resolve({ identifier });
+        loginEmail = String((result.data as { email?: string }).email || '');
+      }
+      if (!loginEmail) throw new Error('Invalid credentials.');
+
+      // A 4–6 digit value is the admin PIN; anything else is the password.
+      if (/^\d{4,6}$/.test(secret.trim())) {
+        const result = await httpsCallable(functions, 'loginWithPin')({ identifier: loginEmail, pin: secret });
+        const token = String((result.data as { token?: string }).token || '');
+        if (!token) throw new Error('Invalid credentials.');
+        await signInWithCustomToken(auth, token);
+      } else {
+        await signInWithEmailAndPassword(auth, loginEmail, secret);
+      }
+
+      const uid = auth.currentUser?.uid || '';
+      const profile = await getDoc(doc(db, 'adminUsers', uid));
+      if (profile.exists() && profile.data().mustChangePassword === true) {
+        await signOut(auth);
+        setError('Password change required. Change it in the Admin area of the app, then sign in here.');
+        return;
+      }
+
+      // Only admin accounts may stay signed in here. Anyone else is signed out at once.
+      const access = await getCurrentAdminAccess();
+      if (!access.isSuperAdmin && access.permissions.length === 0) {
+        await signOut(auth);
+        setError('This account does not have admin access.');
+      }
     } catch (err) {
       console.error('Admin sign-in failed:', err);
-      setError('Sign-in failed. Check your email and password.');
+      setError('Sign-in failed. Check your login name and password.');
     } finally {
       setBusy(false);
     }
@@ -102,28 +137,30 @@ const AdminConsole: React.FC = () => {
             CMG <span className="text-brand-orange">Admin</span>
           </h1>
           <p className="mt-1 text-sm text-slate-500">Christian Match Ghana administration</p>
-          <label className="mt-6 block text-sm font-semibold text-slate-700" htmlFor="admin-email">
-            Email
+          <label className="mt-6 block text-sm font-semibold text-slate-700" htmlFor="admin-login">
+            Login name or email
           </label>
           <input
-            id="admin-email"
-            type="email"
+            id="admin-login"
+            type="text"
             autoComplete="username"
+            autoCapitalize="none"
+            spellCheck={false}
             required
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
+            value={login}
+            onChange={(event) => setLogin(event.target.value)}
             className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-brand-orange focus:outline-none"
           />
-          <label className="mt-4 block text-sm font-semibold text-slate-700" htmlFor="admin-password">
-            Password
+          <label className="mt-4 block text-sm font-semibold text-slate-700" htmlFor="admin-secret">
+            Password or PIN
           </label>
           <input
-            id="admin-password"
+            id="admin-secret"
             type="password"
             autoComplete="current-password"
             required
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
+            value={secret}
+            onChange={(event) => setSecret(event.target.value)}
             className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-brand-orange focus:outline-none"
           />
           {error && (
