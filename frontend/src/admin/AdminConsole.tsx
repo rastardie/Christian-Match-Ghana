@@ -8,6 +8,11 @@ import OverviewPanel from './panels/OverviewPanel';
 import UsersPanel from './panels/UsersPanel';
 import PrayersPanel from './panels/PrayersPanel';
 import ModerationPanel from './panels/ModerationPanel';
+import PaymentsPanel from './panels/PaymentsPanel';
+import AuditPanel from './panels/AuditPanel';
+import AccessPanel from './panels/AccessPanel';
+import GroupsPanel from './panels/GroupsPanel';
+import MessagesPanel from './panels/MessagesPanel';
 
 type Access = { isSuperAdmin: boolean; permissions: string[] };
 
@@ -252,7 +257,14 @@ const AdminConsole: React.FC = () => {
           {section === 'users' && <UsersPanel />}
           {section === 'prayers' && <PrayersPanel />}
           {section === 'moderation' && <ModerationPanel />}
-          {!['overview', 'users', 'prayers', 'moderation'].includes(section) && (
+          {section === 'payments' && <PaymentsPanel />}
+          {section === 'audit' && <AuditPanel />}
+          {section === 'access' && <AccessPanel />}
+          {section === 'groups' && <GroupsPanel />}
+          {section === 'messages' && (
+            <MessagesPanel canSend={access.isSuperAdmin || access.permissions.includes('messages.send')} />
+          )}
+          {!['overview', 'users', 'prayers', 'moderation', 'payments', 'audit', 'access', 'groups', 'messages'].includes(section) && (
             <div className="rounded-2xl bg-white p-8 text-slate-600 shadow-sm">
               This section is part of the next phase and will be added here.
             </div>
