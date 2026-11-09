@@ -14,12 +14,22 @@ import GroupsTable from './access/GroupsTable';
 import UserGroupAssignment from './access/UserGroupAssignment';
 import { type AccessContext, type FeedbackMessage, canManageGroups, mergeAdmins } from './access/accessModel';
 
+export interface AccessPanelProps {
+  /**
+   * Selected sub-view from AdminConsole:
+   * 'groups' (Groups & permissions), 'admins' (Administrators and group membership),
+   * or 'create' (Create administrator, Super Admin only). Unknown or missing values fall back to 'groups'.
+   */
+  view?: string;
+}
+
 /**
  * Access control: permission groups, administrator accounts, group membership, and
  * (Super Admin only) administrator creation. Loads its own access context, so AdminConsole
  * does not need to pass props. Every action is re-checked by the server.
  */
-const AccessPanel: React.FC = () => {
+const AccessPanel: React.FC<AccessPanelProps> = ({ view }) => {
+  const activeView: 'groups' | 'admins' | 'create' = view === 'admins' || view === 'create' ? view : 'groups';
   const [ctx, setCtx] = useState<AccessContext | null>(null);
   const [catalog, setCatalog] = useState<string[]>([...ADMIN_PERMISSION_CATALOG]);
   const [groups, setGroups] = useState<AdminGroup[]>([]);
@@ -88,11 +98,41 @@ const AccessPanel: React.FC = () => {
       );
     }
     if (!ctx) return null;
+
+    if (activeView === 'create') {
+      if (!ctx.isSuperAdmin) {
+        return (
+          <p role="status" className="rounded-2xl bg-amber-50 p-4 text-sm font-semibold text-amber-900">
+            Creating administrators is limited to Super Admins. Ask a Super Admin to create the account.
+          </p>
+        );
+      }
+      return <CreateAdministratorForm onMessage={setMessage} onCreated={() => void load({ quiet: true })} />;
+    }
+
     if (!canManageGroups(ctx)) {
       return (
         <p role="status" className="rounded-2xl bg-amber-50 p-4 text-sm font-semibold text-amber-900">
           Managing access control requires the Manage groups permission. Ask a Super Admin to grant it.
         </p>
+      );
+    }
+
+    if (activeView === 'admins') {
+      return (
+        <div className="space-y-8">
+          <AccountsTable admins={admins} groups={groups} users={users} onEditGroups={openEditUserGroups} />
+          <UserGroupAssignment
+            ctx={ctx}
+            groups={groups}
+            admins={admins}
+            users={users}
+            selectedUserId={assignUserId}
+            onSelectUser={setAssignUserId}
+            onSaved={(updated) => handleAdminsUpdated([updated])}
+            onMessage={setMessage}
+          />
+        </div>
       );
     }
 
@@ -118,23 +158,6 @@ const AccessPanel: React.FC = () => {
             onSaved={handleGroupSaved}
             onClose={() => setEditor(null)}
           />
-        )}
-
-        <UserGroupAssignment
-          ctx={ctx}
-          groups={groups}
-          admins={admins}
-          users={users}
-          selectedUserId={assignUserId}
-          onSelectUser={setAssignUserId}
-          onSaved={(updated) => handleAdminsUpdated([updated])}
-          onMessage={setMessage}
-        />
-
-        <AccountsTable admins={admins} groups={groups} users={users} onEditGroups={openEditUserGroups} />
-
-        {ctx.isSuperAdmin && (
-          <CreateAdministratorForm onMessage={setMessage} onCreated={() => void load({ quiet: true })} />
         )}
       </div>
     );

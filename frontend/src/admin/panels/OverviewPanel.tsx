@@ -65,7 +65,8 @@ const Bar: React.FC<{ label: string; value: number; total: number; colorClass: s
   );
 };
 
-const OverviewPanel: React.FC = () => {
+/** Dashboard sub-view: stat cards, insights, and recent activity. Owns its own data loading. */
+const DashboardView: React.FC = () => {
   const [data, setData] = useState<OverviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -264,9 +265,18 @@ const OverviewPanel: React.FC = () => {
         </>
       )}
 
-      <AnalyticsSection />
     </div>
   );
+};
+
+export interface OverviewPanelProps {
+  /** Selected sub-view from AdminConsole. Unknown or missing values fall back to 'dashboard'. */
+  view?: string;
+}
+
+const OverviewPanel: React.FC<OverviewPanelProps> = ({ view }) => {
+  if (view === 'analytics') return <AnalyticsSection />;
+  return <DashboardView />;
 };
 
 export default OverviewPanel;

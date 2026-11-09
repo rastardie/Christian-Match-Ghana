@@ -13,33 +13,10 @@ import AuditPanel from './panels/AuditPanel';
 import AccessPanel from './panels/AccessPanel';
 import GroupsPanel from './panels/GroupsPanel';
 import MessagesPanel from './panels/MessagesPanel';
+import { SECTIONS, type SectionKey, type SectionItem } from './adminNav';
 
 type Access = { isSuperAdmin: boolean; permissions: string[] };
 
-type Section =
-  | 'overview'
-  | 'users'
-  | 'prayers'
-  | 'moderation'
-  | 'messages'
-  | 'payments'
-  | 'groups'
-  | 'audit'
-  | 'access';
-
-// Each section is shown only to admins who hold its permission. Super admins see everything.
-// The server (Firestore rules and callable functions) still enforces the same checks.
-const SECTIONS: { key: Section; label: string; permission: string | null }[] = [
-  { key: 'overview', label: 'Overview', permission: null },
-  { key: 'users', label: 'Users', permission: 'users.view' },
-  { key: 'prayers', label: 'Prayers', permission: 'users.view' },
-  { key: 'moderation', label: 'Moderation', permission: 'messages.moderate' },
-  { key: 'messages', label: 'Messages', permission: 'messages.view' },
-  { key: 'payments', label: 'Payments', permission: 'payments.view' },
-  { key: 'groups', label: 'Audiences', permission: 'messages.groups.manage' },
-  { key: 'audit', label: 'Audit log', permission: 'audit.view' },
-  { key: 'access', label: 'Access control', permission: 'groups.manage' },
-];
 
 const canSee = (access: Access, permission: string | null) =>
   permission === null || access.isSuperAdmin || access.permissions.includes(permission);
@@ -48,7 +25,8 @@ const AdminConsole: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [access, setAccess] = useState<Access | null>(null);
   const [checking, setChecking] = useState(true);
-  const [section, setSection] = useState<Section>('overview');
+  const [section, setSection] = useState<SectionKey>('overview');
+  const [subsection, setSubsection] = useState<string>('dashboard');
   const [login, setLogin] = useState('');
   const [secret, setSecret] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -211,32 +189,73 @@ const AdminConsole: React.FC = () => {
     );
   }
 
-  const current = SECTIONS.find((item) => item.key === section);
+  const current: SectionItem | undefined = SECTIONS.find((item) => item.key === section);
   const visibleSections = SECTIONS.filter((item) => canSee(access, item.permission));
+  const visibleChildren = (item: SectionItem) =>
+    item.children.filter((child) => !child.superOnly || access.isSuperAdmin);
+  const activeChild =
+    current && visibleChildren(current).some((child) => child.key === subsection)
+      ? subsection
+      : visibleChildren(current ?? SECTIONS[0])[0]?.key ?? '';
+  const activeChildLabel = current?.children.find((child) => child.key === activeChild)?.label;
+
+  // Selecting a section opens its first sub-item; selecting a sub-item keeps the section.
+  const selectSection = (key: SectionKey, child?: string) => {
+    const item = SECTIONS.find((entry) => entry.key === key);
+    setSection(key);
+    setSubsection(child ?? item?.children[0]?.key ?? '');
+  };
 
   return (
     <div className="flex min-h-screen bg-slate-100 font-sans text-slate-900">
-      <aside className="flex w-60 shrink-0 flex-col bg-slate-900 text-white">
+      <aside className="flex w-64 shrink-0 flex-col bg-slate-900 text-white">
         <div className="border-b border-white/10 px-5 py-5">
           <div className="text-lg font-black">
             CMG <span className="text-brand-orange">Admin</span>
           </div>
           <div className="text-xs text-white/60">Christian Match Ghana</div>
         </div>
-        <nav className="flex-1 space-y-1 p-3" aria-label="Admin sections">
-          {visibleSections.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => setSection(item.key)}
-              aria-current={section === item.key ? 'page' : undefined}
-              className={`w-full rounded-lg px-3 py-2 text-left text-sm font-semibold transition ${
-                section === item.key ? 'bg-brand-orange text-white' : 'text-white/80 hover:bg-white/10'
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
+        <nav className="flex-1 space-y-1 overflow-y-auto p-3" aria-label="Admin sections">
+          {visibleSections.map((item) => {
+            const active = section === item.key;
+            const children = visibleChildren(item);
+            return (
+              <div key={item.key}>
+                <button
+                  type="button"
+                  onClick={() => selectSection(item.key)}
+                  aria-current={active && !activeChildLabel ? 'page' : undefined}
+                  aria-expanded={active}
+                  className={`w-full rounded-lg px-3 py-2 text-left text-sm font-semibold transition ${
+                    active ? 'bg-brand-orange text-white' : 'text-white/80 hover:bg-white/10'
+                  }`}
+                >
+                  {item.label}
+                </button>
+                {active && children.length > 0 && (
+                  <ul className="mb-2 mt-1 space-y-0.5 border-l border-white/15 pl-3 ml-4" aria-label={`${item.label} menu`}>
+                    {children.map((child) => {
+                      const selected = activeChild === child.key;
+                      return (
+                        <li key={child.key}>
+                          <button
+                            type="button"
+                            onClick={() => selectSection(item.key, child.key)}
+                            aria-current={selected ? 'page' : undefined}
+                            className={`w-full rounded-md px-2.5 py-1.5 text-left text-[13px] transition ${
+                              selected ? 'bg-white/15 font-bold text-white' : 'text-white/70 hover:bg-white/10 hover:text-white'
+                            }`}
+                          >
+                            {child.label}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            );
+          })}
         </nav>
         <div className="border-t border-white/10 p-4 text-xs text-white/70">
           <div className="truncate">{user.email}</div>
@@ -251,28 +270,34 @@ const AdminConsole: React.FC = () => {
       </aside>
 
       <main className="flex-1 overflow-auto p-8">
-        <h1 className="text-2xl font-black text-slate-900">{current?.label ?? 'Overview'}</h1>
+        <h1 className="text-2xl font-black text-slate-900">
+          {current?.label ?? 'Overview'}
+          {activeChildLabel && <span className="text-slate-500"> / {activeChildLabel}</span>}
+        </h1>
         <div className="mt-6">
-          {section === 'overview' && <OverviewPanel />}
-          {section === 'users' && <UsersPanel permissions={access.permissions} isSuperAdmin={access.isSuperAdmin} />}
-          {section === 'prayers' && <PrayersPanel />}
-          {section === 'moderation' && <ModerationPanel />}
-          {section === 'payments' && <PaymentsPanel />}
-          {section === 'audit' && <AuditPanel />}
-          {section === 'access' && <AccessPanel />}
+          {section === 'overview' && <OverviewPanel view={activeChild} />}
+          {section === 'users' && (
+            <UsersPanel view={activeChild} permissions={access.permissions} isSuperAdmin={access.isSuperAdmin} />
+          )}
+          {section === 'prayers' && <PrayersPanel view={activeChild} />}
+          {section === 'moderation' && (
+            <ModerationPanel view={activeChild} permissions={access.permissions} isSuperAdmin={access.isSuperAdmin} />
+          )}
+          {section === 'payments' && <PaymentsPanel view={activeChild} />}
+          {section === 'audit' && <AuditPanel view={activeChild} />}
+          {section === 'access' && <AccessPanel view={activeChild} />}
           {section === 'groups' && (
-            <GroupsPanel canManage={access.isSuperAdmin || access.permissions.includes('messages.groups.manage')} />
+            <GroupsPanel
+              view={activeChild}
+              canManage={access.isSuperAdmin || access.permissions.includes('messages.groups.manage')}
+            />
           )}
           {section === 'messages' && (
             <MessagesPanel
+              view={activeChild}
               canSend={access.isSuperAdmin || access.permissions.includes('messages.send') || access.permissions.includes('messages.moderate')}
-              onManageAudiences={() => setSection('groups')}
+              onManageAudiences={() => selectSection('groups', 'all')}
             />
-          )}
-          {!['overview', 'users', 'prayers', 'moderation', 'payments', 'audit', 'access', 'groups', 'messages'].includes(section) && (
-            <div className="rounded-2xl bg-white p-8 text-slate-600 shadow-sm">
-              This section is part of the next phase and will be added here.
-            </div>
           )}
         </div>
       </main>

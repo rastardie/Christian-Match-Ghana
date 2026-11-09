@@ -41,12 +41,15 @@ import {
   type GroupChanges,
 } from './users/userHelpers';
 import { makeCan, type Notice, type PendingAction, type RoleFilter, type StatusFilter, type UserRow } from './users/types';
+import { VIEW_INTRO, VIEW_PRESETS, resolveUserView, type UserView } from './users/views';
 
 export interface UsersPanelProps {
   /** The caller's admin permissions. Omit to show every action. AdminConsole should pass this. */
   permissions?: string[];
   /** Super Admins pass every permission check. */
   isSuperAdmin?: boolean;
+  /** Sidebar sub-view: 'all' (default), 'add', 'subscribers', or 'blocked'. Unknown values show 'all'. */
+  view?: string;
 }
 
 type ModalState =
@@ -67,25 +70,39 @@ const secondaryToolbarButton = `${toolbarButtonClass} border border-slate-300 bg
 const bulkButton = `${toolbarButtonClass} bg-white text-slate-900 hover:bg-slate-100`;
 const bulkBlockButton = `${toolbarButtonClass} bg-amber-200 text-amber-950 hover:bg-amber-300`;
 const bulkDeleteButton = `${toolbarButtonClass} bg-red-600 text-white hover:bg-red-700`;
+const unblockButton = `${toolbarButtonClass} bg-emerald-600 text-white hover:bg-emerald-700`;
 
-const UsersPanel: React.FC<UsersPanelProps> = ({ permissions, isSuperAdmin }) => {
+const UsersPanel: React.FC<UsersPanelProps> = ({ permissions, isSuperAdmin, view }) => {
   const can = useMemo(() => makeCan({ permissions, isSuperAdmin }), [permissions, isSuperAdmin]);
   // Without a permissions list the console shows everything, so super-admin-only groups are allowed too.
   const canGrantSuperAdmin = isSuperAdmin === true || permissions === undefined;
   const canManageGroups = can('groups.manage');
+  const canAdd = can('users.create');
+  const activeView = resolveUserView(view);
 
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [access, setAccess] = useState<AccessState | null>(null);
   const [query, setQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(VIEW_PRESETS[activeView].status);
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>(VIEW_PRESETS[activeView].role);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [notice, setNotice] = useState<Notice | null>(null);
   const [progress, setProgress] = useState<string | null>(null);
-  const [modal, setModal] = useState<ModalState | null>(null);
+  // The 'add' view opens the Add user modal on mount when the administrator may create users.
+  const [modal, setModal] = useState<ModalState | null>(() => (activeView === 'add' && canAdd ? { kind: 'add' } : null));
   const [pending, setPending] = useState<PendingAction | null>(null);
+
+  // When the sidebar view changes, apply its preset filters and open or close the Add user modal.
+  // This runs during render so the first paint already shows the new preset.
+  const [shownView, setShownView] = useState<UserView>(activeView);
+  if (shownView !== activeView) {
+    setShownView(activeView);
+    setStatusFilter(VIEW_PRESETS[activeView].status);
+    setRoleFilter(VIEW_PRESETS[activeView].role);
+    setModal((previous) => (activeView === 'add' && canAdd ? { kind: 'add' } : previous?.kind === 'add' ? null : previous));
+  }
 
   const busy = progress !== null;
   const locked = busy || pending !== null;
@@ -563,6 +580,13 @@ const UsersPanel: React.FC<UsersPanelProps> = ({ permissions, isSuperAdmin }) =>
 
   return (
     <div className="space-y-4">
+      {VIEW_INTRO[activeView] && <p className="text-sm text-slate-600">{VIEW_INTRO[activeView]}</p>}
+      {activeView === 'add' && !canAdd && (
+        <p role="note" className="text-sm font-semibold text-amber-800">
+          You do not have permission to add users.
+        </p>
+      )}
+
       {duplicateEmailRows > 0 && (
         <div role="note" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
           {duplicateEmailRows} profile row{duplicateEmailRows === 1 ? '' : 's'} share an email address. Check each document
@@ -653,7 +677,12 @@ const UsersPanel: React.FC<UsersPanelProps> = ({ permissions, isSuperAdmin }) =>
               <button type="button" disabled={locked} onClick={() => requestBlock(selectedUsers, true)} className={bulkBlockButton}>
                 Block selected
               </button>
-              <button type="button" disabled={locked} onClick={() => requestBlock(selectedUsers, false)} className={bulkButton}>
+              <button
+                type="button"
+                disabled={locked}
+                onClick={() => requestBlock(selectedUsers, false)}
+                className={activeView === 'blocked' ? unblockButton : bulkButton}
+              >
                 Unblock selected
               </button>
             </>
@@ -783,7 +812,24 @@ const UsersPanel: React.FC<UsersPanelProps> = ({ permissions, isSuperAdmin }) =>
                     </td>
                     <td className={tdClass}>{formatDate(user.createdAt)}</td>
                     <td className={`${tdClass} whitespace-nowrap`}>
-                      <UserRowMenu id={id} userName={displayName(user)} actions={rowActions(user)} disabled={busy} />
+                      <div className="flex items-center gap-2">
+                        {activeView === 'blocked' && blocked && can('users.suspend') && (
+                          <button type="button" disabled={busy} onClick={() => requestBlock([user], false)} className={unblockButton}>
+                            Unblock
+                          </button>
+                        )}
+                        {activeView === 'subscribers' && can('subscriptions.manage') && (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => setModal({ kind: 'subscription', userId: id })}
+                            className={secondaryToolbarButton}
+                          >
+                            Subscription
+                          </button>
+                        )}
+                        <UserRowMenu id={id} userName={displayName(user)} actions={rowActions(user)} disabled={busy} />
+                      </div>
                     </td>
                   </tr>
                 );

@@ -22,6 +22,8 @@ type PendingAction =
 interface GroupsPanelProps {
   /** Whether the admin may create, edit, or delete audiences (messages.groups.manage). Defaults to true. */
   canManage?: boolean;
+  /** Sidebar sub-view: 'all' (default) lists audiences; 'new' also opens the create editor. */
+  view?: string;
 }
 
 const withoutKey = <T,>(record: Record<string, T>, key: string): Record<string, T> => {
@@ -52,7 +54,7 @@ function dialogCopy(pending: PendingAction | null): { title: string; description
   };
 }
 
-const GroupsPanel: React.FC<GroupsPanelProps> = ({ canManage = true }) => {
+const GroupsPanel: React.FC<GroupsPanelProps> = ({ canManage = true, view }) => {
   const [groups, setGroups] = useState<DistributionGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -137,10 +139,19 @@ const GroupsPanel: React.FC<GroupsPanelProps> = ({ canManage = true }) => {
     else expandAudience(groupId);
   };
 
-  const openCreate = () => {
+  const openCreate = useCallback(() => {
     setStatus(null);
     setEditor((previous) => ({ group: null, key: (previous?.key ?? 0) + 1 }));
-  };
+  }, []);
+
+  // The 'new' sub-view opens the create editor straight away, above the list. Re-entering the view keeps an unsaved draft.
+  const showNewEditor = view === 'new' && canManage;
+  useEffect(() => {
+    if (!showNewEditor) return;
+    setEditor((previous) =>
+      previous && previous.group === null ? previous : { group: null, key: (previous?.key ?? 0) + 1 },
+    );
+  }, [showNewEditor]);
 
   const openEdit = (group: DistributionGroup) => {
     setStatus(null);

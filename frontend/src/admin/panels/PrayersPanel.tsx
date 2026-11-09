@@ -23,7 +23,13 @@ const STATUS_LABELS: Record<StatusFilter, string> = {
   reported: 'Reported',
 };
 
-const PrayersPanel: React.FC = () => {
+export interface PrayersPanelProps {
+  /** Sidebar sub-view: 'requests' (default) or 'export'. Unknown values show 'requests'. */
+  view?: string;
+}
+
+const PrayersPanel: React.FC<PrayersPanelProps> = ({ view }) => {
+  const isExport = view === 'export';
   const [prayers, setPrayers] = useState<PrayerRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
@@ -83,6 +89,27 @@ const PrayersPanel: React.FC = () => {
 
   return (
     <div className="space-y-4">
+      {isExport && (
+        <section aria-labelledby="prayers-export-heading" className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 id="prayers-export-heading" className="text-lg font-black text-slate-900">
+            Download prayer requests
+          </h2>
+          <p className="mt-1 text-sm text-slate-600">
+            {loading
+              ? 'Loading prayer requests…'
+              : `Exports the ${filtered.length} ${filtered.length === 1 ? 'request' : 'requests'} matching the search and status filters below, with author, text, praying and comment counts, date, and status.`}
+          </p>
+          <button
+            type="button"
+            onClick={exportCsv}
+            disabled={loading || filtered.length === 0}
+            className={`${buttonClass} mt-4 bg-brand-orange px-4 py-2 text-sm text-white`}
+          >
+            Download CSV
+          </button>
+        </section>
+      )}
+
       <div className="flex flex-wrap items-center gap-3">
         <input
           type="search"
@@ -107,14 +134,16 @@ const PrayersPanel: React.FC = () => {
         <button type="button" onClick={() => void load()} disabled={loading} className={`${buttonClass} bg-slate-900 text-white`}>
           Refresh
         </button>
-        <button
-          type="button"
-          onClick={exportCsv}
-          disabled={loading || filtered.length === 0}
-          className={`${buttonClass} bg-brand-orange px-3 py-2 text-sm text-white`}
-        >
-          Export CSV
-        </button>
+        {!isExport && (
+          <button
+            type="button"
+            onClick={exportCsv}
+            disabled={loading || filtered.length === 0}
+            className={`${buttonClass} bg-brand-orange px-3 py-2 text-sm text-white`}
+          >
+            Export CSV
+          </button>
+        )}
         <span className="text-sm text-slate-500">
           {filtered.length} of {prayers.length} requests
         </span>

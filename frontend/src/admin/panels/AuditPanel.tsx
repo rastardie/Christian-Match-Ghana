@@ -4,7 +4,38 @@ import { formatDate, inputClass, tableClass, tdClass, thClass, truncate } from '
 
 type AuditRow = Record<string, any>;
 
-const AuditPanel: React.FC = () => {
+type AuditView = 'all' | 'accounts' | 'admins';
+
+/**
+ * Action prefixes written by the backend (backend/functions/src/index.js):
+ * user.* (PIN, blocking, profile, password), subscription.* (recordAdminAudit with `subscription.${action}`),
+ * and admin.* (groups, messages, password resets, access). Actions matching neither stay in 'all' only.
+ */
+const VIEW_PREFIXES: Record<Exclude<AuditView, 'all'>, readonly string[]> = {
+  accounts: ['user.', 'subscription.'],
+  admins: ['admin.'],
+};
+
+const VIEW_NOUN: Record<AuditView, string> = {
+  all: 'entries',
+  accounts: 'account changes',
+  admins: 'admin changes',
+};
+
+function matchesView(action: unknown, view: AuditView): boolean {
+  if (view === 'all') return true;
+  const name = typeof action === 'string' ? action : '';
+  return VIEW_PREFIXES[view].some((prefix) => name.startsWith(prefix));
+}
+
+interface AuditPanelProps {
+  /** Sidebar sub-view: 'all' (default), 'accounts', or 'admins'. Unknown values fall back to 'all'. */
+  view?: string;
+}
+
+const AuditPanel: React.FC<AuditPanelProps> = ({ view }) => {
+  const activeView: AuditView = view === 'accounts' || view === 'admins' ? view : 'all';
+
   const [entries, setEntries] = useState<AuditRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,11 +59,18 @@ const AuditPanel: React.FC = () => {
     };
   }, []);
 
+  const inView = useMemo(
+    () => entries.filter((entry) => matchesView(entry.action, activeView)),
+    [entries, activeView],
+  );
+
   const filtered = useMemo(() => {
     const term = query.trim().toLowerCase();
-    if (!term) return entries;
-    return entries.filter((entry) => JSON.stringify(entry).toLowerCase().includes(term));
-  }, [entries, query]);
+    if (!term) return inView;
+    return inView.filter((entry) => JSON.stringify(entry).toLowerCase().includes(term));
+  }, [inView, query]);
+
+  const noun = VIEW_NOUN[activeView];
 
   return (
     <div>
@@ -45,7 +83,9 @@ const AuditPanel: React.FC = () => {
           aria-label="Search audit log"
           className={inputClass}
         />
-        <span className="text-sm text-slate-500">{filtered.length} of {entries.length} entries</span>
+        <span className="text-sm text-slate-500" aria-live="polite">
+          {filtered.length} of {inView.length} {noun}
+        </span>
       </div>
       <div className="overflow-x-auto rounded-2xl bg-white shadow-sm">
         {loading ? (
@@ -53,7 +93,7 @@ const AuditPanel: React.FC = () => {
         ) : error ? (
           <p className="p-6 text-red-600">{error}</p>
         ) : filtered.length === 0 ? (
-          <p className="p-6 text-slate-600">No audit entries match this search.</p>
+          <p className="p-6 text-slate-600">No {noun} match this search.</p>
         ) : (
           <table className={tableClass}>
             <thead>
