@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { auth, db, functions } from '../../firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { signInWithEmailAndPassword, signInWithCustomToken, sendPasswordResetEmail, updatePassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, signInWithCustomToken, sendPasswordResetEmail, updatePassword, signOut } from 'firebase/auth';
 import { Mail, Lock, AlertCircle, CheckCircle, ArrowRight, Loader2 } from 'lucide-react';
 import Logo from '../../components/Logo';
 
@@ -24,9 +24,14 @@ const AdminLogin = () => {
   const openAdminInsideApp = async () => {
     const firebaseUser = auth.currentUser;
     if (!firebaseUser) throw new Error('Your session has expired. Please sign in again.');
+    const profileCheck = await getDoc(doc(db, 'users', firebaseUser.uid));
+    if (profileCheck.exists() && profileCheck.data().isBlocked === true) {
+      await signOut(auth);
+      throw new Error('This account is blocked. Contact a Super Admin.');
+    }
     const accessSnapshot = await getDoc(doc(db, 'adminUsers', firebaseUser.uid));
     const accessData = accessSnapshot.exists() ? accessSnapshot.data() : {};
-    const isLegacySuperAdmin = firebaseUser.email === 'christianmatchghanaltd@gmail.com' || firebaseUser.email === 'admin@example.com';
+    const isLegacySuperAdmin = firebaseUser.email === 'christianmatchghanaltd@gmail.com';
     const isAdmin = isLegacySuperAdmin || accessData.isSuperAdmin === true || accessData.isSystemAdmin === true || (Array.isArray(accessData.permissions) && accessData.permissions.length > 0);
     if (!isAdmin) throw new Error('This account does not have administrator access.');
     const profileSnapshot = await getDoc(doc(db, 'users', firebaseUser.uid));

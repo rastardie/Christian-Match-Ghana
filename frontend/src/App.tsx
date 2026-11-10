@@ -21,9 +21,14 @@ const AdminAppEntry = () => {
 
       void (async () => {
         try {
+          const profileCheck = await getDoc(doc(db, 'users', user.uid));
+          if (profileCheck.exists() && profileCheck.data().isBlocked === true) {
+            setStatus('unauthorized');
+            return;
+          }
           const accessSnapshot = await getDoc(doc(db, 'adminUsers', user.uid));
           const accessData = accessSnapshot.exists() ? accessSnapshot.data() : {};
-          const isLegacySuperAdmin = user.email === 'christianmatchghanaltd@gmail.com' || user.email === 'admin@example.com';
+          const isLegacySuperAdmin = user.email === 'christianmatchghanaltd@gmail.com';
           const isAdmin = isLegacySuperAdmin || accessData.isSuperAdmin === true || accessData.isSystemAdmin === true || (Array.isArray(accessData.permissions) && accessData.permissions.length > 0);
           if (!isAdmin) {
             setStatus('unauthorized');

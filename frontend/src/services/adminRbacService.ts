@@ -62,10 +62,15 @@ export async function listAdminAuditLogs() {
   return (await call()).data as Array<Record<string, any>>;
 }
 
-export async function getCurrentAdminAccess(): Promise<{ isSuperAdmin: boolean; permissions: string[] }> {
+export async function getCurrentAdminAccess(): Promise<{ isSuperAdmin: boolean; permissions: string[]; blocked?: boolean }> {
   const user = auth.currentUser;
   if (!user) return { isSuperAdmin: false, permissions: [] };
-  if (user.email === 'christianmatchghanaltd@gmail.com' || user.email === 'admin@example.com') {
+  // Blocked accounts get no console access, even if they hold admin rights.
+  const profile = await getDoc(doc(db, 'users', user.uid));
+  if (profile.exists() && profile.data().isBlocked === true) {
+    return { isSuperAdmin: false, permissions: [], blocked: true };
+  }
+  if (user.email === 'christianmatchghanaltd@gmail.com') {
     return { isSuperAdmin: true, permissions: [...ADMIN_PERMISSION_CATALOG] };
   }
   const snapshot = await getDoc(doc(db, 'adminUsers', user.uid));

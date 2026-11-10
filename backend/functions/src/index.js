@@ -19,9 +19,10 @@ const auth = getAuth();
 const messaging = getMessaging();
 const storage = getStorage();
 
+// Only the organisation's own account keeps built-in super-admin rights.
+// Any other account must be granted access through adminUsers.
 const LEGACY_SUPER_ADMIN_EMAILS = new Set([
   'christianmatchghanaltd@gmail.com',
-  'admin@example.com',
 ]);
 const PIN_PATTERN = /^\d{4,6}$/;
 const PAID_SUBSCRIPTION_PLANS = {
@@ -190,6 +191,10 @@ async function getAdminAccess(uid) {
 
 async function requireAnyAdminPermission(context, requiredPermissions) {
   if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Authentication required.');
+  const profile = await db.collection('users').doc(context.auth.uid).get();
+  if (profile.exists && profile.data()?.isBlocked === true) {
+    throw new functions.https.HttpsError('permission-denied', 'This account is blocked.');
+  }
   if (isLegacySuperAdmin(context)) return { isSuperAdmin: true, permissions: PERMISSIONS };
   const access = await getAdminAccess(context.auth.uid);
   const permissions = access?.permissions || [];
@@ -450,6 +455,9 @@ exports.adminAssignUserGroups = functions.https.onCall(async (data, context) => 
   const targetRef = db.collection('adminUsers').doc(targetUserId);
   const targetSnapshot = await targetRef.get();
   const target = targetSnapshot.exists ? targetSnapshot.data() : {};
+  if (!targetSnapshot.exists && groupIds.length > 0 && access.isSuperAdmin !== true) {
+    throw new functions.https.HttpsError('permission-denied', 'Only a Super Admin can give a regular member administrator access.');
+  }
   if (target.isSuperAdmin && !groupIds.includes('super-admins')) {
     throw new functions.https.HttpsError('failed-precondition', 'The Super Admin role cannot be removed through this operation.');
   }
@@ -633,7 +641,7 @@ exports.paystackWebhook = functions
 // Deletes a user from Firebase Authentication.
 // Must be called by an authenticated admin user.
 exports.deleteUserAccount = functions.https.onCall(async (data, context) => {
-  await requireAdminPermission(context, 'users.delete');
+  const access = await requireAdminPermission(context, 'users.delete');
 
   const { userId } = data;
   if (!userId) {
@@ -642,19 +650,44 @@ exports.deleteUserAccount = functions.https.onCall(async (data, context) => {
       'The function must be called with a "userId" argument.'
     );
   }
+  if (userId === context.auth.uid) {
+    throw new functions.https.HttpsError('failed-precondition', 'You cannot delete your own account.');
+  }
 
+  const [targetAdmin, targetAuth] = await Promise.all([
+    db.collection('adminUsers').doc(userId).get(),
+    auth.getUser(userId).catch(() => null),
+  ]);
+  const targetEmail = targetAuth?.email || null;
+  if (targetEmail && LEGACY_SUPER_ADMIN_EMAILS.has(targetEmail)) {
+    throw new functions.https.HttpsError('permission-denied', 'This account cannot be deleted.');
+  }
+  if (targetAdmin.exists && access.isSuperAdmin !== true) {
+    throw new functions.https.HttpsError('permission-denied', 'Only a Super Admin can delete an administrator account.');
+  }
+
+  let authDeleted = false;
   try {
     await auth.deleteUser(userId);
+    authDeleted = true;
     console.log(`Successfully deleted user ${userId} from Auth`);
-    return { success: true, authDeleted: true, message: `User ${userId} deleted from Auth.` };
   } catch (error) {
-    if (error?.code === 'auth/user-not-found') {
-      console.warn(`Auth user ${userId} was already absent; allowing profile cleanup.`);
-      return { success: true, authDeleted: false, message: `No Auth account found for ${userId}; profile cleanup may continue.` };
+    if (error?.code !== 'auth/user-not-found') {
+      console.error('Error deleting user:', error);
+      throw new functions.https.HttpsError('internal', 'Unable to delete user from Auth.');
     }
-    console.error('Error deleting user:', error);
-    throw new functions.https.HttpsError('internal', 'Unable to delete user from Auth.');
+    console.warn(`Auth user ${userId} was already absent; allowing profile cleanup.`);
   }
+
+  if (targetAdmin.exists) await db.collection('adminUsers').doc(userId).delete();
+  await recordAdminAudit(context, 'user.deleted', userId, { authDeleted, targetWasAdmin: targetAdmin.exists, targetEmail });
+  return {
+    success: true,
+    authDeleted,
+    message: authDeleted
+      ? `User ${userId} deleted from Auth.`
+      : `No Auth account found for ${userId}; profile cleanup may continue.`,
+  };
 });
 
 // ----------------------------------------------------------------------------
@@ -1000,7 +1033,6 @@ function requireCampaignAdmin(context) {
   const email = context.auth.token.email;
   const authorizedAdmins = [
     'christianmatchghanaltd@gmail.com',
-    'admin@example.com'
   ];
   const hasAdminClaim = context.auth.token.admin === true;
 
@@ -2098,11 +2130,15 @@ exports.adminUpdateUserProfile = functions.https.onCall(async (data, context) =>
 });
 
 exports.adminSetUserBlocked = functions.https.onCall(async (data, context) => {
-  await requireAdminPermission(context, 'users.suspend');
+  const access = await requireAdminPermission(context, 'users.suspend');
   const targetUserId = String(data?.userId || '').trim();
   if (!targetUserId) throw new functions.https.HttpsError('invalid-argument', 'A target user is required.');
   if (targetUserId === context.auth.uid) throw new functions.https.HttpsError('failed-precondition', 'You cannot block your own account.');
   const blocked = data?.blocked === true;
+  if (blocked && access.isSuperAdmin !== true) {
+    const targetAdmin = await db.collection('adminUsers').doc(targetUserId).get();
+    if (targetAdmin.exists) throw new functions.https.HttpsError('permission-denied', 'Only a Super Admin can block an administrator.');
+  }
 
   const userRef = db.collection('users').doc(targetUserId);
   const snapshot = await userRef.get();

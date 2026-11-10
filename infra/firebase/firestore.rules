@@ -12,12 +12,19 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Canonical admin authorization: legacy Super Admin emails remain supported,
-    // while all new access comes from adminUsers group-derived permissions.
+    // Blocked accounts lose all administrative access, including the legacy Super Admin.
+    function isNotBlocked() {
+      return !(
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isBlocked', false) == true
+      );
+    }
+
+    // Canonical admin authorization: the organisation's Super Admin account remains supported,
+    // while all other access comes from adminUsers group-derived permissions.
     function hasAdminPermission(permission) {
-      return isSignedIn() && (
+      return isSignedIn() && isNotBlocked() && (
         request.auth.token.email == 'christianmatchghanaltd@gmail.com' ||
-        request.auth.token.email == 'admin@example.com' ||
         (
           exists(/databases/$(database)/documents/adminUsers/$(request.auth.uid)) &&
           (

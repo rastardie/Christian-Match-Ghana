@@ -47,7 +47,14 @@ const AdminConsole: React.FC = () => {
         return;
       }
       try {
-        setAccess(await getCurrentAdminAccess());
+        const result = await getCurrentAdminAccess();
+        if (result.blocked) {
+          await signOut(auth);
+          setError('This account is blocked. Contact a Super Admin.');
+          setAccess(null);
+        } else {
+          setAccess(result);
+        }
       } catch (err) {
         console.error('Admin access check failed:', err);
         setAccess({ isSuperAdmin: false, permissions: [] });
@@ -96,7 +103,10 @@ const AdminConsole: React.FC = () => {
 
       // Only admin accounts may stay signed in here. Anyone else is signed out at once.
       const access = await getCurrentAdminAccess();
-      if (!access.isSuperAdmin && access.permissions.length === 0) {
+      if (access.blocked) {
+        await signOut(auth);
+        setError('This account is blocked. Contact a Super Admin.');
+      } else if (!access.isSuperAdmin && access.permissions.length === 0) {
         await signOut(auth);
         setError('This account does not have admin access.');
       }
