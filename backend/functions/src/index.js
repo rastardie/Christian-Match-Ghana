@@ -2291,3 +2291,346 @@ exports.adminSetMustChangePassword = functions.https.onCall(async (data, context
   await recordAdminAudit(context, 'admin.password.must_change', targetUserId, { value, targetWasAdmin: targetAdmin.exists });
   return { mustChangePassword: value };
 });
+
+// ---------------------------------------------------------------------------
+// Connection requests (Facebook-style). A member sends a request; the receiver
+// must accept before a chat exists. Only these callables write the collection.
+// Clients may read requests they are part of (see firestore.rules).
+// Observability: every call writes one structured log entry, queryable in Cloud
+// Logging with jsonPayload.component="connections" and jsonPayload.event="connection.*".
+// ---------------------------------------------------------------------------
+const CONNECTION_REQUESTS = 'connectionRequests';
+
+// Must match getCanonicalChatId in frontend/src/services/chatService.ts.
+function canonicalChatIdFor(userId1, userId2) {
+  return `dm_${[userId1, userId2].sort().map(encodeURIComponent).join('__')}`;
+}
+
+// Same rule as firestore.rules hasActiveSubscription().
+function hasActiveSubscriptionData(userData) {
+  const expiry = userData?.subscriptionExpiresAt;
+  const expiryMillis = expiry && typeof expiry.toMillis === 'function' ? expiry.toMillis() : 0;
+  return userData?.subscriptionStatus === 'active' && expiryMillis > Date.now();
+}
+
+// Opposite genders only: a Male sees Female profiles and a Female sees Male profiles.
+function isOppositeGenderPair(viewerGender, targetGender) {
+  const viewer = String(viewerGender || '').trim().toLowerCase();
+  const target = String(targetGender || '').trim().toLowerCase();
+  return (viewer === 'male' && target === 'female') || (viewer === 'female' && target === 'male');
+}
+
+function connectionProfileSummary(userData) {
+  return {
+    name: String(userData?.name || ''),
+    photo: Array.isArray(userData?.photos) && userData.photos[0] ? String(userData.photos[0]) : '',
+  };
+}
+
+function isBlockedBetween(userData, otherData, userId, otherId) {
+  return (userData?.blockedUsers || []).includes(otherId) || (otherData?.blockedUsers || []).includes(userId);
+}
+
+function connectionRequestId(fromUid, toUid) {
+  return `${fromUid}__${toUid}`;
+}
+
+// One structured log entry per connection event. Logs carry IDs and outcomes only, never names or messages.
+function logConnectionEvent(event, fields) {
+  functions.logger.info(event, { component: 'connections', ...fields });
+}
+
+// Push (FCM) and email to a member about a connection event. Honors notificationPreferences.
+// Never throws: a delivery failure must not undo a request or acceptance that already committed.
+async function notifyConnectionParty({ recipientId, kind, title, body, data, emailSubject, emailText }) {
+  try {
+    const snap = await db.collection('users').doc(recipientId).get();
+    if (!snap.exists) return;
+    const user = snap.data();
+    const prefs = user.notificationPreferences || {};
+    if (prefs.connectionRequests === false) {
+      logConnectionEvent('connection.notify.skipped', { kind, recipientId, reason: 'preference_off' });
+      return;
+    }
+
+    const tokens = [user.fcmToken, user.webFcmToken].filter((token) => typeof token === 'string' && token.length > 0);
+    if (prefs.push !== false && tokens.length > 0) {
+      try {
+        // FCM data values must be strings.
+        const stringData = Object.fromEntries(Object.entries({ type: kind, ...data }).map(([key, value]) => [key, String(value)]));
+        const response = await messaging.sendEachForMulticast({
+          tokens,
+          notification: { title, body },
+          data: stringData,
+        });
+        logConnectionEvent('connection.notify.push', { kind, recipientId, sent: response.successCount, failed: response.failureCount });
+      } catch (error) {
+        functions.logger.error('connection.notify.push_failed', { kind, recipientId, message: String(error?.message || error) });
+      }
+    }
+
+    if (prefs.email !== false && user.email) {
+      try {
+        const transporter = createVerificationReminderTransporter();
+        await transporter.sendMail({
+          from: process.env.CAMPAIGN_FROM_EMAIL || process.env.SMTP_USER,
+          to: user.email,
+          replyTo: process.env.CAMPAIGN_REPLY_TO || process.env.SMTP_USER,
+          subject: emailSubject,
+          text: `${emailText}\n\nOpen Christian Match Ghana and go to Likes to respond.`,
+        });
+        logConnectionEvent('connection.notify.email', { kind, recipientId, sent: true });
+      } catch (error) {
+        functions.logger.error('connection.notify.email_failed', { kind, recipientId, message: String(error?.message || error) });
+      }
+    }
+  } catch (error) {
+    functions.logger.error('connection.notify.failed', { kind, recipientId, message: String(error?.message || error) });
+  }
+}
+
+// Connect starts the chat right away when both members have an active subscription.
+// The acceptance step is paused: the request/accept code is kept in a comment block below for later.
+exports.requestConnection = functions.https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Authentication required.');
+  const fromUid = context.auth.uid;
+  const toUid = String(data?.toUid || '').trim();
+  if (!toUid || toUid === fromUid) {
+    throw new functions.https.HttpsError('invalid-argument', 'Choose another member to connect with.');
+  }
+
+  const chatRef = db.collection('chats').doc(canonicalChatIdFor(fromUid, toUid));
+  const fromRef = db.collection('users').doc(fromUid);
+  const toRef = db.collection('users').doc(toUid);
+
+  const result = await db.runTransaction(async (tx) => {
+    const [fromSnap, toSnap, chatSnap] = await Promise.all([tx.get(fromRef), tx.get(toRef), tx.get(chatRef)]);
+    const from = fromSnap.exists ? fromSnap.data() : {};
+    const to = toSnap.exists ? toSnap.data() : null;
+    const unavailable = () => new functions.https.HttpsError('failed-precondition', 'This profile is not available right now.');
+
+    if (!to || to.isBlocked === true || from.isBlocked === true) throw unavailable();
+    if (isBlockedBetween(from, to, fromUid, toUid)) throw unavailable();
+    if (!isOppositeGenderPair(from.gender, to.gender)) {
+      throw new functions.https.HttpsError('permission-denied', 'This profile is not available for your matching preferences.');
+    }
+    if (!hasActiveSubscriptionData(from)) {
+      throw new functions.https.HttpsError('failed-precondition', 'An active subscription is required to connect.');
+    }
+    if (!hasActiveSubscriptionData(to)) {
+      throw new functions.https.HttpsError('failed-precondition', 'This member needs an active subscription before you can connect.');
+    }
+
+    // Already connected: open the existing chat.
+    if (chatSnap.exists) return { status: 'connected', chatId: chatRef.id, created: false };
+
+    tx.set(chatRef, {
+      participants: [fromUid, toUid].sort(),
+      participantDetails: {
+        [fromUid]: connectionProfileSummary(from),
+        [toUid]: connectionProfileSummary(to),
+      },
+      lastMessage: '',
+      lastMessageTime: FieldValue.serverTimestamp(),
+      lastMessageSenderId: '',
+      unreadCount: { [fromUid]: 0, [toUid]: 0 },
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return { status: 'connected', chatId: chatRef.id, created: true };
+  });
+
+  logConnectionEvent('connection.connected', { outcome: result.status, created: result.created, fromUid, toUid, chatId: result.chatId });
+  return { status: result.status, chatId: result.chatId };
+});
+
+/* ACCEPTANCE FLOW (paused). To re-enable: restore the original requestConnection, respondToConnection,
+   and cancelConnectionRequest from this block, then restore the frontend pieces marked "acceptance paused" in MainApp.tsx.
+exports.requestConnection = functions.runWith({ secrets: ['SMTP_PASS'] }).https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Authentication required.');
+  const fromUid = context.auth.uid;
+  const toUid = String(data?.toUid || '').trim();
+  if (!toUid || toUid === fromUid) {
+    throw new functions.https.HttpsError('invalid-argument', 'Choose another member to connect with.');
+  }
+
+  const chatRef = db.collection('chats').doc(canonicalChatIdFor(fromUid, toUid));
+  const requestId = connectionRequestId(fromUid, toUid);
+  const reverseId = connectionRequestId(toUid, fromUid);
+  const requestRef = db.collection(CONNECTION_REQUESTS).doc(requestId);
+  const reverseRef = db.collection(CONNECTION_REQUESTS).doc(reverseId);
+  const fromRef = db.collection('users').doc(fromUid);
+  const toRef = db.collection('users').doc(toUid);
+
+  let created = false;
+  let fromName = '';
+  const result = await db.runTransaction(async (tx) => {
+    const [fromSnap, toSnap, chatSnap, requestSnap, reverseSnap] = await Promise.all([
+      tx.get(fromRef),
+      tx.get(toRef),
+      tx.get(chatRef),
+      tx.get(requestRef),
+      tx.get(reverseRef),
+    ]);
+    const from = fromSnap.exists ? fromSnap.data() : {};
+    const to = toSnap.exists ? toSnap.data() : null;
+    const unavailable = () => new functions.https.HttpsError('failed-precondition', 'This profile is not available right now.');
+
+    if (!to || to.isBlocked === true || from.isBlocked === true) throw unavailable();
+    if (isBlockedBetween(from, to, fromUid, toUid)) throw unavailable();
+    if (!isOppositeGenderPair(from.gender, to.gender)) {
+      throw new functions.https.HttpsError('permission-denied', 'This profile is not available for your matching preferences.');
+    }
+    if (!hasActiveSubscriptionData(from)) {
+      throw new functions.https.HttpsError('failed-precondition', 'An active subscription is required to send connection requests.');
+    }
+
+    // Already connected: the chat exists, so the caller opens it.
+    if (chatSnap.exists) return { status: 'connected', chatId: chatRef.id };
+    // The other member already asked this member: point the caller to their pending request.
+    if (reverseSnap.exists && reverseSnap.data().status === 'pending') {
+      return { status: 'incoming', requestId: reverseId };
+    }
+    // A pending or declined request already exists. A declined request is not revealed to the sender.
+    if (requestSnap.exists && ['pending', 'declined'].includes(requestSnap.data().status)) {
+      return { status: 'requested', requestId };
+    }
+
+    created = true;
+    fromName = connectionProfileSummary(from).name;
+    tx.set(requestRef, {
+      fromUid,
+      toUid,
+      participants: [fromUid, toUid],
+      status: 'pending',
+      fromProfile: connectionProfileSummary(from),
+      toProfile: connectionProfileSummary(to),
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+      respondedAt: null,
+    });
+    return { status: 'requested', requestId };
+  });
+
+  if (result.status === 'requested' && created) {
+    await notifyConnectionParty({
+      recipientId: toUid,
+      kind: 'connection_request',
+      title: `${fromName || 'A member'} wants to connect`,
+      body: 'Open Likes to accept or decline.',
+      data: { requestId },
+      emailSubject: 'Someone wants to connect with you',
+      emailText: `${fromName || 'A member'} sent you a connection request on Christian Match Ghana.`,
+    });
+  }
+  logConnectionEvent('connection.requested', { outcome: result.status, fromUid, toUid, requestId, created });
+  return result;
+});
+
+exports.respondToConnection = functions.runWith({ secrets: ['SMTP_PASS'] }).https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Authentication required.');
+  const uid = context.auth.uid;
+  const requestId = String(data?.requestId || '');
+  const decision = data?.decision;
+  if (!requestId.includes('__') || !['accept', 'decline'].includes(decision)) {
+    throw new functions.https.HttpsError('invalid-argument', 'Choose a valid request and response.');
+  }
+  const requestRef = db.collection(CONNECTION_REQUESTS).doc(requestId);
+
+  let result;
+  try {
+    result = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(requestRef);
+      if (!snap.exists) throw new functions.https.HttpsError('not-found', 'This request no longer exists.');
+      const request = snap.data();
+      if (request.toUid !== uid) {
+        throw new functions.https.HttpsError('permission-denied', 'Only the member who received this request can answer it.');
+      }
+      if (request.status !== 'pending') {
+        throw new functions.https.HttpsError('failed-precondition', 'This request has already been answered.');
+      }
+
+      if (decision === 'decline') {
+        tx.update(requestRef, { status: 'declined', respondedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+        return { status: 'declined' };
+      }
+
+      // Accepted: create the one-to-one chat on the server, then mark the request accepted.
+      const chatId = canonicalChatIdFor(request.fromUid, request.toUid);
+      const chatRef = db.collection('chats').doc(chatId);
+      const chatSnap = await tx.get(chatRef);
+      if (!chatSnap.exists) {
+        tx.set(chatRef, {
+          participants: [request.fromUid, request.toUid].sort(),
+          participantDetails: {
+            [request.fromUid]: request.fromProfile || { name: '', photo: '' },
+            [request.toUid]: request.toProfile || { name: '', photo: '' },
+          },
+          lastMessage: '',
+          lastMessageTime: FieldValue.serverTimestamp(),
+          lastMessageSenderId: '',
+          unreadCount: { [request.fromUid]: 0, [request.toUid]: 0 },
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+      tx.update(requestRef, { status: 'accepted', respondedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+      return { status: 'accepted', chatId, requesterId: request.fromUid, accepterName: request.toProfile?.name || '' };
+    });
+  } catch (error) {
+    logConnectionEvent('connection.responded', {
+      outcome: 'error', decision, uid, requestId, code: error?.code || 'unknown',
+    });
+    throw error;
+  }
+
+  if (result.status === 'accepted') {
+    await notifyConnectionParty({
+      recipientId: result.requesterId,
+      kind: 'connection_accepted',
+      title: `${result.accepterName || 'A member'} accepted your request`,
+      body: 'You can now message each other.',
+      data: { chatId: result.chatId, requestId },
+      emailSubject: 'Your connection request was accepted',
+      emailText: `${result.accepterName || 'A member'} accepted your connection request on Christian Match Ghana.`,
+    });
+  }
+  logConnectionEvent('connection.responded', { outcome: result.status, decision, uid, requestId });
+  return result.status === 'accepted'
+    ? { status: 'accepted', chatId: result.chatId }
+    : { status: result.status };
+});
+
+exports.cancelConnectionRequest = functions.https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Authentication required.');
+  const uid = context.auth.uid;
+  const requestId = String(data?.requestId || '');
+  if (!requestId.includes('__')) throw new functions.https.HttpsError('invalid-argument', 'Choose a valid request.');
+  const requestRef = db.collection(CONNECTION_REQUESTS).doc(requestId);
+
+  let outcome = 'cancelled';
+  try {
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(requestRef);
+      if (!snap.exists) {
+        outcome = 'missing';
+        return;
+      }
+      const request = snap.data();
+      if (request.fromUid !== uid) {
+        throw new functions.https.HttpsError('permission-denied', 'Only the sender can cancel this request.');
+      }
+      if (request.status === 'pending') {
+        tx.update(requestRef, { status: 'cancelled', updatedAt: FieldValue.serverTimestamp() });
+      } else {
+        outcome = 'not_pending';
+      }
+    });
+  } catch (error) {
+    logConnectionEvent('connection.cancelled', { outcome: 'error', uid, requestId, code: error?.code || 'unknown' });
+    throw error;
+  }
+  logConnectionEvent('connection.cancelled', { outcome, uid, requestId });
+  return { status: 'cancelled' };
+});
+*/

@@ -29,9 +29,11 @@ interface LayoutProps {
   isSystemAdmin?: boolean;
   hideNav?: boolean;
   hideHeader?: boolean;
+  /** Pending connection requests received by the member. Shown as a badge on Likes. */
+  likesBadgeCount?: number;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, onBack, onLogout, notificationCount = 0, notificationItems = [], onNotificationSelect, onMarkAllNotificationsRead, onOpenMessages, onRefresh, onAdmin, isSystemAdmin, hideNav, hideHeader }) => {
+const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, onBack, onLogout, notificationCount = 0, notificationItems = [], onNotificationSelect, onMarkAllNotificationsRead, onOpenMessages, onRefresh, onAdmin, isSystemAdmin, hideNav, hideHeader, likesBadgeCount = 0 }) => {
   // Keep the shared lower navigation available in Admin so users can move
   // between Discover, Likes, Messages, Profile, and Admin without closing the
   // management surface. The Admin header itself remains view-specific.
@@ -223,6 +225,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
               onClick={() => onChangeView('FRIENDS')}
               icon={<Heart size={20} />}
               label="Likes"
+              badge={likesBadgeCount}
             />
             <NavButton
               active={currentView === 'COMMUNITY'}
@@ -274,10 +277,10 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, on
 };
 
 // Reusable Navigation Link Component — pill-highlighted active state.
-const NavButton = ({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string }) => (
+const NavButton = ({ active, onClick, icon, label, badge = 0 }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string, badge?: number }) => (
   <button
     onClick={onClick}
-    aria-label={label}
+    aria-label={badge > 0 ? `${label}, ${badge} new` : label}
     aria-current={active ? 'page' : undefined}
     className="group relative flex flex-1 flex-col items-center gap-1 py-0.5"
   >
@@ -289,6 +292,11 @@ const NavButton = ({ active, onClick, icon, label }: { active: boolean, onClick:
       }`}
     >
       {icon}
+      {badge > 0 && (
+        <span aria-hidden="true" className="absolute -right-1 -top-1 flex min-w-[18px] items-center justify-center rounded-full bg-brand-orange px-1 text-[10px] font-black leading-[18px] text-white shadow">
+          {badge > 99 ? '99+' : badge}
+        </span>
+      )}
     </span>
     <span
       className={`text-[10px] tracking-tight transition-colors ${

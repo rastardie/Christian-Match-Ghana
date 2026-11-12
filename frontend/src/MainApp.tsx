@@ -212,6 +212,7 @@ import { createSupportTicket, type SupportCategory, type SupportContactPreferenc
 import { subscribeToCallStatus, subscribeToMessages, markMessagesAsRead, sendMessage, editMessage, deleteMessage, subscribeToChats, subscribeToIncomingCalls } from './services/chatService';
 import { subscribeToPrayerRequests, subscribeToComments, togglePray, addPrayerRequest, addComment } from './services/prayerService';
 import { getUserDocument, createUserDocument, updateUserDocument, getAllUsers, claimFreePromo, checkSignupEligibility, isMatchableGender } from './services/userService';
+import { requestConnection } from './services/connectionService';
 import { setupPushNotifications, clearNativeNotificationBadge, syncAppBadge, closeDeliveredWebNotifications } from './services/notificationService';
 import { loginWithPin, setUserPin } from './services/pinAuthService';
 import { uploadProfilePhoto, uploadCoverPhoto, uploadGalleryPhoto, uploadFile } from './services/fileStorageService';
@@ -6769,14 +6770,16 @@ const BrowseView = ({
                     </span>
                   </button>
                   <div className="p-2">
-                    <button
-                      type="button"
-                      onClick={() => onMessage(match.id)}
-                      title={connected ? 'Open conversation' : 'Send connection request'}
-                      className={`w-full rounded-xl py-2 text-[11px] font-black uppercase tracking-wide text-white ${connected ? 'bg-brand-blue' : 'bg-brand-orange'}`}
-                    >
-                      {connected ? 'Message' : 'Connect'}
-                    </button>
+                    {connected ? (
+                      <button type="button" onClick={() => onMessage(match.id)} title="Open conversation" className="w-full rounded-xl py-2 text-[11px] font-black uppercase tracking-wide text-white bg-brand-blue">
+                        Message
+                      </button>
+                    ) : (
+                      <button type="button" onClick={() => onMessage(match.id)} title="Connect and start a chat" className="w-full rounded-xl py-2 text-[11px] font-black uppercase tracking-wide text-white bg-brand-orange">
+                        Connect
+                      </button>
+                    )}
+                    {/* ACCEPTANCE PAUSED: "Requested" and "Respond" states return with the request flow. */}
                   </div>
                 </article>
               );
@@ -7480,6 +7483,53 @@ const FriendsView = ({
         </p>
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-3 hide-scrollbar">
+        {/* ACCEPTANCE PAUSED. Requests list (accept, decline, cancel), re-enable with the request flow:
+        {(incomingRequests.length > 0 || outgoingRequests.length > 0) && (
+          <section aria-label="Connection requests" className="space-y-3 pb-2">
+            {incomingRequests.length > 0 && (
+              <>
+                <h2 className="text-xs font-black uppercase tracking-wide text-gray-500">Requests for you</h2>
+                {incomingRequests.map((request) => (
+                  <div key={request.id} className="flex items-center gap-3 bg-white rounded-2xl p-3 shadow-sm border border-gray-100">
+                    <div className="w-12 h-12 rounded-xl bg-gray-200 overflow-hidden shrink-0">
+                      {request.fromProfile.photo && <img src={request.fromProfile.photo} alt="" className="w-full h-full object-cover" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-gray-900 text-sm truncate">{request.fromProfile.name || 'Member'}</p>
+                      <p className="text-xs text-gray-500">wants to connect with you</p>
+                    </div>
+                    <button type="button" onClick={() => onRespond(request.id, 'decline')} className="px-3 py-2 rounded-lg bg-gray-100 text-gray-700 text-xs font-black uppercase">
+                      Decline
+                    </button>
+                    <button type="button" onClick={() => onRespond(request.id, 'accept')} className="px-3 py-2 rounded-lg bg-brand-orange text-white text-xs font-black uppercase">
+                      Accept
+                    </button>
+                  </div>
+                ))}
+              </>
+            )}
+            {outgoingRequests.length > 0 && (
+              <>
+                <h2 className="text-xs font-black uppercase tracking-wide text-gray-500">Sent requests</h2>
+                {outgoingRequests.map((request) => (
+                  <div key={request.id} className="flex items-center gap-3 bg-white rounded-2xl p-3 shadow-sm border border-gray-100">
+                    <div className="w-12 h-12 rounded-xl bg-gray-200 overflow-hidden shrink-0">
+                      {request.toProfile.photo && <img src={request.toProfile.photo} alt="" className="w-full h-full object-cover" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-gray-900 text-sm truncate">{request.toProfile.name || 'Member'}</p>
+                      <p className="text-xs text-gray-500">Waiting for a reply</p>
+                    </div>
+                    <button type="button" onClick={() => onCancel(request.id)} className="px-3 py-2 rounded-lg bg-gray-100 text-gray-700 text-xs font-black uppercase">
+                      Cancel
+                    </button>
+                  </div>
+                ))}
+              </>
+            )}
+          </section>
+        )}
+        */}
         {friends.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 pb-20">
             <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-4">
@@ -8055,6 +8105,79 @@ const App = () => {
     fetchUsers();
   }, [user?.id, user?.blockedUsers, user?.gender]);
 
+  /* ACCEPTANCE PAUSED. Re-enable with the request flow (see backend/functions/src/index.js comment block):
+  // Live connection requests (sent and received). Drives the Connect / Requested / Respond labels and the Requests list.
+  const [connectionRequests, setConnectionRequests] = useState<ConnectionRequest[]>([]);
+  useEffect(() => {
+    if (!user?.id) {
+      setConnectionRequests([]);
+      return;
+    }
+    let primed = false;
+    let known = new Map<string, string>();
+    return subscribeToConnectionRequests(user.id, (requests) => {
+      // Alert only for changes after the first snapshot, so existing requests don't alert on sign-in.
+      if (primed) {
+        for (const request of requests) {
+          const before = known.get(request.id);
+          if (request.toUid === user.id && request.status === 'pending' && before !== 'pending') {
+            showNotify(`${request.fromProfile.name || 'A member'} wants to connect with you. Open Likes to respond.`, "success");
+          }
+          if (request.fromUid === user.id && request.status === 'accepted' && before === 'pending') {
+            showNotify(`${request.toProfile.name || 'A member'} accepted your connection request.`, "success");
+          }
+        }
+      }
+      known = new Map(requests.map((request) => [request.id, request.status]));
+      primed = true;
+      setConnectionRequests(requests);
+    });
+  }, [user?.id]);
+
+  // Viewer-side state per member. A request the viewer sent shows as Requested (a decline is never revealed to the sender).
+  // A pending request the viewer received shows as Respond.
+  const requestStates = useMemo(() => {
+    const states = new Map<string, 'outgoing' | 'incoming'>();
+    if (!user) return states;
+    for (const request of connectionRequests) {
+      if (request.fromUid === user.id && (request.status === 'pending' || request.status === 'declined')) {
+        states.set(request.toUid, 'outgoing');
+      } else if (request.toUid === user.id && request.status === 'pending') {
+        states.set(request.fromUid, 'incoming');
+      }
+    }
+    return states;
+  }, [connectionRequests, user]);
+
+  const incomingRequests = useMemo(
+    () => connectionRequests.filter((request) => user && request.toUid === user.id && request.status === 'pending'),
+    [connectionRequests, user]
+  );
+  const outgoingRequests = useMemo(
+    () => connectionRequests.filter((request) => user && request.fromUid === user.id && request.status === 'pending'),
+    [connectionRequests, user]
+  );
+
+  const handleRespondToRequest = async (requestId: string, decision: 'accept' | 'decline') => {
+    try {
+      await respondToConnection(requestId, decision);
+      showNotify(decision === 'accept' ? "Connection accepted. You can now message each other." : "Request declined.", "success");
+    } catch (error: any) {
+      showNotify(error?.message || "This request could not be updated.", "error");
+    }
+  };
+
+  const handleCancelRequest = async (requestId: string) => {
+    try {
+      await cancelConnectionRequest(requestId);
+      showNotify("Request cancelled.", "success");
+    } catch (error: any) {
+      showNotify(error?.message || "This request could not be cancelled.", "error");
+    }
+  };
+
+  */
+
   const handleConnectRequest = async (profileId: string) => {
     if (!user) return;
     if (!hasAdminAccess && !isProfileFullyComplete(user)) {
@@ -8067,39 +8190,18 @@ const App = () => {
     if (isSubscriptionActive(user)) {
       // User is already subscribed! Connect directly.
       try {
-        const { createOrGetChat } = await import('./services/chatService');
-        const { getUserDocument } = await import('./services/userService');
-        
-        const partnerData = await getUserDocument(profileId);
-        if (!partnerData) {
-          showNotify("User not found", "error");
-          return;
+        const result = await requestConnection(profileId);
+        if (result.status === 'connected') {
+          setActiveChatId(result.chatId);
+          setCurrentView("CHAT");
+        } else if (result.status === 'incoming') {
+          showNotify("This member has already sent you a request. Accept it under Friends.", "success");
+        } else {
+          showNotify("Connection request sent. You'll be connected once they accept.", "success");
         }
-        if (!hasAdminAccess) {
-          const viewerGender = (user.gender || '').trim().toLowerCase();
-          const partnerGender = (partnerData.gender || '').trim().toLowerCase();
-          const compatible =
-            (viewerGender === 'male' && partnerGender === 'female') ||
-            (viewerGender === 'female' && partnerGender === 'male');
-          if ((viewerGender === 'male' || viewerGender === 'female') && !compatible) {
-            showNotify("This profile is not available for your matching preferences.", "error");
-            return;
-          }
-        }
-        
-        const chatId = await createOrGetChat(
-          user.id,
-          profileId,
-          { name: user.name, photo: user.photos[0] || '' },
-          { name: partnerData.name, photo: partnerData.photos[0] || '' }
-        );
-        
-        setActiveChatId(chatId);
-        setCurrentView("CHAT");
-        showNotify(`You're now connected with ${partnerData.name}!`, "success");
-      } catch (error) {
-        console.error('❌ Error creating chat:', error);
-        showNotify("Failed to create chat", "error");
+      } catch (error: any) {
+        console.error('❌ Connection request failed:', error);
+        showNotify(error?.message || "The connection request could not be sent.", "error");
       }
     } else {
       // Show payment modal to subscribe
