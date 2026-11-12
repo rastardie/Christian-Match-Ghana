@@ -1,10 +1,10 @@
 # Christian Match Ghana — Handover and Continuation Guide
 
-**Last updated:** 2026-11-07
+**Last updated:** 2026-11-10 (see section 24 for the current state; sections 1–23 are historical)
 **Workspace:** `/Users/andrewstardie/Documents/TUTS/TESTS/cm/cmg-rebuilt`
 **Branch:** `sync/cmg-local-2026-10-13`
 **Remote:** `origin` → `https://github.com/rastardie/Christian-Match-Ghana.git`
-**Last pushed commit:** `c2a90e0 feat(badges): update installed app icon badge from background push unread count` (see section 23)
+**Last pushed commit:** `1d1492d feat: left-hand sub-menus for every admin section` on `origin/sync/cmg-local-2026-10-13`. Local-only commit `3bc269c fix: close admin security gaps` is NOT pushed yet (GitHub unreachable). See section 24.
 
 ## 1. Current system snapshot
 
@@ -1718,3 +1718,162 @@ Change (`frontend/src/MainApp.tsx`):
 Not confirmed: why an entitled user is denied after a refresh. The Dev profile tested passes the rule. Confirm by capturing `Incoming call listener failed` from the console on the affected device, with the user's entitlement state.
 
 Verified: `tsc --noEmit` passes and the staging build succeeds. Not verified in a browser.
+
+
+## 24. Session update — 2026-11-09 to 2026-11-10 (landing, Dev identity, prod sync, admin console, security fixes)
+
+### 24.1 Current release state
+
+```text
+Branch:                  sync/cmg-local-2026-10-13
+origin (pushed):         1d1492d feat: left-hand sub-menus for every admin section
+local only (NOT pushed): 3bc269c fix: close admin security gaps
+Production (christianmatch-app / christianmatchghana.com root): frontend 1d1492d, admin console live at /adm/
+                         rules and 24 admin functions still from before 3bc269c (see 24.6)
+Dev (christian-match-ghana / christianmatchghana.com/dev): rules and 24 admin functions from 3bc269c; frontend from 1d1492d
+```
+
+GitHub was unreachable from the workstation (TLS handshake timeouts and connection resets) during the last steps. Retry `git push -u origin sync/cmg-local-2026-10-13` before the next Dev frontend deploy.
+
+### 24.2 Landing page, install row, branding
+
+- Landing install row: App Store, Google Play, and Install Web App buttons. The row stays visible when the web app is installed; only Install Web App is disabled. Native Capacitor builds hide the row. Installed detection works only in standalone mode.
+- Store badges: Google Play uses Google's official `google-play-badge-en.png`. The App Store badge in `frontend/public/store-badges/app-store-badge-en.png` is a cut-out from a stock JPG and MUST be replaced with Apple's official badge before public release. Apple's artwork license requires developer-account acceptance.
+- Store buttons enable only on their own platform and only when `VITE_IOS_APP_STORE_URL` / `VITE_PLAY_STORE_URL` are set (both empty in `frontend/.env.example`).
+- Service worker: a network-only `fetch` handler was added in `generate-messaging-sw.mjs` (Chrome needs it for the install prompt).
+- Logo: `frontend/public/landing-logo-circle-v4.png` (outer white removed by flood fill, transparent background, 512 px). `Logo.tsx` and the landing page use v4 everywhere.
+- Dev-only install identity (commit `e8d9b6f`): `frontend/scripts/dev-install-identity.mjs` runs only in `build:staging` and refuses other modes. It writes the "CMG Dev" manifest name and short name and DEV-badged icons from `frontend/scripts/dev-icons/`. Production builds are unaffected.
+
+### 24.3 Firebase export and log housekeeping
+
+- Export folders moved out of the repo root to `cm/exports/firebase-exports/` using the name pattern `firebase-export_YYYY-MM-DD_HHMMSS_<id>`. Emulator debug logs moved to `cm/exports/firebase-logs/`.
+- Known gap: Firestore data is not exported on a schedule and no November export exists. Export-on-exit from the emulator writes temp folders, which is why no November export appeared.
+
+### 24.4 Production sync on 2026-11-09 (before the admin console)
+
+- Backup first: `cm/backups/prod-20261109-102724/` holds the StormerHost snapshot `prod-root-backup-13/prod-root-backup.tgz`, `prod-functions-before.txt` (32 functions), and `prod-firestore-rules-before.rules`.
+- Firestore rules released to `christianmatch-app`, functions updated (added `getCallIceServers`), and the frontend deployed via `deploy-frontend.yml` run `42609884792` (built `e8d9b6f`). Live manifest shows "CMG" with no Dev project references.
+- `METERED_SECRET_KEY` was copied from Dev to production Secret Manager (version 1). The value was never printed or stored. Production Firebase deploy from the local CLI was used because `FIREBASE_SERVICE_ACCOUNT` is not set in GitHub, so `deploy-firebase-prod.yml` cannot run.
+
+### 24.5 Desktop admin console (`/adm`)
+
+Route and build:
+
+- `christianmatchghana.com/adm/` (production) and `christianmatchghana.com/dev/adm/` (Dev). `christianmatch.com` was rejected because it has no DNS records.
+- Separate Vite entry: `frontend/admin.html` → `frontend/src/admin/main.tsx`. The public bundle excludes it. `frontend/scripts/place-admin-entry.mjs` moves `dist/admin.html` to `dist/adm/index.html`.
+- Sign-in accepts a login name or email. A 4–6 digit credential uses `loginWithPin`; anything else uses password. Non-admins are signed out at once. `mustChangePassword` blocks access until changed.
+- Auth-hang fallback: a 6-second timer shows the sign-in form if `onAuthStateChanged` never fires (headless Chrome never fires it).
+
+Commits and where they were deployed:
+
+```text
+1db8333  Phase 1 shell, sign-in gate, Vite entry          Dev
+abbfbe5  login name / PIN / password sign-in fix          Dev
+e2b7ac0  Phase 2 Overview, Users, Prayers, Moderation     Dev
+e365de2  Phase 3 Payments, Audit, Access, Groups, Messages Dev
+7666808  Payments: Subscriptions section, load errors     Dev (run 42675671785)
+78a16a9  parity: users, audiences, messaging, access, analytics + six user callables   Dev (run 42697804180)
+1d1492d  left-hand sub-menus for every admin section     Dev (run 42699404263); prod (run 42700674573)
+```
+
+Panels now present (sidebar sub-menus from `frontend/src/admin/adminNav.ts`, passed to panels as `view`):
+
+```text
+Overview:        Dashboard, Analytics & reports (print)
+Users:           All users, Add user, Subscribers, Blocked users
+Prayers:         Prayer requests, Export (CSV)
+Moderation:      Reports (shows "not connected" state), Blocked accounts (Unblock)
+Messages:        Compose (All / Selected / Audiences), Conversations
+Payments:        Payment records, Subscriptions
+Audiences:       All audiences, New audience (preview, members, delete)
+Audit log:       All activity, Account changes, Admin changes
+Access control:  Groups & permissions, Administrators, Create administrator (Super Admin only)
+```
+
+Users panel actions (all sensitive actions go through `AdminActionDialog`, which requires the admin's password):
+
+- Add user (via `adminCreateUser`), edit profile (`adminUpdateUserProfile`), block/unblock (`adminSetUserBlocked`), delete (`deleteUserAccount`), set password and force change (`adminSetUserPassword`, `adminSetMustChangePassword`), password reset email (`adminSendPasswordResetEmail`), PIN clear/set (`adminResetUserPin`), subscription grant/extend/revoke (`adminSetSubscription`), group membership (`adminAssignUserGroups`), CSV export. Bulk actions where legacy had them.
+
+Callables added (in `backend/functions/src/index.js`, appended after `adminSetUserPassword`): `adminCreateUser`, `adminUpdateUserProfile`, `adminSetUserBlocked`, `adminResetUserPin`, `adminSetSubscription`, `adminSetMustChangePassword`. Frontend wrappers: `frontend/src/services/adminUserActions.ts`, `adminAccessActions.ts`.
+
+Production state for the admin console:
+
+- Backup before the production deploy: StormerHost artifact `prod-root-backup-15` (GitHub run `42700036303`, 25 MB). Function list recorded in `cm/backups/prod-20261109-211251-pre-admin-parity/`.
+- Production functions deployed with `--only` for the six new callables only (32 → 38). No Paystack function touched. Rules unchanged. `SMTP_PASS` access granted to the production App Engine service account (same as Dev).
+- Verified: `/adm/` returns 200, public site 200, admin bundle has no Dev project references, new sub-menu strings present.
+- NOT verified: sign-in and actions with a real production admin. Production admins still need `adminUsers` records; until then only the legacy Super Admin account (`christianmatchghanaltd@gmail.com`) and the `ladmin@` account can sign in.
+
+Admin accounts (no secrets recorded):
+
+```text
+Dev  adminUsers: 3 records. ladmin@christianmatchghana.com is super-admin. Two group-assigned records.
+Prod adminUsers: 2 records. ladmin@christianmatchghana.com is super-admin. One group-assigned record.
+Auth: ladmin@christianmatchghana.com exists in both projects. christianmatchghanaltd@gmail.com exists in prod only.
+Auth: admin@example.com does NOT exist in either project.
+```
+
+### 24.6 Security fixes — committed locally, partly deployed (`3bc269c`)
+
+Found by a read-only review of the admin callables and rules:
+
+1. The placeholder super-admin email `admin@example.com` was hard-coded in rules, callables (`LEGACY_SUPER_ADMIN_EMAILS`, campaign admin list), and the client (`App.tsx`, `AdminLogin.tsx`, `adminRbacService.ts`). Because it grants rule-level super-admin access, anyone who could register that address could become a super admin. It was removed everywhere. Only `christianmatchghanaltd@gmail.com` keeps built-in rights.
+2. Blocked accounts kept admin access. `hasAdminPermission` in rules now requires `users/{uid}.isBlocked != true`. `requireAnyAdminPermission` refuses blocked callers (including the legacy super admin). The console and legacy admin login sign blocked accounts out with "This account is blocked."
+3. Any `groups.manage` admin could make a regular member an administrator by adding groups (this creates an `adminUsers` record). `adminAssignUserGroups` now refuses this unless the caller is a Super Admin.
+4. `deleteUserAccount` checked only `users.delete`. Now: self-delete refused; administrator accounts deletable only by Super Admin (their `adminUsers` record is removed too); the organisation account can't be deleted; a `user.deleted` audit entry is written.
+5. `adminSetUserBlocked`: only Super Admin can block an administrator.
+
+Deployment status for 3bc269c:
+
+- Dev: rules released; 24 functions deployed with `--only` (the admin callables, `deleteUserAccount`, `checkSignupEligibility`, `sendUnverifiedVerificationReminders`, `completeForcedPasswordChange`). `verifyPaystackSubscription` and `paystackWebhook` were deliberately NOT deployed.
+- Dev frontend: NOT deployed (needs the push).
+- Production: NOT deployed. Production still has the `admin@example.com` bypass until rules and functions are deployed. Required steps: backup-only snapshot (`deploy-frontend.yml` mode `backup-only`), then rules and the same 24 functions to `christianmatch-app` with `--only`, then the frontend full deploy (`deploy-frontend.yml` mode `full`, confirm `DEPLOY`) from the pushed commit.
+- Not verified by a test: blocked-account sign-in, the delete protections, and the group-assignment refusal. Needs a non-admin test account on Dev.
+
+Note: the Dev rules compile check and `node --check` passed; `tsc --noEmit` passed for the frontend.
+
+### 24.7 Paystack and payments findings (no code change)
+
+- Production Paystack is working. Production `payments` has 5 successful records (May–June 2026, GHS 50 each). The owner has confirmed production Paystack must not be changed, and no Dev Paystack change is to be synced to production.
+- Dev `payments` has 0 records. Dev's `verifyPaystackSubscription` shows no invocation logs in the last 60 days. The 25 Oct Dev webhook event (reference `cmg-dev-key-test`, processed with status 200) left no payment record; the function code at that time may have differed. The owner says the settings test used a Paystack test key on Dev; the server-side record is still missing and is unexplained.
+- Dev's 3 active subscriptions are `free1month` grants from 20 Oct, not Paystack payments.
+- Admin Payments panel now shows a Subscriptions section and surfaces load errors instead of an empty table.
+
+### 24.8 Known open issues (ordered by priority)
+
+1. Push blocked: GitHub unreachable from the workstation. Commit `3bc269c` is local only.
+2. Production security fix not deployed (24.6). Highest priority.
+3. PIN-only admins cannot confirm sensitive actions: `AdminActionDialog` requires the admin's password. Decide whether to accept the admin PIN too (the server has `loginWithPin`).
+4. Moderation Resolve, Dismiss, and Ban are not implemented. Reports need a Firestore rule for `reports` (admin read/write) and the `reports` collection must exist. Rules change needs approval.
+5. `loginWithPin` returned `iam.serviceAccounts.signBlob denied` on Dev on 18 Oct (custom token minting). Check production PIN login before admins rely on it.
+6. Admin "Add to group" for regular members (now refused for non-Super Admins) must be communicated to operators.
+7. `getAdminUsers`, `getAdminPayments`, `getAdminPrayers` swallow errors and return `[]`, so a failed load looks like "No records". Blocked accounts view, dashboard widgets, and reports are affected. `loadAdminPayments` and `loadAdminSubscriptions` are the throwing versions.
+8. Audit log "Details" column shows `[object Object]` for object details.
+9. Audit counts cover only the newest 100 entries (`adminListAuditLogs`).
+10. Prayers list has no error handling on load (pre-existing).
+11. App Store badge must be replaced with Apple's official artwork (24.2).
+12. Conversations list has no message counts (chat document doesn't store them).
+13. Legacy `admin@` placeholder text remains in `AdminLogin.tsx` input placeholders (cosmetic).
+14. Upload/hosting: `frontend/dist.zip`, `.firebase/`, `.firebase-emulator-data/` remain in the repo folder and must stay out of Git.
+
+### 24.9 Next-session checklist
+
+```text
+[ ] git push -u origin sync/cmg-local-2026-10-13 (retry until GitHub responds)
+[ ] Dev frontend: deploy-dev.yml, confirm DEPLOY-DEV, from the pushed commit
+[ ] Dev smoke test with a non-admin test account: blocked sign-in, delete protections, group-assignment refusal
+[ ] Get explicit owner approval, then production: backup-only → rules + 24 functions (--only) → frontend full (DEPLOY)
+[ ] Production verification: /adm/ sign-in, one admin action per sub-menu, prod admin records
+[ ] Decide item 24.8.3 (PIN confirmation) and 24.8.4 (moderation rules)
+[ ] Replace the App Store badge when Apple's artwork is available
+```
+
+Commands that were used (for reference; check the project ID in output before any deploy):
+
+```bash
+gh workflow run deploy-dev.yml --repo rastardie/Christian-Match-Ghana --ref sync/cmg-local-2026-10-13 -f confirm=DEPLOY-DEV
+gh workflow run deploy-frontend.yml --repo rastardie/Christian-Match-Ghana --ref sync/cmg-local-2026-10-13 -f mode=backup-only
+gh workflow run deploy-frontend.yml --repo rastardie/Christian-Match-Ghana --ref sync/cmg-local-2026-10-13 -f mode=full -f confirm=DEPLOY
+./backend/functions/node_modules/.bin/firebase deploy --project christianmatch-app --only "firestore:rules,functions:<names>" --non-interactive
+```
+
+Never deploy `verifyPaystackSubscription` or `paystackWebhook` as part of an admin change.
