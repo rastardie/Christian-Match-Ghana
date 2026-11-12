@@ -211,7 +211,7 @@ import { doc, onSnapshot, collection, query, where, getDocs, updateDoc, serverTi
 import { createSupportTicket, type SupportCategory, type SupportContactPreference } from './services/supportService';
 import { subscribeToCallStatus, subscribeToMessages, markMessagesAsRead, sendMessage, editMessage, deleteMessage, subscribeToChats, subscribeToIncomingCalls } from './services/chatService';
 import { subscribeToPrayerRequests, subscribeToComments, togglePray, addPrayerRequest, addComment } from './services/prayerService';
-import { getUserDocument, createUserDocument, updateUserDocument, getAllUsers, claimFreePromo, checkSignupEligibility } from './services/userService';
+import { getUserDocument, createUserDocument, updateUserDocument, getAllUsers, claimFreePromo, checkSignupEligibility, isMatchableGender } from './services/userService';
 import { setupPushNotifications, clearNativeNotificationBadge, syncAppBadge, closeDeliveredWebNotifications } from './services/notificationService';
 import { loginWithPin, setUserPin } from './services/pinAuthService';
 import { uploadProfilePhoto, uploadCoverPhoto, uploadGalleryPhoto, uploadFile } from './services/fileStorageService';
@@ -6201,9 +6201,8 @@ const BrowseView = ({
   // Discover order: newest profiles first, or a reshuffled order.
   const [shuffled, setShuffled] = useState(() => readBrowseSessionState().shuffled === true);
   const [shuffleSeed, setShuffleSeed] = useState(() => readBrowseSessionState().shuffleSeed ?? 0);
-  // Skipped profile IDs, most recent last, so Back can return to them.
-  const [skippedIds, setSkippedIds] = useState<string[]>(() => readBrowseSessionState().skippedIds ?? []);
-  const restoredRef = useRef(false);
+  // ID of the first tile fully in view. Saved so returning from a profile lands on the same place.
+  const [anchorId, setAnchorId] = useState<string | null>(() => readBrowseSessionState().currentId ?? null);
 
   const orderedProfiles = useMemo(() => {
     if (!shuffled) {
@@ -6220,16 +6219,9 @@ const BrowseView = ({
 
   // Apply filters to profiles
   const filteredProfiles = orderedProfiles.filter(profile => {
-    // Strict Opposite Gender Filter (Male sees Female, Female sees Male)
-    if (currentUser && currentUser.gender) {
-      const userGenderLower = currentUser.gender.toLowerCase();
-      const targetGenderLower = (profile.gender || '').toLowerCase();
-      if (userGenderLower === 'male' && targetGenderLower !== 'female') {
-        return false;
-      }
-      if (userGenderLower === 'female' && targetGenderLower !== 'male') {
-        return false;
-      }
+    // Opposite-gender matches only (Male sees Female, Female sees Male). Same-gender and unknown-gender profiles are excluded.
+    if (!isMatchableGender(currentUser?.gender, profile.gender)) {
+      return false;
     }
 
     // Location Preferences Filter
@@ -6286,43 +6278,68 @@ const BrowseView = ({
     return true;
   });
 
-  const profile = filteredProfiles[index];
+  // Tiles scroll horizontally (arrows, swipe on touch, arrow keys when the row has focus).
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [edges, setEdges] = useState({ canLeft: false, canRight: false });
 
-  // Restore the card the user was on when they left Discover, once profiles have loaded.
-  useEffect(() => {
-    if (restoredRef.current || profiles.length === 0) return;
-    restoredRef.current = true;
-    const savedId = readBrowseSessionState().currentId;
-    if (!savedId) return;
-    const position = filteredProfiles.findIndex((item) => item.id === savedId);
-    if (position >= 0) setIndex(position);
-  }, [profiles.length, filteredProfiles]);
-
-  // Persist the current card and skip history so they survive navigation.
-  useEffect(() => {
-    if (!profile) return;
-    writeBrowseSessionState({ currentId: profile.id, skippedIds, shuffled, shuffleSeed });
-  }, [profile?.id, skippedIds, shuffled, shuffleSeed]);
-
-  const skipProfile = () => {
-    if (!profile) return;
-    setSkippedIds((ids) => [...ids, profile.id]);
-    setIndex((i) => i + 1);
+  const updateEdges = () => {
+    const track = trackRef.current;
+    if (!track) return;
+    const canLeft = track.scrollLeft > 4;
+    const canRight = track.scrollLeft + track.clientWidth < track.scrollWidth - 4;
+    setEdges((current) => (current.canLeft === canLeft && current.canRight === canRight ? current : { canLeft, canRight }));
   };
 
-  // Return to the most recently skipped profile still in the current filtered deck.
-  const goBackToSkipped = () => {
-    const previousId = skippedIds[skippedIds.length - 1];
-    if (!previousId) return;
-    setSkippedIds((ids) => ids.slice(0, -1));
-    const position = filteredProfiles.findIndex((item) => item.id === previousId);
-    if (position >= 0) setIndex(position);
+  const handleTrackScroll = () => {
+    const track = trackRef.current;
+    if (!track) return;
+    // Anchor = first tile whose right edge is past the left edge of the visible area.
+    const tiles = Array.from(track.querySelectorAll<HTMLElement>('[data-tile-id]'));
+    const first = tiles.find((tile) => tile.offsetLeft + tile.offsetWidth > track.scrollLeft + 4);
+    const nextAnchor = first?.dataset.tileId ?? null;
+    if (nextAnchor && nextAnchor !== anchorId) setAnchorId(nextAnchor);
+    updateEdges();
+  };
+
+  // Put the row back where the user left it: after viewing a profile, or after remounting.
+  useEffect(() => {
+    const track = trackRef.current;
+    if (!track) return;
+    if (anchorId) {
+      const tile = track.querySelector<HTMLElement>(`[data-tile-id="${CSS.escape(anchorId)}"]`);
+      if (tile) track.scrollLeft = tile.offsetLeft;
+    }
+    updateEdges();
+    // anchorId is read here but not a trigger: scrolling updates it, and it must not re-scroll the row.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewingProfile, filteredProfiles.length]);
+
+  // Remember the order and anchor for the rest of the browser session.
+  useEffect(() => {
+    writeBrowseSessionState({ currentId: anchorId ?? undefined, shuffled, shuffleSeed });
+  }, [anchorId, shuffled, shuffleSeed]);
+
+  const scrollTrack = (direction: -1 | 1) => {
+    const track = trackRef.current;
+    if (!track) return;
+    track.scrollBy({ left: direction * Math.round(track.clientWidth * 0.8), behavior: 'smooth' });
+  };
+
+  const handleTrackKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      scrollTrack(1);
+    } else if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      scrollTrack(-1);
+    }
   };
 
   const toggleOrder = () => {
     setShuffled((value) => !value);
     setShuffleSeed((value) => value + 1);
-    setIndex(0);
+    setAnchorId(null);
+    trackRef.current?.scrollTo({ left: 0 });
   };
 
   // Toggle filter option
@@ -6380,12 +6397,23 @@ const BrowseView = ({
     );
   }
 
-  if (!profile)
+  const viewerGenderKnown = ['male', 'female'].includes((currentUser?.gender || '').trim().toLowerCase());
+
+  if (filteredProfiles.length === 0)
     return (
       <div className="h-full flex items-center justify-center p-6 text-center text-gray-400">
         <div>
           <RotateCcw size={48} className="mx-auto mb-4 opacity-20" />
-          {profiles.length === 0 ? (
+          {!viewerGenderKnown ? (
+            <>
+              <p className="font-black uppercase tracking-widest text-xs">
+                Add your gender to see matches
+              </p>
+              <p className="text-xs mt-2 opacity-60">
+                Matches are shown between men and women. Set your gender in Edit Profile.
+              </p>
+            </>
+          ) : profiles.length === 0 ? (
             <>
               <p className="font-black uppercase tracking-widest text-xs">
                 No users yet
@@ -6413,29 +6441,14 @@ const BrowseView = ({
               </button>
             </>
           )}
-          {skippedIds.length > 0 && (
-            <button
-              onClick={goBackToSkipped}
-              className="mt-4 block mx-auto text-brand-orange font-black underline uppercase text-[10px] tracking-widest"
-            >
-              Back to skipped profile
-            </button>
-          )}
         </div>
       </div>
     );
 
   return (
     <div className="h-full flex flex-col bg-transparent relative">
-      {/* Deck controls: back to the last skipped profile, and newest-first vs shuffled order */}
+      {/* Order toggle: newest first or shuffled */}
       <div className="absolute top-4 left-4 z-30 flex items-center gap-2">
-        <button
-          onClick={goBackToSkipped}
-          disabled={skippedIds.length === 0}
-          className="bg-white/90 backdrop-blur-md px-4 py-2 rounded-full shadow-lg border border-gray-200 text-xs font-black uppercase tracking-wide text-gray-800 active:scale-95 transition-all disabled:opacity-40"
-        >
-          Back
-        </button>
         <button
           onClick={toggleOrder}
           className="bg-white/90 backdrop-blur-md px-4 py-2 rounded-full shadow-lg border border-gray-200 text-xs font-black uppercase tracking-wide text-gray-800 active:scale-95 transition-all"
@@ -6683,75 +6696,93 @@ const BrowseView = ({
         </div>
       )}
 
-      {/* Profile Card */}
-      <div 
-        className="flex-1 relative overflow-hidden group cursor-pointer"
-        onClick={() => setViewingProfile(profile)}
-      >
-        <img
-          src={profile.photos[0]}
-          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-          alt={`${profile.name} cover photo`}
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent"></div>
-        
-        {/* Tap Hint Overlay */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 backdrop-blur-sm text-white px-6 py-3 rounded-full font-bold text-xs pointer-events-none transform scale-90 group-hover:scale-100 duration-300">
-           Tap to view profile
-        </div>
-
-        <div className="absolute bottom-0 left-0 right-0 p-8 text-white pb-24">
-          <h2 className="text-4xl font-black mb-2 tracking-tighter shadow-black drop-shadow-lg">
-            {profile.name}, {profile.age}
-          </h2>
-          <div className="flex items-center gap-2 mb-4 text-xs font-bold uppercase tracking-widest opacity-80">
-            <MapPin size={12} /> {profile.location?.split(',')[0]}
-            {profile.isVerified && (
-              <div className="flex items-center gap-1 ml-2 bg-blue-500/80 px-2 py-0.5 rounded-full">
-                <CheckCircle size={10} />
-                <span className="text-[8px]">Verified</span>
-              </div>
-            )}
+      {/* Matches as a horizontal row of tiles, Facebook-style: arrows, swipe, arrow keys */}
+      <div className="flex-1 flex flex-col justify-center pt-16 pb-4 min-h-0">
+        <div className="relative">
+          {edges.canLeft && (
+            <button
+              type="button"
+              onClick={() => scrollTrack(-1)}
+              aria-label="Scroll matches left"
+              className="absolute left-1 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-white/95 shadow-lg border border-gray-200 text-xl font-black text-gray-800 flex items-center justify-center active:scale-95"
+            >
+              &lsaquo;
+            </button>
+          )}
+          {edges.canRight && (
+            <button
+              type="button"
+              onClick={() => scrollTrack(1)}
+              aria-label="Scroll matches right"
+              className="absolute right-1 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-white/95 shadow-lg border border-gray-200 text-xl font-black text-gray-800 flex items-center justify-center active:scale-95"
+            >
+              &rsaquo;
+            </button>
+          )}
+          <div
+            ref={trackRef}
+            role="list"
+            aria-label="Matches"
+            tabIndex={0}
+            onScroll={handleTrackScroll}
+            onKeyDown={handleTrackKeyDown}
+            className="relative flex gap-3 overflow-x-auto snap-x snap-mandatory px-4 pb-2 rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange"
+          >
+            {filteredProfiles.map((match) => {
+              const connected = connectedPartnerIds.has(match.id);
+              const photo = Array.isArray(match.photos) ? match.photos[0] : '';
+              const place = typeof match.location === 'string' ? match.location.split(',')[0] : '';
+              return (
+                <article
+                  key={match.id}
+                  role="listitem"
+                  data-tile-id={match.id}
+                  className="snap-start shrink-0 w-[42%] min-w-[150px] max-w-[190px] flex flex-col overflow-hidden rounded-2xl bg-white shadow-md border border-gray-100"
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAnchorId(match.id);
+                      setViewingProfile(match);
+                    }}
+                    aria-label={`View ${match.name || 'profile'}${match.age ? `, ${match.age}` : ''}`}
+                    className="relative block w-full bg-gray-200 text-left"
+                    style={{ aspectRatio: '3 / 4' }}
+                  >
+                    {photo ? (
+                      <img src={photo} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+                    ) : (
+                      <span className="absolute inset-0 flex items-center justify-center text-4xl font-black text-gray-400">
+                        {(match.name || '?').charAt(0)}
+                      </span>
+                    )}
+                    <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-3 pt-8 text-white">
+                      <span className="block truncate text-sm font-black">
+                        {match.name}{match.age ? `, ${match.age}` : ''}
+                      </span>
+                      {place && (
+                        <span className="flex items-center gap-1 truncate text-[11px] opacity-90">
+                          <MapPin size={11} />
+                          {place}
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                  <div className="p-2">
+                    <button
+                      type="button"
+                      onClick={() => onMessage(match.id)}
+                      title={connected ? 'Open conversation' : 'Send connection request'}
+                      className={`w-full rounded-xl py-2 text-[11px] font-black uppercase tracking-wide text-white ${connected ? 'bg-brand-blue' : 'bg-brand-orange'}`}
+                    >
+                      {connected ? 'Message' : 'Connect'}
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
           </div>
-          <p className="text-sm opacity-90 mb-6 font-medium leading-relaxed line-clamp-2">
-            "{profile.bio}"
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <span className="px-4 py-1.5 bg-white/20 backdrop-blur-md rounded-2xl text-[9px] font-black uppercase tracking-widest border border-white/20">
-              {profile.denomination}
-            </span>
-            <span className="px-4 py-1.5 bg-white/20 backdrop-blur-md rounded-2xl text-[9px] font-black uppercase tracking-widest border border-white/20">
-              {profile.intentions}
-            </span>
-            <span className="px-4 py-1.5 bg-white/20 backdrop-blur-md rounded-2xl text-[9px] font-black uppercase tracking-widest border border-white/20">
-              {profile.faithMaturity}
-            </span>
-          </div>
         </div>
-      </div>
-      
-      {/* Action Bar - Fixed Bottom over the Image */}
-      <div className="absolute bottom-0 left-0 right-0 p-6 pt-0 bg-gradient-to-t from-black/80 to-transparent flex gap-4 shrink-0 z-20">
-        <button
-          title="Skip profile"
-          onClick={(e) => {
-             e.stopPropagation();
-             skipProfile();
-          }}
-          className="flex-1 py-4 bg-gray-900/50 backdrop-blur-md border border-white/10 rounded-2xl text-white font-black uppercase tracking-widest text-[10px] active:scale-95 transition-all hover:bg-gray-900"
-        >
-          Skip
-        </button>
-        <button
-          title={connectedPartnerIds.has(profile.id) ? 'Open conversation' : 'Send connection request'}
-          onClick={(e) => {
-             e.stopPropagation();
-             onMessage(profile.id);
-          }}
-          className={`flex-1 py-4 ${connectedPartnerIds.has(profile.id) ? 'bg-brand-blue' : 'bg-brand-orange'} text-white rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-lg active:scale-95 transition-all`}
-        >
-          {connectedPartnerIds.has(profile.id) ? 'Message' : 'Connect'}
-        </button>
       </div>
     </div>
   );

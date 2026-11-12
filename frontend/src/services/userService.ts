@@ -224,6 +224,16 @@ export async function userDocumentExists(uid: string): Promise<boolean> {
 }
 
 /**
+ * Discover match rule: a Male sees Female profiles and a Female sees Male profiles only.
+ * A viewer without a recognised gender sees nobody, so same-gender profiles cannot leak through.
+ */
+export function isMatchableGender(viewerGender?: string | null, targetGender?: string | null): boolean {
+  const viewer = (viewerGender || '').trim().toLowerCase();
+  const target = (targetGender || '').trim().toLowerCase();
+  return (viewer === 'male' && target === 'female') || (viewer === 'female' && target === 'male');
+}
+
+/**
  * Get all users from Firestore (for Browse view)
  * Excludes the current user and their blocked users
  */
@@ -238,20 +248,10 @@ export async function getAllUsers(currentUserId?: string, blockedUserIds: string
       
       // Exclude current user and blocked users
       if (userData.id !== currentUserId && !blockedUserIds.includes(userData.id)) {
-        // Gender filtering: Male sees Female, Female sees Male
-        let includeUser = true;
- 
-        if (currentUserGender) {
-          const userGenderLower = currentUserGender.toLowerCase();
-          const targetGenderLower = (userData.gender || '').toLowerCase();
-          
-          if (userGenderLower === 'male' && targetGenderLower !== 'female') {
-            includeUser = false;
-          } else if (userGenderLower === 'female' && targetGenderLower !== 'male') {
-            includeUser = false;
-          }
-        }
-        
+        // Matches are opposite-gender only. Same-gender and unknown-gender profiles never appear.
+        // Blocked profiles (admin-blocked) are never shown in Discover.
+        const includeUser = !userData.isBlocked && isMatchableGender(currentUserGender, userData.gender);
+
         if (includeUser) {
           users.push(userData);
         }
