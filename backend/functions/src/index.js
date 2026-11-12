@@ -333,7 +333,7 @@ exports.adminSendPasswordResetEmail = functions
     const appBaseUrl = process.env.APP_BASE_URL || 'https://christianmatchghana.com';
     let resetLink;
     try {
-      resetLink = await auth.generatePasswordResetLink(targetAuth.email, { url: appBaseUrl, handleCodeInApp: false });
+      resetLink = appResetLink(await auth.generatePasswordResetLink(targetAuth.email, { url: appBaseUrl, handleCodeInApp: false }), appBaseUrl);
       const transporter = createVerificationReminderTransporter();
       await transporter.sendMail({
         from: process.env.CAMPAIGN_FROM_EMAIL || process.env.SMTP_USER,
@@ -355,6 +355,14 @@ exports.adminSendPasswordResetEmail = functions
     });
     return { sent: true, targetUserId };
   });
+
+// Turns the Firebase-hosted reset link into a link to this app's own /reset-password page,
+// which asks for the new password twice. The one-time oobCode is carried over unchanged.
+function appResetLink(firebaseResetLink, appBaseUrl) {
+  const oobCode = new URL(firebaseResetLink).searchParams.get('oobCode');
+  if (!oobCode) throw new Error('The password reset link is missing its code.');
+  return `${appBaseUrl.replace(/\/+$/, '')}/reset-password?oobCode=${encodeURIComponent(oobCode)}`;
+}
 
 // Self-service "forgot password" for end users and admins. Uses the same
 // generatePasswordResetLink + SMTP path as adminSendPasswordResetEmail, which is
@@ -381,7 +389,7 @@ exports.requestPasswordReset = functions
 
     const appBaseUrl = process.env.APP_BASE_URL || 'https://christianmatchghana.com';
     try {
-      const resetLink = await auth.generatePasswordResetLink(targetAuth.email, { url: appBaseUrl, handleCodeInApp: false });
+      const resetLink = appResetLink(await auth.generatePasswordResetLink(targetAuth.email, { url: appBaseUrl, handleCodeInApp: false }), appBaseUrl);
       const transporter = createVerificationReminderTransporter();
       await transporter.sendMail({
         from: process.env.CAMPAIGN_FROM_EMAIL || process.env.SMTP_USER,

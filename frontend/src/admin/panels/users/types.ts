@@ -8,6 +8,8 @@ export type UserRow = User & {
   firestoreDocId: string;
   /** Not declared on User. Included in search when a profile stores it. */
   loginName?: string;
+  /** Written by the server and by profile saves. Shown as Last updated. */
+  updatedAt?: unknown;
 };
 
 export type StatusFilter = 'all' | 'active' | 'blocked';

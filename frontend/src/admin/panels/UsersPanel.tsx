@@ -37,11 +37,21 @@ import {
   subscriptionExpiry,
   subscriptionLabel,
   summariseBulk,
+  toDateOrNull,
   type BulkResult,
   type GroupChanges,
 } from './users/userHelpers';
 import { makeCan, type Notice, type PendingAction, type RoleFilter, type StatusFilter, type UserRow } from './users/types';
 import { VIEW_INTRO, VIEW_PRESETS, resolveUserView, type UserView } from './users/views';
+
+/** Columns that can be sorted in the users table. */
+type SortKey = 'name' | 'email' | 'phone' | 'role' | 'status' | 'subscription' | 'groups' | 'joined' | 'updated';
+interface SortState {
+  key: SortKey;
+  dir: 'asc' | 'desc';
+}
+/** Date columns start newest-first on the first click. Text columns start A to Z. */
+const DATE_SORT_KEYS: SortKey[] = ['joined', 'updated'];
 
 export interface UsersPanelProps {
   /** The caller's admin permissions. Omit to show every action. AdminConsole should pass this. */
@@ -93,6 +103,8 @@ const UsersPanel: React.FC<UsersPanelProps> = ({ permissions, isSuperAdmin, view
   // The 'add' view opens the Add user modal on mount when the administrator may create users.
   const [modal, setModal] = useState<ModalState | null>(() => (activeView === 'add' && canAdd ? { kind: 'add' } : null));
   const [pending, setPending] = useState<PendingAction | null>(null);
+  // Newest-joined first by default, matching the previous fixed order.
+  const [sort, setSort] = useState<SortState>({ key: 'joined', dir: 'desc' });
 
   // When the sidebar view changes, apply its preset filters and open or close the Add user modal.
   // This runs during render so the first paint already shows the new preset.
@@ -166,7 +178,58 @@ const UsersPanel: React.FC<UsersPanelProps> = ({ permissions, isSuperAdmin, view
     });
   }, [users, query, statusFilter, roleFilter]);
 
-  const visibleIds = useMemo(() => filtered.map((user) => user.firestoreDocId), [filtered]);
+  // Sorts the filtered rows by the chosen column. Missing dates always sort last.
+  const sortedUsers = useMemo(() => {
+    const direction = sort.dir === 'asc' ? 1 : -1;
+    const valueOf = (user: UserRow): string | number | null => {
+      switch (sort.key) {
+        case 'name': return (user.name || '').toLowerCase();
+        case 'email': return (user.email || '').toLowerCase();
+        case 'phone': return (user.phone || '').toLowerCase();
+        case 'role': return roleLabel(user);
+        case 'status': return isUserBlocked(user) ? 'blocked' : 'active';
+        case 'subscription': return subscriptionLabel(user);
+        case 'groups': return canManageGroups
+          ? groupIdsFor(user.firestoreDocId).map((id) => groupNameById.get(id) ?? id).sort().join(', ').toLowerCase()
+          : '';
+        case 'joined': return toDateOrNull(user.createdAt)?.getTime() ?? null;
+        case 'updated': return toDateOrNull(user.updatedAt)?.getTime() ?? null;
+      }
+    };
+    return [...filtered].sort((a, b) => {
+      const left = valueOf(a);
+      const right = valueOf(b);
+      if (left === null || right === null) return left === right ? 0 : left === null ? 1 : -1;
+      if (typeof left === 'number' && typeof right === 'number') return (left - right) * direction;
+      return String(left).localeCompare(String(right), 'en', { numeric: true, sensitivity: 'base' }) * direction;
+    });
+  }, [filtered, sort, canManageGroups, groupIdsFor, groupNameById]);
+
+  const toggleSort = (key: SortKey) => {
+    setSort((current) =>
+      current.key === key
+        ? { key, dir: current.dir === 'asc' ? 'desc' : 'asc' }
+        : { key, dir: DATE_SORT_KEYS.includes(key) ? 'desc' : 'asc' }
+    );
+  };
+
+  const sortHeader = (key: SortKey, label: string) => {
+    const active = sort.key === key;
+    return (
+      <th scope="col" className={thClass} aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+        <button
+          type="button"
+          onClick={() => toggleSort(key)}
+          className="inline-flex items-center gap-1 font-black uppercase tracking-wide hover:text-slate-900"
+        >
+          {label}
+          <span aria-hidden="true" className="text-[10px]">{active ? (sort.dir === 'asc' ? '▲' : '▼') : '↕'}</span>
+        </button>
+      </th>
+    );
+  };
+
+  const visibleIds = useMemo(() => sortedUsers.map((user) => user.firestoreDocId), [sortedUsers]);
   const visibleSelectedCount = visibleIds.filter((id) => selected.has(id)).length;
   const allVisibleSelected = visibleIds.length > 0 && visibleSelectedCount === visibleIds.length;
   const hiddenSelectedCount = selected.size - visibleSelectedCount;
@@ -763,19 +826,20 @@ const UsersPanel: React.FC<UsersPanelProps> = ({ permissions, isSuperAdmin, view
                     onChange={toggleVisible}
                   />
                 </th>
-                <th scope="col" className={thClass}>Name</th>
-                <th scope="col" className={thClass}>Email</th>
-                <th scope="col" className={thClass}>Phone</th>
-                <th scope="col" className={thClass}>Role</th>
-                <th scope="col" className={thClass}>Status</th>
-                <th scope="col" className={thClass}>Subscription</th>
-                <th scope="col" className={thClass}>Admin groups</th>
-                <th scope="col" className={thClass}>Joined</th>
+                {sortHeader('name', 'Name')}
+                {sortHeader('email', 'Email')}
+                {sortHeader('phone', 'Phone')}
+                {sortHeader('role', 'Role')}
+                {sortHeader('status', 'Status')}
+                {sortHeader('subscription', 'Subscription')}
+                {sortHeader('groups', 'Admin groups')}
+                {sortHeader('joined', 'Joined')}
+                {sortHeader('updated', 'Last updated')}
                 <th scope="col" className={thClass}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((user) => {
+              {sortedUsers.map((user) => {
                 const id = user.firestoreDocId;
                 const isSelected = selected.has(id);
                 const blocked = isUserBlocked(user);
@@ -811,6 +875,7 @@ const UsersPanel: React.FC<UsersPanelProps> = ({ permissions, isSuperAdmin, view
                       {!canManageGroups ? '—' : groupNames.length > 0 ? groupNames.join(', ') : 'None'}
                     </td>
                     <td className={tdClass}>{formatDate(user.createdAt)}</td>
+                    <td className={tdClass}>{formatDate(user.updatedAt)}</td>
                     <td className={`${tdClass} whitespace-nowrap`}>
                       <div className="flex items-center gap-2">
                         {activeView === 'blocked' && blocked && can('users.suspend') && (

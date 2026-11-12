@@ -5,6 +5,7 @@ import { auth, db } from './firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import MainApp from './MainApp'; // Imports the original App component (default export)
 import AdminLogin from './components/admin/AdminLogin';
+import ResetPasswordPage from './components/ResetPasswordPage';
 
 // Legacy /admin URLs are handed back to the authenticated MainApp so the
 // dashboard is always rendered inside Layout rather than as a standalone page.
@@ -79,6 +80,9 @@ const App = () => {
       <Routes>
         {/* Public Admin Login */}
         <Route path="/admin/login" element={<AdminLogin />} />
+
+        {/* Password reset page linked from reset emails (two-field form) */}
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
 
         {/* Protected Admin Dashboard routes always hand off into MainApp/Layout. */}
         <Route path="/admin" element={<AdminAppEntry />} />
