@@ -309,6 +309,7 @@ const GroupsPanel: React.FC<GroupsPanelProps> = ({ canManage = true, view }) => 
                       className="h-4 w-4 accent-orange-500"
                     />
                   </th>
+                  <th scope="col" className={thClass}>#</th>
                   <th scope="col" className={thClass}>Audience</th>
                   <th scope="col" className={thClass}>Members</th>
                   <th scope="col" className={thClass}>Criteria</th>
@@ -317,7 +318,7 @@ const GroupsPanel: React.FC<GroupsPanelProps> = ({ canManage = true, view }) => 
                 </tr>
               </thead>
               <tbody>
-                {groups.map((group) => {
+                {groups.map((group, index) => {
                   const isOpen = expanded.has(group.id);
                   const panelId = `audience-members-${group.id}`;
                   const summary = criteriaSummary(group);
@@ -333,6 +334,7 @@ const GroupsPanel: React.FC<GroupsPanelProps> = ({ canManage = true, view }) => 
                             className="h-4 w-4 accent-orange-500"
                           />
                         </td>
+                        <td className={tdClass}>{index + 1}</td>
                         <td className={tdClass}>
                           <button
                             type="button"
@@ -384,7 +386,7 @@ const GroupsPanel: React.FC<GroupsPanelProps> = ({ canManage = true, view }) => 
                       </tr>
                       {isOpen && (
                         <tr className="bg-slate-50">
-                          <td colSpan={canManage ? 6 : 5} className="p-0">
+                          <td colSpan={canManage ? 7 : 6} className="p-0">
                             <AudienceMembers
                               panelId={panelId}
                               audienceName={group.name}

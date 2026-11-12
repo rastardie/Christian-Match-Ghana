@@ -98,6 +98,7 @@ const AuditPanel: React.FC<AuditPanelProps> = ({ view }) => {
           <table className={tableClass}>
             <thead>
               <tr>
+                <th className={thClass}>#</th>
                 <th className={thClass}>When</th>
                 <th className={thClass}>Who</th>
                 <th className={thClass}>Action</th>
@@ -108,6 +109,7 @@ const AuditPanel: React.FC<AuditPanelProps> = ({ view }) => {
             <tbody>
               {filtered.map((entry, index) => (
                 <tr key={entry.id ?? index}>
+                  <td className={tdClass}>{index + 1}</td>
                   <td className={tdClass}>{formatDate(entry.createdAt ?? entry.timestamp ?? entry.at)}</td>
                   <td className={tdClass}>{entry.actorEmail || entry.actorId || entry.actor || '—'}</td>
                   <td className={tdClass}>{entry.action || '—'}</td>

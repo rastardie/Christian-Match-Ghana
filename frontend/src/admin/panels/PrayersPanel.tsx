@@ -165,6 +165,7 @@ const PrayersPanel: React.FC<PrayersPanelProps> = ({ view }) => {
             <caption className="sr-only">Prayer requests</caption>
             <thead>
               <tr>
+                <th scope="col" className={thClass}>#</th>
                 <th scope="col" className={thClass}>Posted</th>
                 <th scope="col" className={thClass}>By</th>
                 <th scope="col" className={thClass}>Request</th>
@@ -178,10 +179,11 @@ const PrayersPanel: React.FC<PrayersPanelProps> = ({ view }) => {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((prayer) => {
+              {filtered.map((prayer, index) => {
                 const author = prayer.userName || 'Anonymous';
                 return (
                   <tr key={prayer.id}>
+                    <td className={tdClass}>{index + 1}</td>
                     <td className={tdClass}>{formatDate(prayer.createdAt)}</td>
                     <td className={tdClass}>{prayer.userName || '—'}</td>
                     <td className={`${tdClass} max-w-md`}>{truncate(prayer.content)}</td>

@@ -98,6 +98,7 @@ const GroupsTable: React.FC<GroupsTableProps> = ({ groups, admins, users, onCrea
           <caption className="sr-only">Permission groups, their permission counts, and members</caption>
           <thead>
             <tr>
+              <th scope="col" className={thClass}>#</th>
               <th scope="col" className={thClass}>Group</th>
               <th scope="col" className={thClass}>Description</th>
               <th scope="col" className={thClass}>Permissions</th>
@@ -109,7 +110,7 @@ const GroupsTable: React.FC<GroupsTableProps> = ({ groups, admins, users, onCrea
             </tr>
           </thead>
           <tbody>
-            {groups.map((group) => {
+            {groups.map((group, index) => {
               const members = membersOf(group.id);
               const expanded = expandedId === group.id;
               const protectedGroup = isProtectedGroup(group);
@@ -120,6 +121,7 @@ const GroupsTable: React.FC<GroupsTableProps> = ({ groups, admins, users, onCrea
               return (
                 <React.Fragment key={group.id}>
                   <tr>
+                    <td className={tdClass}>{index + 1}</td>
                     <td className={`${tdClass} font-bold text-slate-900`}>{group.name}</td>
                     <td className={`${tdClass} max-w-xs`}>{group.description || '—'}</td>
                     <td className={tdClass}>{group.permissions.length}</td>
@@ -156,7 +158,7 @@ const GroupsTable: React.FC<GroupsTableProps> = ({ groups, admins, users, onCrea
 
                   {expanded && (
                     <tr id={panelId} className="bg-slate-50">
-                      <td colSpan={6} className="px-5 py-4">
+                      <td colSpan={7} className="px-5 py-4">
                         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                           <h3 className="text-sm font-black text-slate-800">Members of {group.name}</h3>
                           <button

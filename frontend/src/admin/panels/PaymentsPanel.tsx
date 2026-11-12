@@ -114,6 +114,7 @@ const PaymentRecords: React.FC = () => {
           <table className={tableClass}>
             <thead>
               <tr>
+                <th className={thClass}>#</th>
                 <th className={thClass}>Date</th>
                 <th className={thClass}>Reference</th>
                 <th className={thClass}>User</th>
@@ -123,8 +124,9 @@ const PaymentRecords: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredPayments.map((payment) => (
+              {filteredPayments.map((payment, index) => (
                 <tr key={payment.id}>
+                  <td className={tdClass}>{index + 1}</td>
                   <td className={tdClass}>{formatDate(payment.createdAt)}</td>
                   <td className={tdClass}>{payment.reference || payment.id}</td>
                   <td className={tdClass}>{payment.email || payment.userEmail || payment.userId || '—'}</td>
@@ -187,6 +189,7 @@ const SubscriptionRecords: React.FC = () => {
           <table className={tableClass}>
             <thead>
               <tr>
+                <th className={thClass}>#</th>
                 <th className={thClass}>Member</th>
                 <th className={thClass}>Plan</th>
                 <th className={thClass}>Status</th>
@@ -195,10 +198,11 @@ const SubscriptionRecords: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredSubscriptions.map((row) => {
+              {filteredSubscriptions.map((row, index) => {
                 const status = subscriptionStatus(row);
                 return (
                   <tr key={row.id}>
+                    <td className={tdClass}>{index + 1}</td>
                     <td className={tdClass}>
                       <div className="font-medium">{memberName(row)}</div>
                       {row.email && memberName(row) !== row.email && (

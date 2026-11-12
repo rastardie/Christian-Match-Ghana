@@ -826,6 +826,7 @@ const UsersPanel: React.FC<UsersPanelProps> = ({ permissions, isSuperAdmin, view
                     onChange={toggleVisible}
                   />
                 </th>
+                <th scope="col" className={thClass}>#</th>
                 {sortHeader('name', 'Name')}
                 {sortHeader('email', 'Email')}
                 {sortHeader('phone', 'Phone')}
@@ -839,7 +840,7 @@ const UsersPanel: React.FC<UsersPanelProps> = ({ permissions, isSuperAdmin, view
               </tr>
             </thead>
             <tbody>
-              {sortedUsers.map((user) => {
+              {sortedUsers.map((user, index) => {
                 const id = user.firestoreDocId;
                 const isSelected = selected.has(id);
                 const blocked = isUserBlocked(user);
@@ -855,6 +856,7 @@ const UsersPanel: React.FC<UsersPanelProps> = ({ permissions, isSuperAdmin, view
                         onChange={() => toggleOne(id)}
                       />
                     </td>
+                    <td className={tdClass}>{index + 1}</td>
                     <td className={`${tdClass} font-semibold`}>{user.name || '—'}</td>
                     <td className={tdClass}>{user.email || '—'}</td>
                     <td className={tdClass}>{user.phone || '—'}</td>

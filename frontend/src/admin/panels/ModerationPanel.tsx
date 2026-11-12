@@ -67,6 +67,7 @@ const ReportsView: React.FC = () => {
       <table className={tableClass}>
         <thead>
           <tr>
+            <th className={thClass}>#</th>
             <th className={thClass}>Reported</th>
             <th className={thClass}>Type</th>
             <th className={thClass}>Reason</th>
@@ -75,8 +76,9 @@ const ReportsView: React.FC = () => {
           </tr>
         </thead>
         <tbody>
-          {reports.map((report) => (
+          {reports.map((report, index) => (
             <tr key={report.id}>
+              <td className={tdClass}>{index + 1}</td>
               <td className={tdClass}>{formatDate(report.createdAt)}</td>
               <td className={tdClass}>{report.type || '—'}</td>
               <td className={tdClass}>{report.reason || '—'}</td>
@@ -166,6 +168,7 @@ const BlockedAccountsView: React.FC<{ canUnblock: boolean }> = ({ canUnblock }) 
             <caption className="sr-only">Blocked accounts</caption>
             <thead>
               <tr>
+                <th scope="col" className={thClass}>#</th>
                 <th scope="col" className={thClass}>Name</th>
                 <th scope="col" className={thClass}>Email</th>
                 <th scope="col" className={thClass}>Phone</th>
@@ -176,8 +179,9 @@ const BlockedAccountsView: React.FC<{ canUnblock: boolean }> = ({ canUnblock }) 
               </tr>
             </thead>
             <tbody>
-              {users.map((user) => (
+              {users.map((user, index) => (
                 <tr key={user.firestoreDocId}>
+                  <td className={tdClass}>{index + 1}</td>
                   <td className={`${tdClass} font-semibold`}>{user.name || '—'}</td>
                   <td className={tdClass}>{user.email || '—'}</td>
                   <td className={tdClass}>{user.phone || '—'}</td>

@@ -72,6 +72,7 @@ const ConversationsTable: React.FC = () => {
             <caption className="sr-only">Conversations between users, most recent activity first</caption>
             <thead>
               <tr>
+                <th scope="col" className={thClass}>#</th>
                 <th scope="col" className={thClass}>Participants</th>
                 <th scope="col" className={thClass}>Last message</th>
                 <th scope="col" className={thClass}>Last activity</th>
@@ -79,8 +80,9 @@ const ConversationsTable: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((conversation) => (
+              {filtered.map((conversation, index) => (
                 <tr key={conversation.id}>
+                  <td className={tdClass}>{index + 1}</td>
                   <td className={tdClass}>
                     <div className="font-bold">{conversation.participantNames[0]}</div>
                     <div className="text-xs text-slate-500">with {conversation.participantNames[1]}</div>

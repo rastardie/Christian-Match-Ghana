@@ -39,6 +39,7 @@ const AdminAccountsTable: React.FC<AdminAccountsTableProps> = ({ admins, groups,
             <caption className="sr-only">Administrator accounts, groups, and effective permission counts</caption>
             <thead>
               <tr>
+                <th scope="col" className={thClass}>#</th>
                 <th scope="col" className={thClass}>Account</th>
                 <th scope="col" className={thClass}>Super Admin</th>
                 <th scope="col" className={thClass}>Groups</th>
@@ -49,12 +50,13 @@ const AdminAccountsTable: React.FC<AdminAccountsTableProps> = ({ admins, groups,
               </tr>
             </thead>
             <tbody>
-              {rows.map((admin) => {
+              {rows.map((admin, index) => {
                 const user = userById.get(admin.userId);
                 const protectedAdmin = isProtectedAdmin(admin);
                 const label = memberLabel(user, admin.userId);
                 return (
                   <tr key={admin.userId}>
+                    <td className={tdClass}>{index + 1}</td>
                     <td className={tdClass}>
                       <div className="font-semibold text-slate-900">{label}</div>
                       <div className="text-xs text-slate-500">{user?.email || admin.userId}</div>
