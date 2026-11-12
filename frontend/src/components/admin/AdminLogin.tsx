@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { auth, db, functions } from '../../firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { signInWithEmailAndPassword, signInWithCustomToken, sendPasswordResetEmail, updatePassword, signOut } from 'firebase/auth';
+import { signInWithEmailAndPassword, signInWithCustomToken, updatePassword, signOut } from 'firebase/auth';
 import { Mail, Lock, AlertCircle, CheckCircle, ArrowRight, Loader2 } from 'lucide-react';
 import Logo from '../../components/Logo';
 
@@ -142,7 +142,7 @@ const AdminLogin = () => {
         resetEmail = String((result.data as { email?: string }).email || '');
       }
       if (!resetEmail) throw new Error('Invalid login identifier.');
-      await sendPasswordResetEmail(auth, resetEmail);
+      await httpsCallable(functions, 'requestPasswordReset')({ email: resetEmail });
       setSuccess('Password reset link sent to your email!');
       setTimeout(() => setIsForgotPassword(false), 3000);
     } catch (err: any) {

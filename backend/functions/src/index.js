@@ -356,6 +356,48 @@ exports.adminSendPasswordResetEmail = functions
     return { sent: true, targetUserId };
   });
 
+// Self-service "forgot password" for end users and admins. Uses the same
+// generatePasswordResetLink + SMTP path as adminSendPasswordResetEmail, which is
+// known to deliver, instead of Firebase Auth's managed sender.
+// Always returns the same response so it cannot be used to discover which emails have accounts.
+exports.requestPasswordReset = functions
+  .runWith({ secrets: ['SMTP_PASS'] })
+  .https.onCall(async (data) => {
+    const email = String(data?.email || '').trim().toLowerCase();
+    if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new functions.https.HttpsError('invalid-argument', 'Enter a valid email address.');
+    }
+
+    let targetAuth = null;
+    try {
+      targetAuth = await auth.getUserByEmail(email);
+    } catch (error) {
+      if (error?.code !== 'auth/user-not-found') {
+        console.error('Password reset lookup failed:', error);
+        throw new functions.https.HttpsError('internal', 'Could not process the password reset request.');
+      }
+    }
+    if (!targetAuth) return { sent: true };
+
+    const appBaseUrl = process.env.APP_BASE_URL || 'https://christianmatchghana.com';
+    try {
+      const resetLink = await auth.generatePasswordResetLink(targetAuth.email, { url: appBaseUrl, handleCodeInApp: false });
+      const transporter = createVerificationReminderTransporter();
+      await transporter.sendMail({
+        from: process.env.CAMPAIGN_FROM_EMAIL || process.env.SMTP_USER,
+        to: targetAuth.email,
+        replyTo: process.env.CAMPAIGN_REPLY_TO || process.env.SMTP_USER,
+        subject: 'Reset your Christian Match Ghana password',
+        text: `You asked to reset your Christian Match Ghana password. Open this link to create a new password: ${resetLink}\n\nIf you did not request this, you can ignore this email.`,
+        html: `<p>You asked to reset your Christian Match Ghana password.</p><p><a href="${escapeEmailHtml(resetLink)}">Create a new password</a></p><p>If you did not request this, you can ignore this email.</p>`,
+      });
+    } catch (error) {
+      console.error('Unable to send password reset email:', error);
+      throw new functions.https.HttpsError('failed-precondition', 'The password reset email could not be sent. Please try again later.');
+    }
+    return { sent: true };
+  });
+
 exports.adminSetUserPassword = functions.https.onCall(async (data, context) => {
   const { targetUserId, targetAuth, targetAdmin } = await resolveAdminPasswordTarget(context, data);
   const newPassword = String(data?.newPassword || '');

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import AdminDashboard from './components/admin/AdminDashboard';
 
 const LandingPage = ({  onGetStarted,
@@ -205,7 +205,7 @@ const LandingPage = ({  onGetStarted,
 };
 
 import { auth, db, functions } from './firebase';
-import { onAuthStateChanged, signOut, GoogleAuthProvider, OAuthProvider, signInWithPopup, setPersistence, browserSessionPersistence, signInWithEmailAndPassword, signInWithCustomToken, createUserWithEmailAndPassword, sendEmailVerification, reload, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
+import { onAuthStateChanged, signOut, GoogleAuthProvider, OAuthProvider, signInWithPopup, setPersistence, browserSessionPersistence, signInWithEmailAndPassword, signInWithCustomToken, createUserWithEmailAndPassword, sendEmailVerification, reload, EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
 import { doc, onSnapshot, collection, query, where, getDocs, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { createSupportTicket, type SupportCategory, type SupportContactPreference } from './services/supportService';
@@ -1881,29 +1881,24 @@ const AuthView = ({
     
     setLoading(true);
     try {
-      const actionCodeSettings = {
-        url: authActionUrl,
-        handleCodeInApp: false,
-      };
-      
+      // Sent through our own function (same delivery path as admin resets), not Firebase Auth's managed sender.
+      const requestPasswordReset = httpsCallable(functions, 'requestPasswordReset');
       await withTimeout(
-        sendPasswordResetEmail(auth, email.trim(), actionCodeSettings),
+        requestPasswordReset({ email: email.trim() }),
         20000,
         'Password reset email request timed out. Please check your connection and try again.'
       );
       
-      console.log('📧 Password reset email sent to:', email);
+      console.log('📧 Password reset email requested for:', email);
       setPasswordResetSent(true);
       setShowForgotPassword(false);
     } catch (error: any) {
       console.error('Password reset error:', error);
-      if (error.code === 'auth/user-not-found') {
-        onNotify("No account found with this email", "error");
-      } else if (error.code === 'auth/invalid-email') {
+      if (error.code === 'functions/invalid-argument') {
         onNotify("Invalid email address", "error");
-      } else if (error.code === 'auth/unauthorized-continue-uri' || error.code === 'auth/invalid-continue-uri') {
-        onNotify("Password reset is not configured for this app URL yet. Please contact support.", "error");
-      } else if (error.code === 'auth/network-request-failed' || /timed out/i.test(error.message || '')) {
+      } else if (error.code === 'functions/failed-precondition' || error.code === 'functions/internal') {
+        onNotify(error.message || "Password reset email could not be sent. Please try again later.", "error");
+      } else if (/timed out/i.test(error.message || '')) {
         onNotify("Password reset email could not be sent yet. Check your connection and try again.", "error");
       } else {
         onNotify(error.message || "Failed to send reset email", "error");
@@ -6142,6 +6137,39 @@ const PublicProfileView = ({
   );
 };
 
+// Discover deck session state (current card, skip history, order). Kept in sessionStorage so it
+// survives leaving and returning to Discover within the same browser session.
+const BROWSE_STATE_KEY = 'cmg-browse-state';
+
+type BrowseSessionState = { currentId?: string; skippedIds?: string[]; shuffled?: boolean; shuffleSeed?: number };
+
+const readBrowseSessionState = (): BrowseSessionState => {
+  try {
+    const raw = window.sessionStorage.getItem(BROWSE_STATE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+};
+
+const writeBrowseSessionState = (state: BrowseSessionState) => {
+  try {
+    window.sessionStorage.setItem(BROWSE_STATE_KEY, JSON.stringify(state));
+  } catch {
+    // Storage can be unavailable in restricted browser contexts; the deck still works in memory.
+  }
+};
+
+// Milliseconds for Firestore Timestamps, {seconds} objects, ISO strings, or numbers. Missing values sort last.
+const createdAtMillis = (value: any): number => {
+  if (!value) return 0;
+  if (typeof value === 'number') return value;
+  if (typeof value.toMillis === 'function') return value.toMillis();
+  if (typeof value.seconds === 'number') return value.seconds * 1000;
+  const parsed = Date.parse(String(value));
+  return Number.isNaN(parsed) ? 0 : parsed;
+};
+
 const BrowseView = ({
   profiles,
   onMessage,
@@ -6170,8 +6198,28 @@ const BrowseView = ({
     verifiedOnly: false,
   });
 
+  // Discover order: newest profiles first, or a reshuffled order.
+  const [shuffled, setShuffled] = useState(() => readBrowseSessionState().shuffled === true);
+  const [shuffleSeed, setShuffleSeed] = useState(() => readBrowseSessionState().shuffleSeed ?? 0);
+  // Skipped profile IDs, most recent last, so Back can return to them.
+  const [skippedIds, setSkippedIds] = useState<string[]>(() => readBrowseSessionState().skippedIds ?? []);
+  const restoredRef = useRef(false);
+
+  const orderedProfiles = useMemo(() => {
+    if (!shuffled) {
+      return [...profiles].sort((a, b) => createdAtMillis(b.createdAt) - createdAtMillis(a.createdAt));
+    }
+    // Fisher-Yates shuffle. shuffleSeed is listed as a dependency so each toggle produces a new order.
+    const copy = [...profiles];
+    for (let i = copy.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+  }, [profiles, shuffled, shuffleSeed]);
+
   // Apply filters to profiles
-  const filteredProfiles = profiles.filter(profile => {
+  const filteredProfiles = orderedProfiles.filter(profile => {
     // Strict Opposite Gender Filter (Male sees Female, Female sees Male)
     if (currentUser && currentUser.gender) {
       const userGenderLower = currentUser.gender.toLowerCase();
@@ -6239,6 +6287,43 @@ const BrowseView = ({
   });
 
   const profile = filteredProfiles[index];
+
+  // Restore the card the user was on when they left Discover, once profiles have loaded.
+  useEffect(() => {
+    if (restoredRef.current || profiles.length === 0) return;
+    restoredRef.current = true;
+    const savedId = readBrowseSessionState().currentId;
+    if (!savedId) return;
+    const position = filteredProfiles.findIndex((item) => item.id === savedId);
+    if (position >= 0) setIndex(position);
+  }, [profiles.length, filteredProfiles]);
+
+  // Persist the current card and skip history so they survive navigation.
+  useEffect(() => {
+    if (!profile) return;
+    writeBrowseSessionState({ currentId: profile.id, skippedIds, shuffled, shuffleSeed });
+  }, [profile?.id, skippedIds, shuffled, shuffleSeed]);
+
+  const skipProfile = () => {
+    if (!profile) return;
+    setSkippedIds((ids) => [...ids, profile.id]);
+    setIndex((i) => i + 1);
+  };
+
+  // Return to the most recently skipped profile still in the current filtered deck.
+  const goBackToSkipped = () => {
+    const previousId = skippedIds[skippedIds.length - 1];
+    if (!previousId) return;
+    setSkippedIds((ids) => ids.slice(0, -1));
+    const position = filteredProfiles.findIndex((item) => item.id === previousId);
+    if (position >= 0) setIndex(position);
+  };
+
+  const toggleOrder = () => {
+    setShuffled((value) => !value);
+    setShuffleSeed((value) => value + 1);
+    setIndex(0);
+  };
 
   // Toggle filter option
   const toggleFilter = (filterKey: keyof typeof filters, value: any) => {
@@ -6328,12 +6413,37 @@ const BrowseView = ({
               </button>
             </>
           )}
+          {skippedIds.length > 0 && (
+            <button
+              onClick={goBackToSkipped}
+              className="mt-4 block mx-auto text-brand-orange font-black underline uppercase text-[10px] tracking-widest"
+            >
+              Back to skipped profile
+            </button>
+          )}
         </div>
       </div>
     );
 
   return (
     <div className="h-full flex flex-col bg-transparent relative">
+      {/* Deck controls: back to the last skipped profile, and newest-first vs shuffled order */}
+      <div className="absolute top-4 left-4 z-30 flex items-center gap-2">
+        <button
+          onClick={goBackToSkipped}
+          disabled={skippedIds.length === 0}
+          className="bg-white/90 backdrop-blur-md px-4 py-2 rounded-full shadow-lg border border-gray-200 text-xs font-black uppercase tracking-wide text-gray-800 active:scale-95 transition-all disabled:opacity-40"
+        >
+          Back
+        </button>
+        <button
+          onClick={toggleOrder}
+          className="bg-white/90 backdrop-blur-md px-4 py-2 rounded-full shadow-lg border border-gray-200 text-xs font-black uppercase tracking-wide text-gray-800 active:scale-95 transition-all"
+        >
+          {shuffled ? 'Newest first' : 'Shuffle'}
+        </button>
+      </div>
+
       {/* Filter Toggle Button */}
       <button
         onClick={() => setShowFilters(!showFilters)}
@@ -6626,7 +6736,7 @@ const BrowseView = ({
           title="Skip profile"
           onClick={(e) => {
              e.stopPropagation();
-             setIndex((i) => i + 1);
+             skipProfile();
           }}
           className="flex-1 py-4 bg-gray-900/50 backdrop-blur-md border border-white/10 rounded-2xl text-white font-black uppercase tracking-widest text-[10px] active:scale-95 transition-all hover:bg-gray-900"
         >

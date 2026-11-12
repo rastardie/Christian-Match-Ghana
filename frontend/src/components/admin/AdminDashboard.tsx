@@ -1415,23 +1415,7 @@ const UsersView = ({ focusUserId, onOpenGroup, onOpenPermissionGroup, onOpenMess
             </div>
             
 
-            {isEditingProfile && selectedUser && (
-                <div className="absolute inset-0 z-[300] overflow-y-auto bg-white">
-                    <EditProfileView
-                        user={selectedUser}
-                        onCancel={() => setIsEditingProfile(false)}
-                        onNotify={(message, type) => setMessage(`${type === 'error' ? 'Error: ' : ''}${message}`)}
-                        onSave={(updatedUser) => {
-                            setUsers((current) => current.map((user) => user.id === updatedUser.id ? { ...user, ...updatedUser, status: updatedUser.isBlocked ? 'Blocked' : 'Active' } : user));
-                            setSelectedUser((current: any) => current ? { ...current, ...updatedUser } : updatedUser);
-                            setIsEditingProfile(false);
-                            setMessage('User profile updated.');
-                        }}
-                    />
-                </div>
-            )}
-
-             {/* Filter Menu Overlay */}
+            {/* Edit Profile Overlay */}
             {showFilterMenu && (
                 <div 
                     className="absolute inset-0 z-40 bg-transparent"
