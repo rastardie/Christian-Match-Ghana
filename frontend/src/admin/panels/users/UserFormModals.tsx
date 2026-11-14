@@ -130,51 +130,71 @@ export const AddUserModal: React.FC<AddUserModalProps> = ({ locked, onClose, onR
   );
 };
 
-type ProfileDraft = {
-  name: string;
-  phone: string;
-  age: string;
-  gender: string;
-  location: string;
-  country: string;
-  bio: string;
-  denomination: string;
+const PROFILE_EDIT_KEYS = [
+  'name', 'phone', 'dob', 'age', 'gender', 'country', 'location', 'bio', 'height',
+  'maritalStatus', 'hasChildren', 'wantChildren', 'bodyType', 'complexion', 'languages',
+  'smoking', 'alcohol', 'drinking', 'healthCondition', 'lifestyleInfo',
+  'denomination', 'churchName', 'churchAttendance', 'churchInvolvement', 'bibleReadingFreq',
+  'prayerFreq', 'faithMaturity', 'favoriteVerse', 'spiritualLesson', 'faithStatement',
+  'education', 'profession', 'occupation', 'incomeRange', 'intentions', 'lookingFor',
+  'intendToMarry', 'willingToRelocate', 'acceptsLongDistance', 'preferredAgeMin',
+  'preferredAgeMax', 'preferredLocation', 'preferredDenomination', 'preferredEthnicGroup',
+  'dealBreakers',
+] as const;
+
+type ProfileKey = (typeof PROFILE_EDIT_KEYS)[number];
+type ProfileDraft = Record<ProfileKey, string>;
+
+const PROFILE_SECTIONS: Array<{ title: string; keys: ProfileKey[] }> = [
+  { title: 'Identity and contact', keys: ['name', 'phone', 'dob', 'age', 'gender', 'country', 'location', 'bio'] },
+  { title: 'Personal and lifestyle', keys: ['height', 'maritalStatus', 'hasChildren', 'wantChildren', 'bodyType', 'complexion', 'languages', 'smoking', 'alcohol', 'drinking', 'healthCondition', 'lifestyleInfo'] },
+  { title: 'Faith and church', keys: ['denomination', 'churchName', 'churchAttendance', 'churchInvolvement', 'bibleReadingFreq', 'prayerFreq', 'faithMaturity', 'favoriteVerse', 'spiritualLesson', 'faithStatement'] },
+  { title: 'Education and work', keys: ['education', 'profession', 'occupation', 'incomeRange'] },
+  { title: 'Relationship intentions and preferences', keys: ['intentions', 'lookingFor', 'intendToMarry', 'willingToRelocate', 'acceptsLongDistance', 'preferredAgeMin', 'preferredAgeMax', 'preferredLocation', 'preferredDenomination', 'preferredEthnicGroup', 'dealBreakers'] },
+];
+
+const PROFILE_LABELS: Record<ProfileKey, string> = {
+  name: 'Full name', phone: 'Telephone number', dob: 'Date of birth', age: 'Age', gender: 'Gender', country: 'Country', location: 'City / region', bio: 'Bio',
+  height: 'Height', maritalStatus: 'Marital status', hasChildren: 'Has children', wantChildren: 'Wants children', bodyType: 'Body type', complexion: 'Complexion', languages: 'Languages', smoking: 'Smoking', alcohol: 'Alcohol', drinking: 'Drinking', healthCondition: 'Health condition', lifestyleInfo: 'Lifestyle information',
+  denomination: 'Denomination', churchName: 'Church name', churchAttendance: 'Church attendance', churchInvolvement: 'Church involvement', bibleReadingFreq: 'Bible reading frequency', prayerFreq: 'Prayer frequency', faithMaturity: 'Faith maturity', favoriteVerse: 'Favorite Bible verse', spiritualLesson: 'Spiritual lesson', faithStatement: 'Faith statement',
+  education: 'Education', profession: 'Profession', occupation: 'Occupation', incomeRange: 'Income range', intentions: 'Relationship intentions', lookingFor: 'Looking for', intendToMarry: 'Intends to marry', willingToRelocate: 'Willing to relocate', acceptsLongDistance: 'Accepts long distance', preferredAgeMin: 'Preferred minimum age', preferredAgeMax: 'Preferred maximum age', preferredLocation: 'Preferred location', preferredDenomination: 'Preferred denomination', preferredEthnicGroup: 'Preferred ethnic group', dealBreakers: 'Deal breakers',
 };
 
-const TEXT_KEYS = ['name', 'phone', 'gender', 'location', 'country', 'bio', 'denomination'] as const;
+const NUMERIC_KEYS = new Set<ProfileKey>(['age', 'height', 'preferredAgeMin', 'preferredAgeMax']);
+const BOOLEAN_KEYS = new Set<ProfileKey>(['smoking', 'drinking', 'acceptsLongDistance']);
 
-function draftFrom(user: UserRow): ProfileDraft {
-  return {
-    name: user.name ?? '',
-    phone: user.phone ?? '',
-    age: user.age === undefined || user.age === null ? '' : String(user.age),
-    gender: user.gender ?? '',
-    location: user.location ?? '',
-    country: user.country ?? '',
-    bio: user.bio ?? '',
-    denomination: user.denomination ?? '',
-  };
+function userValue(user: UserRow, key: ProfileKey): unknown {
+  return (user as UserRow & Record<string, unknown>)[key];
 }
 
-/** Returns only the fields that differ from the stored profile, so unchanged data is not rewritten. */
+function draftFrom(user: UserRow): ProfileDraft {
+  return Object.fromEntries(PROFILE_EDIT_KEYS.map((key) => [key, userValue(user, key) == null ? '' : String(userValue(user, key))])) as ProfileDraft;
+}
+
+/** Returns only fields that differ from the stored profile, so unchanged data is not rewritten. */
 function changedFields(user: UserRow, draft: ProfileDraft): { fields: AdminProfileFields; error: string | null } {
   const fields: AdminProfileFields = {};
+  const mutableFields = fields as Record<ProfileKey, unknown>;
   if (!draft.name.trim()) return { fields, error: 'Name is required.' };
 
-  let age: number | undefined;
-  const ageText = draft.age.trim();
-  if (ageText !== '') {
-    age = Number(ageText);
-    if (!Number.isInteger(age) || age < 0 || age > 120) {
-      return { fields, error: 'Age must be a whole number from 0 to 120.' };
+  for (const key of PROFILE_EDIT_KEYS) {
+    const raw = draft[key].trim();
+    const previous = userValue(user, key);
+    const previousText = previous == null ? '' : String(previous);
+    if (raw === previousText) continue;
+    if (NUMERIC_KEYS.has(key)) {
+      if (raw === '') continue;
+      const number = Number(raw);
+      const max = key === 'height' ? 300 : key === 'age' ? 120 : 120;
+      if (!Number.isFinite(number) || number < 0 || number > max) return { fields, error: `${PROFILE_LABELS[key]} must be between 0 and ${max}.` };
+      mutableFields[key] = number;
+    } else if (BOOLEAN_KEYS.has(key)) {
+      if (raw !== 'true' && raw !== 'false' && raw !== '') return { fields, error: `${PROFILE_LABELS[key]} must be true or false.` };
+      mutableFields[key] = raw === 'true';
+    } else {
+      mutableFields[key] = raw;
     }
   }
-
-  for (const key of TEXT_KEYS) {
-    const value = draft[key].trim();
-    if (value !== (user[key] ?? '').trim()) fields[key] = value;
-  }
-  if (age !== undefined && age !== user.age) fields.age = age;
   return { fields, error: null };
 }
 
@@ -190,7 +210,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ user, locked
   const [error, setError] = useState<string | null>(null);
 
   const update =
-    (key: keyof ProfileDraft) =>
+    (key: ProfileKey) =>
     (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
       setDraft((current) => ({ ...current, [key]: event.target.value }));
 
@@ -209,111 +229,64 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ user, locked
     onReview(result.fields);
   };
 
-  // Keep the stored gender visible even if it is not one of the standard options.
-  const genderOptions = ['', 'Male', 'Female'];
-  if (draft.gender && !genderOptions.includes(draft.gender)) genderOptions.push(draft.gender);
+  const renderField = (key: ProfileKey) => {
+    const value = draft[key];
+    const id = `edit-${key}`;
+    const multiline = ['bio', 'healthCondition', 'lifestyleInfo', 'churchInvolvement', 'spiritualLesson', 'faithStatement', 'lookingFor', 'dealBreakers'].includes(key);
+    const date = key === 'dob';
+    const number = NUMERIC_KEYS.has(key);
+    const boolean = BOOLEAN_KEYS.has(key);
+
+    return (
+      <div key={key} className={multiline ? 'sm:col-span-2' : undefined}>
+        <label htmlFor={id} className={labelClass}>{PROFILE_LABELS[key]}</label>
+        {boolean ? (
+          <select id={id} value={value} onChange={update(key)} className={fieldClass}>
+            <option value="">Not set</option>
+            <option value="true">Yes</option>
+            <option value="false">No</option>
+          </select>
+        ) : multiline ? (
+          <textarea id={id} rows={3} value={value} onChange={update(key)} className={fieldClass} />
+        ) : (
+          <input
+            id={id}
+            type={date ? 'date' : number ? 'number' : key === 'phone' ? 'tel' : 'text'}
+            inputMode={number ? 'numeric' : undefined}
+            min={number ? 0 : undefined}
+            max={key === 'age' || key === 'preferredAgeMin' || key === 'preferredAgeMax' ? 120 : key === 'height' ? 300 : undefined}
+            value={value}
+            onChange={update(key)}
+            className={fieldClass}
+          />
+        )}
+      </div>
+    );
+  };
 
   return (
     <Modal
       title={`Edit profile: ${displayName(user)}`}
-      description="Only the fields you change are saved."
+      description="Administrators can update the client's profile details. Security, subscription, verification, and admin fields remain protected."
       locked={locked}
       wide
       onClose={onClose}
     >
       <form onSubmit={submit} noValidate>
-        <fieldset disabled={locked} className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="edit-name" className={labelClass}>
-              Full name
-            </label>
-            <input id="edit-name" value={draft.name} onChange={update('name')} className={fieldClass} />
-          </div>
-          <div>
-            <label htmlFor="edit-phone" className={labelClass}>
-              Telephone number
-            </label>
-            <input id="edit-phone" type="tel" value={draft.phone} onChange={update('phone')} className={fieldClass} />
-          </div>
-          <div>
-            <label htmlFor="edit-age" className={labelClass}>
-              Age
-            </label>
-            <input
-              id="edit-age"
-              type="number"
-              inputMode="numeric"
-              min={0}
-              max={120}
-              step={1}
-              value={draft.age}
-              onChange={update('age')}
-              className={fieldClass}
-            />
-          </div>
-          <div>
-            <label htmlFor="edit-gender" className={labelClass}>
-              Gender
-            </label>
-            <select id="edit-gender" value={draft.gender} onChange={update('gender')} className={fieldClass}>
-              {genderOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option || 'Not set'}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="edit-location" className={labelClass}>
-              City / region
-            </label>
-            <input id="edit-location" value={draft.location} onChange={update('location')} className={fieldClass} />
-          </div>
-          <div>
-            <label htmlFor="edit-country" className={labelClass}>
-              Country
-            </label>
-            <input id="edit-country" value={draft.country} onChange={update('country')} className={fieldClass} />
-          </div>
-          <div>
-            <label htmlFor="edit-denomination" className={labelClass}>
-              Denomination
-            </label>
-            <input
-              id="edit-denomination"
-              value={draft.denomination}
-              onChange={update('denomination')}
-              maxLength={80}
-              className={fieldClass}
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <label htmlFor="edit-bio" className={labelClass}>
-              Bio
-            </label>
-            <textarea
-              id="edit-bio"
-              rows={4}
-              maxLength={1000}
-              value={draft.bio}
-              onChange={update('bio')}
-              className={fieldClass}
-            />
-            <p className="mt-1 text-xs text-slate-500">{draft.bio.length} / 1000</p>
-          </div>
+        <fieldset disabled={locked} className="space-y-6">
+          {PROFILE_SECTIONS.map((section) => (
+            <section key={section.title}>
+              <h3 className="mb-3 border-b border-slate-200 pb-2 text-sm font-bold text-slate-800">{section.title}</h3>
+              <div className="grid gap-4 sm:grid-cols-2">{section.keys.map(renderField)}</div>
+            </section>
+          ))}
         </fieldset>
         {error && (
-          <p role="alert" className="mt-4 text-sm font-semibold text-red-700">
-            {error}
-          </p>
+          <p role="alert" className="mt-4 text-sm font-semibold text-red-700">{error}</p>
         )}
         <div className="mt-6 flex justify-end gap-3">
-          <button type="button" onClick={onClose} disabled={locked} className={secondaryButtonClass}>
-            Cancel
-          </button>
-          <button type="submit" disabled={locked} className={primaryButtonClass}>
-            Review changes
-          </button>
+          <button type="button" onClick={onClose} disabled={locked} className={secondaryButtonClass}>Cancel</button>
+          <button type="submit" disabled={locked} className={primaryButtonClass}>Review changes</button>
         </div>
       </form>
     </Modal>

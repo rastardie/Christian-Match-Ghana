@@ -1877,3 +1877,152 @@ gh workflow run deploy-frontend.yml --repo rastardie/Christian-Match-Ghana --ref
 ```
 
 Never deploy `verifyPaystackSubscription` or `paystackWebhook` as part of an admin change.
+
+
+## 25. Current continuation snapshot — 2026-11-12
+
+This section is authoritative for the current CMG work. Older sections remain historical unless explicitly superseded here.
+
+### 25.1 Repository state
+
+```text
+Workspace: /Users/andrewstardie/Documents/TUTS/TESTS/cm/cmg-rebuilt
+Branch:    sync/cmg-local-2026-10-13
+HEAD:      93fb20b feat(admin): add # row-number column to all admin record tables
+Origin:    origin/sync/cmg-local-2026-10-13 (same commit)
+Tracked changes: none
+Untracked: frontend/dist.zip (generated artifact; keep out of Git)
+```
+
+Latest relevant commits, newest first:
+
+```text
+93fb20b feat(admin): add # row-number column to all admin record tables
+62fed8c feat: Connect starts chat immediately for subscribed members; acceptance flow paused
+045beed feat: Discover shows matches as a horizontal tile row
+c4c34b9 feat: in-app password reset page and sortable admin users table
+```
+
+The Onboard project at `/Users/andrewstardie/Documents/TUTS/TESTS/onb` is out of scope for this continuation and must not be modified unless explicitly requested.
+
+### 25.2 Release boundary and deployment state
+
+All new CMG changes continue to follow Dev-first testing. Do not promote to production without a separate explicit owner request and a fresh pre-production backup.
+
+```text
+Dev Firebase:       christian-match-ghana
+Dev StormerHost:    https://christianmatchghana.com/dev/
+Production Firebase: christianmatch-app
+Production website: https://christianmatchghana.com/
+```
+
+Dev currently includes the latest `93fb20b` frontend/admin table changes. Production includes the earlier approved reset, Discover, and instant-connect changes through `62fed8c`, but does not yet include the `#` row-number-column change from `93fb20b`.
+
+Production backup set from the last approved promotion:
+
+```text
+backups/pre-prod-deploy-20261112-185604/
+  - Firestore export: pre-prod-20261112-185604
+  - StormerHost snapshot: prod-root-live.tgz (785 files)
+  - rules, storage rules, and function-list manifests
+```
+
+Do not use the existing backup as a substitute for a fresh backup before a future production promotion.
+
+### 25.3 Latest product changes
+
+- Admin record tables now show a `#` column immediately after the selection checkbox where a checkbox exists, numbered according to the displayed row order. The change is Dev-only pending approval.
+- Discover now presents matching profiles as a horizontal tile row, ordered recent-first with session anchor support. Matching is opposite-gender only; unknown viewer gender returns no matches; admin-blocked profiles are excluded.
+- Connect creates a chat immediately through the server callable when both members have active subscriptions. The former request/accept/cancel flow remains commented out rather than deleted. Chat rules still require active subscriptions for both participants.
+- Password reset uses the in-app `/reset-password` page with a confirmation field. The SMTP/admin-generated reset path remains the intended path; links sent before this page existed may still open Firebase’s one-field hosted page and should be resent.
+- Structured connection logging and notification helpers remain in the codebase; logs must contain identifiers and operational metadata only, not message contents or secrets.
+
+### 25.4 Open items
+
+```text
+[ ] Test the # column across every Dev admin record table, including pagination/filtering if applicable.
+[ ] Get explicit approval before promoting 93fb20b to Production.
+[ ] Before production promotion: take a fresh Firestore export, rules/function snapshot, and StormerHost root backup.
+[ ] Re-send any password-reset links created before the in-app reset page was deployed.
+[ ] Test instant Connect with two subscribed Dev accounts.
+[ ] Confirm an unsubscribed account cannot start or access chat.
+[ ] Capture the Dev /adm/ Actions-menu screenshot and browser console output if the ladmin menu still differs from Production.
+[ ] Verify connection logs in Cloud Logging using jsonPayload.component="connections".
+[ ] Resolve the remaining email deliverability/SPF/DMARC and secret-rotation items from sections 22.5 and 22.7.
+```
+
+### 25.5 Safe continuation commands
+
+```bash
+cd "/Users/andrewstardie/Documents/TUTS/TESTS/cm/cmg-rebuilt"
+git status --short --branch
+git log -5 --oneline
+git diff --check
+```
+
+Never commit `frontend/dist.zip`, emulator exports, temporary logs, credentials, keys, or secret values. Never deploy Production while a change is still being tested in Dev.
+
+
+## 26. Admin client profile editing expanded — 2026-11-12 (local only)
+
+### 26.1 Problem and root cause
+
+The `/adm/` Users → Edit profile modal and the `adminUpdateUserProfile` callable previously allowed only eight fields: name, phone, age, gender, location, country, bio, and denomination. The normal client profile contains substantially more details, so Admin users could edit only a limited portion of client accounts.
+
+### 26.2 Local implementation
+
+The permission-checked admin edit path was expanded without opening arbitrary Firestore writes:
+
+```text
+frontend/src/admin/panels/users/UserFormModals.tsx
+frontend/src/services/adminUserActions.ts
+backend/functions/src/index.js
+```
+
+The Admin edit modal now groups editable client fields into:
+
+- Identity and contact
+- Personal and lifestyle
+- Faith and church
+- Education and work
+- Relationship intentions and preferences
+
+The callable allowlist now covers the client profile details represented by the normal profile editor, including date of birth, height, marital/children fields, lifestyle, church and faith fields, education/work, intentions, relocation, and partner preferences. Numeric and boolean fields receive type/range validation and text fields receive length limits.
+
+These remain protected and are intentionally not editable through the general profile modal:
+
+```text
+passwords and PINs
+subscription and premium state
+verification state
+roles, admin flags, and permissions
+blocked state
+profile photos/media
+server timestamps and audit metadata
+```
+
+Those areas continue to use their dedicated administrative workflows where applicable.
+
+### 26.3 Validation
+
+Passed locally:
+
+```text
+frontend: node_modules/.bin/tsc --noEmit --pretty false
+backend:  node --check src/index.js
+repo:     git diff --check
+```
+
+Status:
+
+```text
+[ ] Test the expanded form in the local emulator/PWA or Dev console with a real admin.
+[ ] Verify editing one field and all profile sections preserves unchanged data.
+[ ] Verify invalid numeric/boolean values are rejected.
+[ ] Verify protected fields remain unavailable and unchanged.
+[ ] Commit only after owner confirms the Dev behavior.
+[ ] Deploy to Dev only after explicit release approval.
+[ ] Do not promote to Production until Dev testing is complete and a fresh backup is taken.
+```
+
+No commit, push, frontend build archive, Firebase deployment, or Production change was performed for this update.

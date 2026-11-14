@@ -2075,19 +2075,57 @@ exports.getCallIceServers = functions
 // non-super-admins, and writes an audit entry.
 
 const ADMIN_DAY_MS = 24 * 60 * 60 * 1000;
-const ADMIN_PROFILE_FIELDS = ['name', 'phone', 'age', 'gender', 'location', 'country', 'bio', 'denomination'];
+const ADMIN_PROFILE_FIELDS = [
+  'name', 'phone', 'dob', 'age', 'gender', 'country', 'location', 'bio', 'height',
+  'maritalStatus', 'hasChildren', 'wantChildren', 'bodyType', 'complexion', 'languages',
+  'smoking', 'alcohol', 'drinking', 'healthCondition', 'lifestyleInfo',
+  'denomination', 'churchName', 'churchAttendance', 'churchInvolvement', 'bibleReadingFreq',
+  'prayerFreq', 'faithMaturity', 'favoriteVerse', 'spiritualLesson', 'faithStatement',
+  'education', 'profession', 'occupation', 'incomeRange', 'intentions', 'lookingFor',
+  'intendToMarry', 'willingToRelocate', 'acceptsLongDistance', 'preferredAgeMin',
+  'preferredAgeMax', 'preferredLocation', 'preferredDenomination', 'preferredEthnicGroup',
+  'dealBreakers',
+];
+
+const ADMIN_PROFILE_NUMERIC_FIELDS = new Set(['age', 'height', 'preferredAgeMin', 'preferredAgeMax']);
+const ADMIN_PROFILE_BOOLEAN_FIELDS = new Set(['smoking', 'drinking', 'acceptsLongDistance']);
 
 function isStrongAdminPassword(password) {
   return password.length >= 12 && password.length <= 128 && /[A-Z]/.test(password) && /[a-z]/.test(password) && /[0-9]/.test(password) && /[^A-Za-z0-9]/.test(password);
 }
 
 function sanitizeAdminProfileValue(key, value) {
-  if (key === 'age') {
-    const age = Number(value);
-    if (!Number.isInteger(age) || age < 0 || age > 120) throw new functions.https.HttpsError('invalid-argument', 'Age must be between 0 and 120.');
-    return age;
+  if (ADMIN_PROFILE_NUMERIC_FIELDS.has(key)) {
+    const number = Number(value);
+    const limits = {
+      age: [0, 120],
+      height: [0, 300],
+      preferredAgeMin: [0, 120],
+      preferredAgeMax: [0, 120],
+    };
+    const [minimum, maximum] = limits[key];
+    if (!Number.isFinite(number) || number < minimum || number > maximum) {
+      throw new functions.https.HttpsError('invalid-argument', `${key} must be between ${minimum} and ${maximum}.`);
+    }
+    return Number.isInteger(number) ? number : Number(number.toFixed(2));
   }
-  const limits = { name: 120, phone: 32, gender: 30, location: 120, country: 80, bio: 1000, denomination: 80 };
+  if (ADMIN_PROFILE_BOOLEAN_FIELDS.has(key)) {
+    if (typeof value === 'boolean') return value;
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    throw new functions.https.HttpsError('invalid-argument', `${key} must be true or false.`);
+  }
+  const limits = {
+    name: 120, phone: 32, dob: 32, gender: 30, country: 80, location: 120, bio: 1000,
+    maritalStatus: 60, hasChildren: 40, wantChildren: 40, bodyType: 60, complexion: 60,
+    languages: 200, alcohol: 60, healthCondition: 500, lifestyleInfo: 1000,
+    denomination: 80, churchName: 160, churchAttendance: 80, churchInvolvement: 500,
+    bibleReadingFreq: 80, prayerFreq: 80, faithMaturity: 120, favoriteVerse: 300,
+    spiritualLesson: 1000, faithStatement: 1000, education: 160, profession: 160,
+    occupation: 160, incomeRange: 80, intentions: 120, lookingFor: 500,
+    intendToMarry: 120, willingToRelocate: 80, preferredLocation: 120,
+    preferredDenomination: 80, preferredEthnicGroup: 120, dealBreakers: 1000,
+  };
   return String(value ?? '').trim().slice(0, limits[key] || 120);
 }
 
