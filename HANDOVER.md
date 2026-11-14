@@ -2064,3 +2064,29 @@ Dev callable:          adminListConversationMessages (deployed)
 The Admin → Messages → Conversations screen now has a `View full chat` action for admins with `messages.content.view`. The transcript is read-only and each transcript load records `admin.chat.transcript.viewed` in the admin audit log. Built-in Admin-group members receive the permission through their group identity; Moderators and Customer Support do not receive it automatically.
 
 HTTP verification returned 200 for both Dev Admin routes and the deployed Admin bundles contain the transcript viewer. Production was not changed. The existing generated `frontend/dist.zip` remains untracked.
+
+
+## 29. Deleted-message retention and Admin transcript highlighting deployed to Dev — 2026-11-14
+
+The archive-preserving chat deletion update was committed and released to Dev only.
+
+```text
+Application commit:   0af4599 feat(chat): retain deleted messages for admin review
+Dev Firebase project: christian-match-ghana
+Dev Firebase Admin:   https://christian-match-ghana.web.app/adm/
+Dev StormerHost Admin: https://christianmatchghana.com/dev/adm/
+Dev workflow:          43620257595 (successful)
+```
+
+Deployed Functions:
+
+```text
+adminListConversations
+adminListConversationMessages
+deleteUserChat
+deleteUserMessage
+```
+
+Firestore rules now block direct client deletion of chats and messages. User deletion goes through server callables that archive records before removing them from the live collections. Admin transcripts merge retained deleted-message records with live messages, order them by the original timestamp, and highlight deleted entries.
+
+Both Dev Admin routes returned HTTP 200 and the deployed bundles contain the deleted-message viewer. Production was not changed. The generated `frontend/dist.zip` remains untracked.
