@@ -1802,14 +1802,121 @@ exports.adminPreviewDistributionGroup = functions.https.onCall(async (data, cont
   return evaluated;
 });
 
+async function archiveAndDeleteChat(chatId, actorId) {
+  const chatRef = db.collection('chats').doc(chatId);
+  const chatSnapshot = await chatRef.get();
+  if (!chatSnapshot.exists) throw new functions.https.HttpsError('not-found', 'The conversation could not be found.');
+  const messageSnapshot = await db.collection('messages').where('chatId', '==', chatId).get();
+  const archiveRef = db.collection('deletedChatArchives').doc(`${chatId}_${Date.now()}`);
+  const archiveData = {
+    originalChatId: chatId,
+    chat: chatSnapshot.data() || {},
+    deletedBy: actorId,
+    deletedAt: FieldValue.serverTimestamp(),
+    messageCount: messageSnapshot.size,
+  };
+  let batch = db.batch();
+  let operations = 0;
+  batch.set(archiveRef, archiveData);
+  operations += 1;
+  for (const messageDoc of messageSnapshot.docs) {
+    batch.set(archiveRef.collection('messages').doc(messageDoc.id), {
+      ...messageDoc.data(),
+      originalMessageId: messageDoc.id,
+      deleted: true,
+      archivedAt: FieldValue.serverTimestamp(),
+    });
+    batch.delete(messageDoc.ref);
+    operations += 2;
+    if (operations >= 450) {
+      await batch.commit();
+      batch = db.batch();
+      operations = 0;
+    }
+  }
+  batch.delete(chatRef);
+  await batch.commit();
+  return { archiveId: archiveRef.id, messageCount: messageSnapshot.size };
+}
+
+exports.deleteUserMessage = functions.https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Authentication required.');
+  const messageId = String(data?.messageId || '').trim();
+  if (!messageId) throw new functions.https.HttpsError('invalid-argument', 'A message is required.');
+  const messageRef = db.collection('messages').doc(messageId);
+  const snapshot = await messageRef.get();
+  if (!snapshot.exists) throw new functions.https.HttpsError('not-found', 'The message could not be found.');
+  const message = snapshot.data() || {};
+  if (message.senderId !== context.auth.uid) throw new functions.https.HttpsError('permission-denied', 'You can only delete your own messages.');
+  await db.collection('deletedMessageArchives').doc(messageId).set({
+    ...message,
+    originalMessageId: messageId,
+    deleted: true,
+    deletedBy: context.auth.uid,
+    deletedAt: FieldValue.serverTimestamp(),
+  });
+  await messageRef.delete();
+  return { deleted: true, messageId };
+});
+
+exports.deleteUserChat = functions.https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Authentication required.');
+  const chatId = String(data?.chatId || '').trim();
+  if (!chatId) throw new functions.https.HttpsError('invalid-argument', 'A conversation is required.');
+  const chatSnapshot = await db.collection('chats').doc(chatId).get();
+  if (!chatSnapshot.exists) throw new functions.https.HttpsError('not-found', 'The conversation could not be found.');
+  const participants = Array.isArray(chatSnapshot.data()?.participants) ? chatSnapshot.data().participants : [];
+  if (!participants.includes(context.auth.uid)) throw new functions.https.HttpsError('permission-denied', 'You can only delete your own conversations.');
+  const archived = await archiveAndDeleteChat(chatId, context.auth.uid);
+  return { deleted: true, ...archived };
+});
+
+exports.adminListConversations = functions.https.onCall(async (data, context) => {
+  await requireAdminPermission(context, 'messages.content.view');
+  const [chatSnapshot, archiveSnapshot] = await Promise.all([
+    db.collection('chats').orderBy('lastMessageTime', 'desc').get(),
+    db.collection('deletedChatArchives').orderBy('deletedAt', 'desc').get(),
+  ]);
+  const toConversation = (id, data, archived = false, archiveId = null) => {
+    const participants = Array.isArray(data.participants) ? data.participants : [];
+    const details = data.participantDetails && typeof data.participantDetails === 'object' ? data.participantDetails : {};
+    return {
+      id,
+      archiveId,
+      archived,
+      participantNames: participants.slice(0, 2).map((participantId) => String(details[participantId]?.name || 'Unknown')),
+      lastMessage: String(data.lastMessage || ''),
+      lastMessageTime: data.lastMessageTime || null,
+      createdAt: data.createdAt || null,
+      deletedAt: data.deletedAt || null,
+    };
+  };
+  const active = chatSnapshot.docs.map((doc) => toConversation(doc.id, doc.data()));
+  const archived = archiveSnapshot.docs.map((doc) => {
+    const data = doc.data() || {};
+    return toConversation(String(data.originalChatId || doc.id), data.chat || {}, true, doc.id);
+  });
+  return [...active, ...archived];
+});
+
 exports.adminListConversationMessages = functions.https.onCall(async (data, context) => {
   await requireAdminPermission(context, 'messages.content.view');
   const chatId = String(data?.chatId || '').trim();
-  if (!chatId) throw new functions.https.HttpsError('invalid-argument', 'A conversation is required.');
+  const archiveId = String(data?.archiveId || '').trim();
+  if (!chatId && !archiveId) throw new functions.https.HttpsError('invalid-argument', 'A conversation is required.');
 
-  const chatSnapshot = await db.collection('chats').doc(chatId).get();
-  if (!chatSnapshot.exists) throw new functions.https.HttpsError('not-found', 'The selected conversation could not be found.');
-  const chat = chatSnapshot.data() || {};
+  let chat;
+  let archiveSnapshot = null;
+  if (archiveId) {
+    archiveSnapshot = await db.collection('deletedChatArchives').doc(archiveId).get();
+    if (!archiveSnapshot.exists) throw new functions.https.HttpsError('not-found', 'The archived conversation could not be found.');
+    const archive = archiveSnapshot.data() || {};
+    chat = archive.chat || {};
+  } else {
+    const chatSnapshot = await db.collection('chats').doc(chatId).get();
+    if (!chatSnapshot.exists) throw new functions.https.HttpsError('not-found', 'The selected conversation could not be found.');
+    chat = chatSnapshot.data() || {};
+  }
   const participantIds = Array.isArray(chat.participants) ? chat.participants.filter((id) => typeof id === 'string') : [];
   const participantDetails = chat.participantDetails && typeof chat.participantDetails === 'object' ? chat.participantDetails : {};
   const missingIds = participantIds.filter((id) => !participantDetails[id]);
@@ -1820,34 +1927,42 @@ exports.adminListConversationMessages = functions.https.onCall(async (data, cont
     name: String(participantDetails[id]?.name || fallbackDetails[id]?.name || 'Unknown user'),
   }));
 
-  const messageSnapshot = await db.collection('messages')
-    .where('chatId', '==', chatId)
-    .orderBy('timestamp', 'asc')
-    .get();
-  const messages = messageSnapshot.docs.map((messageDoc) => {
+  const messageEntries = archiveId
+    ? (await db.collection('deletedChatArchives').doc(archiveId).collection('messages').orderBy('timestamp', 'asc').get()).docs.map((doc) => ({ doc, deleted: true }))
+    : [
+        ...(await db.collection('messages').where('chatId', '==', chatId).orderBy('timestamp', 'asc').get()).docs.map((doc) => ({ doc, deleted: false })),
+        ...(await db.collection('deletedMessageArchives').where('chatId', '==', chatId).get()).docs.map((doc) => ({ doc, deleted: true })),
+      ].sort((left, right) => {
+        const millis = (value) => value?.toMillis?.() || (typeof value?.seconds === 'number' ? value.seconds * 1000 : 0);
+        return millis(left.doc.data()?.timestamp) - millis(right.doc.data()?.timestamp);
+      });
+  const messages = messageEntries.map(({ doc: messageDoc, deleted: archivedDeleted }) => {
     const message = messageDoc.data() || {};
     const senderId = String(message.senderId || '');
     const sender = participants.find((participant) => participant.id === senderId);
     return {
-      id: messageDoc.id,
-      chatId,
+      id: String(message.originalMessageId || messageDoc.id),
+      chatId: chatId || String(message.chatId || ''),
       senderId,
       senderName: sender?.name || String(message.senderName || 'Unknown user'),
       text: typeof message.text === 'string' ? message.text : '',
       type: typeof message.type === 'string' ? message.type : 'text',
       timestamp: message.timestamp || null,
       editedAt: message.editedAt || null,
+      deleted: archivedDeleted || message.deleted === true,
+      deletedAt: message.deletedAt || message.archivedAt || null,
       fileName: typeof message.fileName === 'string' ? message.fileName : undefined,
       fileUrl: typeof message.fileUrl === 'string' ? message.fileUrl : undefined,
       location: message.location || undefined,
     };
   });
 
-  await recordAdminAudit(context, 'admin.chat.transcript.viewed', chatId, {
+  await recordAdminAudit(context, 'admin.chat.transcript.viewed', chatId || archiveId, {
+    archiveId: archiveId || null,
     messageCount: messages.length,
     participantIds,
   });
-  return { chatId, participants, messages, hasMore: false };
+  return { chatId: chatId || String(chat.originalChatId || ''), archiveId: archiveId || null, participants, messages, hasMore: false };
 });
 
 

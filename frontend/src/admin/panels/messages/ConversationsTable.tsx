@@ -23,6 +23,10 @@ const ConversationsTable: React.FC<ConversationsTableProps> = ({ canReview }) =>
   const [query, setQuery] = useState('');
 
   useEffect(() => {
+    if (!canReview) {
+      setLoading(false);
+      return;
+    }
     let active = true;
     listAdminConversations()
       .then((rows) => {
@@ -55,7 +59,7 @@ const ConversationsTable: React.FC<ConversationsTableProps> = ({ canReview }) =>
     setTranscriptError(null);
     setLoadingTranscript(true);
     try {
-      const result = await getAdminConversationMessages(conversation.id);
+      const result = await getAdminConversationMessages(conversation.id, conversation.archiveId);
       setMessages(result.messages);
     } catch (err: unknown) {
       console.error('Loading conversation transcript failed:', err);
@@ -139,10 +143,11 @@ const ConversationsTable: React.FC<ConversationsTableProps> = ({ canReview }) =>
       )}
 
       {selected && canReview && (
-        <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4" aria-live="polite">
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/50 p-4" role="dialog" aria-modal="true" aria-labelledby="transcript-heading">
+          <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-2xl" aria-live="polite">
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h3 className="text-base font-black text-slate-900">Full conversation transcript</h3>
+              <h3 id="transcript-heading" className="text-base font-black text-slate-900">Full conversation transcript</h3>
               <p className="text-sm text-slate-600">{selected.participantNames.join(' · ')} · Read-only legal review</p>
             </div>
             <button type="button" onClick={() => setSelected(null)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700">Close transcript</button>
@@ -156,18 +161,23 @@ const ConversationsTable: React.FC<ConversationsTableProps> = ({ canReview }) =>
           ) : (
             <div className="max-h-[32rem] space-y-3 overflow-y-auto rounded-lg bg-white p-3">
               {messages.map((message) => (
-                <article key={message.id} className="rounded-lg border border-slate-200 p-3">
+                <article key={message.id} className={`rounded-lg border p-3 ${message.deleted ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-white'}`}>
                   <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2 text-xs">
-                    <strong className="text-slate-900">{message.senderName}</strong>
+                    <div className="flex items-center gap-2">
+                      <strong className="text-slate-900">{message.senderName}</strong>
+                      {message.deleted && <span className="rounded bg-red-700 px-2 py-0.5 font-black uppercase tracking-wide text-white">Deleted</span>}
+                    </div>
                     <span className="text-slate-500">{formatDate(message.timestamp)} · {message.type}</span>
                   </div>
-                  <p className="whitespace-pre-wrap break-words text-sm text-slate-800">{message.text || '[No text content]'}</p>
+                  <p className={`whitespace-pre-wrap break-words text-sm ${message.deleted ? 'text-red-950' : 'text-slate-800'}`}>{message.text || '[No text content]'}</p>
+                  {message.deleted && <p className="mt-1 text-xs font-semibold text-red-700">Retained archive record; original message timestamp preserved.</p>}
                   {message.fileUrl && <a href={message.fileUrl} target="_blank" rel="noreferrer" className="mt-2 block text-xs font-semibold text-blue-700 underline">Attachment{message.fileName ? `: ${message.fileName}` : ''}</a>}
                   {message.editedAt != null && <p className="mt-1 text-xs italic text-slate-500">Edited {formatDate(message.editedAt)}</p>}
                 </article>
               ))}
             </div>
           )}
+          </div>
         </div>
       )}
     </section>

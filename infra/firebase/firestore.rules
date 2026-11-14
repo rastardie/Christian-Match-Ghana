@@ -124,9 +124,8 @@ service cloud.firestore {
       allow update: if hasActiveSubscription(request.auth.uid) &&
                        request.auth.uid in resource.data.participants;
 
-      // Users can delete chats they are part of while entitled.
-      allow delete: if hasActiveSubscription(request.auth.uid) &&
-                       request.auth.uid in resource.data.participants;
+      // Conversation deletion is performed by the archive-preserving callable.
+      allow delete: if false;
     }
     
     // ============================================
@@ -173,8 +172,8 @@ service cloud.firestore {
           )
         );
 
-      allow delete: if isChatParticipant(resource.data.chatId) &&
-        resource.data.senderId == request.auth.uid;
+      // Message deletion is performed by the archive-preserving callable.
+      allow delete: if false;
     }
     
     // ============================================

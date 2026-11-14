@@ -18,11 +18,11 @@ import {
   limit,
   serverTimestamp,
   setDoc,
-  deleteDoc,
   increment,
   writeBatch
 } from 'firebase/firestore';
-import { auth, db } from '../firebase';
+import { httpsCallable } from 'firebase/functions';
+import { auth, db, functions } from '../firebase';
 import type { ChatThread, Message } from '../types';
 
 // Firestore collection names
@@ -401,15 +401,10 @@ export async function editMessage(messageId: string, userId: string, text: strin
   });
 }
 
-/** Delete an own message. Firestore rules enforce sender ownership. */
+/** Delete an own message through the archive-preserving server workflow. */
 export async function deleteMessage(messageId: string): Promise<void> {
-  try {
-    await deleteDoc(doc(db, MESSAGES_COLLECTION, messageId));
-    console.log('✅ Message deleted');
-  } catch (error) {
-    console.error('❌ Error deleting message:', error);
-    throw error;
-  }
+  const call = httpsCallable(functions, 'deleteUserMessage');
+  await call({ messageId });
 }
 
 /**
@@ -476,31 +471,10 @@ export async function getChatDetails(chatId: string): Promise<ChatDocument | nul
   }
 }
 
-/**
- * Delete a chat and all its messages
- */
+/** Delete a chat through the archive-preserving server workflow. */
 export async function deleteChat(chatId: string): Promise<void> {
-  try {
-    // Delete all messages in the chat
-    const messagesQuery = query(
-      collection(db, MESSAGES_COLLECTION),
-      where('chatId', '==', chatId)
-    );
-    
-    const messagesSnapshot = await getDocs(messagesQuery);
-    const deletePromises = messagesSnapshot.docs.map(messageDoc =>
-      deleteDoc(doc(db, MESSAGES_COLLECTION, messageDoc.id))
-    );
-    
-    await Promise.all(deletePromises);
-    
-    // Delete the chat
-    await deleteDoc(doc(db, CHATS_COLLECTION, chatId));
-    console.log('✅ Chat and messages deleted');
-  } catch (error) {
-    console.error('❌ Error deleting chat:', error);
-    throw error;
-  }
+  const call = httpsCallable(functions, 'deleteUserChat');
+  await call({ chatId });
 }
 
 /**

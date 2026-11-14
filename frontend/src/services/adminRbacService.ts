@@ -1,6 +1,6 @@
 import { httpsCallable } from 'firebase/functions';
 import { auth, db } from '../firebase';
-import { collection, doc, getDoc, getDocs, orderBy, query } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 
 export const ADMIN_PERMISSION_CATALOG = [
   'users.view', 'users.create', 'users.edit', 'users.suspend', 'users.delete',
@@ -213,10 +213,13 @@ export async function previewAdminAudience(input: {
 
 export interface AdminConversation {
   id: string;
+  archiveId?: string | null;
+  archived?: boolean;
   participantNames: [string, string];
   lastMessage: string;
   lastMessageTime: unknown;
   createdAt: unknown;
+  deletedAt?: unknown;
 }
 
 export interface AdminConversationMessage {
@@ -228,14 +231,16 @@ export interface AdminConversationMessage {
   type: string;
   timestamp: unknown;
   editedAt?: unknown;
+  deleted?: boolean;
+  deletedAt?: unknown;
   fileName?: string;
   fileUrl?: string;
   location?: unknown;
 }
 
-export async function getAdminConversationMessages(chatId: string): Promise<{ chatId: string; participants: Array<{ id: string; name: string }>; messages: AdminConversationMessage[]; hasMore: boolean }> {
+export async function getAdminConversationMessages(chatId: string, archiveId?: string | null): Promise<{ chatId: string; archiveId?: string | null; participants: Array<{ id: string; name: string }>; messages: AdminConversationMessage[]; hasMore: boolean }> {
   const call = httpsCallable(functions, 'adminListConversationMessages');
-  return (await call({ chatId })).data as { chatId: string; participants: Array<{ id: string; name: string }>; messages: AdminConversationMessage[]; hasMore: boolean };
+  return (await call({ chatId, archiveId: archiveId || undefined })).data as { chatId: string; archiveId?: string | null; participants: Array<{ id: string; name: string }>; messages: AdminConversationMessage[]; hasMore: boolean };
 }
 
 
@@ -248,23 +253,6 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
  * of returning an empty list. Chats without lastMessageTime are excluded by Firestore ordering.
  */
 export async function listAdminConversations(): Promise<AdminConversation[]> {
-  const snapshot = await getDocs(query(collection(db, 'chats'), orderBy('lastMessageTime', 'desc')));
-  return snapshot.docs.map((chatDoc) => {
-    const data: Record<string, unknown> = chatDoc.data();
-    const participants: unknown[] = Array.isArray(data.participants) ? data.participants : [];
-    const details: Record<string, unknown> = isRecord(data.participantDetails) ? data.participantDetails : {};
-    const nameAt = (index: number): string => {
-      const participantId = participants[index];
-      const entry = typeof participantId === 'string' ? details[participantId] : undefined;
-      const name = isRecord(entry) ? asText(entry.name).trim() : '';
-      return name || 'Unknown';
-    };
-    return {
-      id: chatDoc.id,
-      participantNames: [nameAt(0), nameAt(1)],
-      lastMessage: asText(data.lastMessage),
-      lastMessageTime: data.lastMessageTime ?? null,
-      createdAt: data.createdAt ?? null,
-    };
-  });
+  const call = httpsCallable(functions, 'adminListConversations');
+  return (await call()).data as AdminConversation[];
 }
