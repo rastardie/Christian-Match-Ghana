@@ -7,6 +7,7 @@ const PERMISSIONS = [
   'messages.view',
   'messages.send',
   'messages.moderate',
+  'messages.content.view',
   'messages.groups.manage',
   'notifications.manage',
   'notifications.email.send',

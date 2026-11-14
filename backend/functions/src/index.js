@@ -199,8 +199,9 @@ async function requireAnyAdminPermission(context, requiredPermissions) {
   const access = await getAdminAccess(context.auth.uid);
   const permissions = access?.permissions || [];
   const hasLegacyCompatiblePermission = requiredPermissions.includes('messages.groups.manage') && permissions.includes('messages.moderate');
+  const hasLegalReviewGroupAccess = requiredPermissions.includes('messages.content.view') && Array.isArray(access?.groupIds) && access.groupIds.includes('admins');
   const hasRequiredPermission = requiredPermissions.some((permission) => permissions.includes(permission));
-  if (!access || (!access.isSuperAdmin && !hasRequiredPermission && !hasLegacyCompatiblePermission)) {
+  if (!access || (!access.isSuperAdmin && !hasRequiredPermission && !hasLegacyCompatiblePermission && !hasLegalReviewGroupAccess)) {
     throw new functions.https.HttpsError('permission-denied', 'You do not have permission to perform this action.');
   }
   return access;
@@ -1800,6 +1801,55 @@ exports.adminPreviewDistributionGroup = functions.https.onCall(async (data, cont
   const evaluated = await evaluateDistributionGroup(normalizeDistributionCriteria(criteria), 100);
   return evaluated;
 });
+
+exports.adminListConversationMessages = functions.https.onCall(async (data, context) => {
+  await requireAdminPermission(context, 'messages.content.view');
+  const chatId = String(data?.chatId || '').trim();
+  if (!chatId) throw new functions.https.HttpsError('invalid-argument', 'A conversation is required.');
+
+  const chatSnapshot = await db.collection('chats').doc(chatId).get();
+  if (!chatSnapshot.exists) throw new functions.https.HttpsError('not-found', 'The selected conversation could not be found.');
+  const chat = chatSnapshot.data() || {};
+  const participantIds = Array.isArray(chat.participants) ? chat.participants.filter((id) => typeof id === 'string') : [];
+  const participantDetails = chat.participantDetails && typeof chat.participantDetails === 'object' ? chat.participantDetails : {};
+  const missingIds = participantIds.filter((id) => !participantDetails[id]);
+  const missingSnapshots = await Promise.all(missingIds.map((id) => db.collection('users').doc(id).get()));
+  const fallbackDetails = Object.fromEntries(missingSnapshots.filter((snapshot) => snapshot.exists).map((snapshot) => [snapshot.id, snapshot.data()]));
+  const participants = participantIds.map((id) => ({
+    id,
+    name: String(participantDetails[id]?.name || fallbackDetails[id]?.name || 'Unknown user'),
+  }));
+
+  const messageSnapshot = await db.collection('messages')
+    .where('chatId', '==', chatId)
+    .orderBy('timestamp', 'asc')
+    .get();
+  const messages = messageSnapshot.docs.map((messageDoc) => {
+    const message = messageDoc.data() || {};
+    const senderId = String(message.senderId || '');
+    const sender = participants.find((participant) => participant.id === senderId);
+    return {
+      id: messageDoc.id,
+      chatId,
+      senderId,
+      senderName: sender?.name || String(message.senderName || 'Unknown user'),
+      text: typeof message.text === 'string' ? message.text : '',
+      type: typeof message.type === 'string' ? message.type : 'text',
+      timestamp: message.timestamp || null,
+      editedAt: message.editedAt || null,
+      fileName: typeof message.fileName === 'string' ? message.fileName : undefined,
+      fileUrl: typeof message.fileUrl === 'string' ? message.fileUrl : undefined,
+      location: message.location || undefined,
+    };
+  });
+
+  await recordAdminAudit(context, 'admin.chat.transcript.viewed', chatId, {
+    messageCount: messages.length,
+    participantIds,
+  });
+  return { chatId, participants, messages, hasMore: false };
+});
+
 
 exports.adminSendMessage = functions.https.onCall(async (data, context) => {
   await requireAnyAdminPermission(context, ['messages.send', 'messages.moderate']);

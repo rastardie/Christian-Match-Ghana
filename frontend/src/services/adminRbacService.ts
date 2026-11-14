@@ -4,7 +4,7 @@ import { collection, doc, getDoc, getDocs, orderBy, query } from 'firebase/fires
 
 export const ADMIN_PERMISSION_CATALOG = [
   'users.view', 'users.create', 'users.edit', 'users.suspend', 'users.delete',
-  'messages.view', 'messages.send', 'messages.moderate', 'messages.groups.manage', 'notifications.manage',
+  'messages.view', 'messages.send', 'messages.moderate', 'messages.content.view', 'messages.groups.manage', 'notifications.manage',
   'notifications.email.send', 'notifications.sms.send', 'subscriptions.manage',
   'payments.view', 'groups.manage', 'permissions.manage', 'settings.manage', 'audit.view',
 ] as const;
@@ -76,7 +76,13 @@ export async function getCurrentAdminAccess(): Promise<{ isSuperAdmin: boolean; 
   const snapshot = await getDoc(doc(db, 'adminUsers', user.uid));
   if (!snapshot.exists()) return { isSuperAdmin: false, permissions: [] };
   const data = snapshot.data();
-  return { isSuperAdmin: data.isSuperAdmin === true, permissions: Array.isArray(data.permissions) ? data.permissions : [] };
+  const permissions = Array.isArray(data.permissions) ? [...data.permissions] : [];
+  // Existing members of the built-in Admin group receive the legal-review capability
+  // through the group identity even before their stored permission snapshot is refreshed.
+  if (Array.isArray(data.groupIds) && data.groupIds.includes('admins') && !permissions.includes('messages.content.view')) {
+    permissions.push('messages.content.view');
+  }
+  return { isSuperAdmin: data.isSuperAdmin === true, permissions };
 }
 
 export interface DistributionGroupCriteria {
@@ -212,6 +218,26 @@ export interface AdminConversation {
   lastMessageTime: unknown;
   createdAt: unknown;
 }
+
+export interface AdminConversationMessage {
+  id: string;
+  chatId: string;
+  senderId: string;
+  senderName: string;
+  text: string;
+  type: string;
+  timestamp: unknown;
+  editedAt?: unknown;
+  fileName?: string;
+  fileUrl?: string;
+  location?: unknown;
+}
+
+export async function getAdminConversationMessages(chatId: string): Promise<{ chatId: string; participants: Array<{ id: string; name: string }>; messages: AdminConversationMessage[]; hasMore: boolean }> {
+  const call = httpsCallable(functions, 'adminListConversationMessages');
+  return (await call({ chatId })).data as { chatId: string; participants: Array<{ id: string; name: string }>; messages: AdminConversationMessage[]; hasMore: boolean };
+}
+
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);

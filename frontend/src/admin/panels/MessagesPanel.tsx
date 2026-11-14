@@ -32,13 +32,15 @@ const MODE_OPTIONS: ReadonlyArray<{ value: RecipientMode; label: string }> = [
 interface MessagesPanelProps {
   /** Whether the signed-in admin may send (messages.send, or super admin). Without it the composer is read-only. */
   canSend: boolean;
+  /** Whether the signed-in admin may inspect complete conversation transcripts. */
+  canReview: boolean;
   /** Opens the Groups section where saved audiences are managed. Omit to hide the link. */
   onManageAudiences?: () => void;
   /** Sidebar sub-view: 'compose' (default) or 'conversations'. Unknown values fall back to 'compose'. */
   view?: string;
 }
 
-const MessagesPanel: React.FC<MessagesPanelProps> = ({ canSend, onManageAudiences, view }) => {
+const MessagesPanel: React.FC<MessagesPanelProps> = ({ canSend, canReview, onManageAudiences, view }) => {
   const showConversations = view === 'conversations';
 
   const [users, setUsers] = useState<AdminDirectoryUser[] | null>(null);
@@ -304,7 +306,7 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ canSend, onManageAudience
         </section>
       )}
 
-      {showConversations && <ConversationsTable />}
+      {showConversations && <ConversationsTable canReview={canReview} />}
 
       <AdminActionDialog
         open={confirmOpen}

@@ -306,6 +306,7 @@ const AdminConsole: React.FC = () => {
             <MessagesPanel
               view={activeChild}
               canSend={access.isSuperAdmin || access.permissions.includes('messages.send') || access.permissions.includes('messages.moderate')}
+              canReview={access.isSuperAdmin || access.permissions.includes('messages.content.view')}
               onManageAudiences={() => selectSection('groups', 'all')}
             />
           )}
