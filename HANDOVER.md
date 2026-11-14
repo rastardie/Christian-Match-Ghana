@@ -2046,3 +2046,21 @@ Firebase deployment included the Dev frontend and Functions. The deployed Admin 
 Production was not changed.
 
 The StormerHost workflow emitted only GitHub's runner deprecation annotations for Node.js 20 actions; the deployment itself completed successfully.
+
+
+## 28. Full chat transcript review deployed to Dev — 2026-11-12
+
+The full read-only Admin conversation viewer was committed and deployed to Dev.
+
+```text
+Application commit:   f7d5f70 feat(admin): add full chat transcript review
+Dev Firebase:         christian-match-ghana
+Dev Firebase Hosting: https://christian-match-ghana.web.app/adm/
+Dev StormerHost:      https://christianmatchghana.com/dev/adm/
+Dev workflow:          43618342248 (successful)
+Dev callable:          adminListConversationMessages (deployed)
+```
+
+The Admin → Messages → Conversations screen now has a `View full chat` action for admins with `messages.content.view`. The transcript is read-only and each transcript load records `admin.chat.transcript.viewed` in the admin audit log. Built-in Admin-group members receive the permission through their group identity; Moderators and Customer Support do not receive it automatically.
+
+HTTP verification returned 200 for both Dev Admin routes and the deployed Admin bundles contain the transcript viewer. Production was not changed. The existing generated `frontend/dist.zip` remains untracked.
