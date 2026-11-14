@@ -2090,3 +2090,67 @@ deleteUserMessage
 Firestore rules now block direct client deletion of chats and messages. User deletion goes through server callables that archive records before removing them from the live collections. Admin transcripts merge retained deleted-message records with live messages, order them by the original timestamp, and highlight deleted entries.
 
 Both Dev Admin routes returned HTTP 200 and the deployed bundles contain the deleted-message viewer. Production was not changed. The generated `frontend/dist.zip` remains untracked.
+
+
+## 30. Production sync and free-promo correction — 2026-11-14
+
+Production promotion was explicitly approved and completed for the current branch.
+
+```text
+Production Firebase project: christianmatch-app (121785138277)
+Production StormerHost:      https://christianmatchghana.com/
+Production Admin:            https://christianmatchghana.com/adm/
+Production Firebase Hosting: https://christianmatch-app.web.app/
+Application commit:          e25fddb fix(promo): extend free campaign through November 19
+StormerHost workflow:        43622219734 (successful)
+```
+
+### Backups before the Production change
+
+```text
+Firestore export:
+gs://christianmatch-app-fs-backups-121785138277/pre-prod-promo-fix-20261114
+
+StormerHost root backup workflow:
+43621601461 (backup-only, successful; artifact retained by GitHub Actions)
+```
+
+### Promo correction
+
+The Production function had no `CAMPAIGN_PROMO_END_ISO` environment variable and was using the source default of `2026-11-13T23:59:59.999Z`. Four active `new-member-promo` users were found with that expired timestamp. Their server-owned fields were corrected to:
+
+```text
+subscriptionExpiresAt: 2026-11-19T23:59:59.999Z
+subscriptionEndDate:   2026-11-19T23:59:59.999Z
+```
+
+The source default is now `2026-11-19T23:59:59.999Z` so future promo claims use the correct deadline. Post-correction verification shows:
+
+```text
+new-member-promo:              5 users expire 2026-11-19; 1 paid/other record expires 2027-05-12
+prod-existing-user-promo:     72 users expire 2026-11-19
+verification-reminders:        1 user expires 2026-11-19
+```
+
+### Production application sync
+
+Deployed successfully:
+
+- All current Functions, including full Admin transcript review and archive-preserving deletion.
+- Firestore rules, including blocking direct client deletion of chats/messages.
+- Production StormerHost frontend root.
+- Production Firebase Hosting frontend.
+
+The first local Firebase Hosting upload was killed by the local process with exit 137 during upload; the retry completed successfully with the Node heap limit set. Production was not left in a failed hosting state.
+
+Production verification returned HTTP 200 for:
+
+```text
+https://christianmatchghana.com/
+https://christianmatchghana.com/adm/
+https://christian-match-app.web.app/   # incorrect hostname; do not use
+https://christianmatch-app.web.app/
+https://christianmatch-app.web.app/adm/
+```
+
+The generated `frontend/dist.zip` remains untracked and was not committed.
