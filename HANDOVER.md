@@ -2026,3 +2026,23 @@ Status:
 ```
 
 No commit, push, frontend build archive, Firebase deployment, or Production change was performed for this update.
+
+
+## 27. Full client profile edit deployed to Dev — 2026-11-12
+
+The approved profile-edit implementation from application commit `d9b463e` was released to Dev only.
+
+```text
+Dev Firebase project: christian-match-ghana
+Dev Firebase Hosting: https://christian-match-ghana.web.app/
+Dev StormerHost:     https://christianmatchghana.com/dev/
+Admin routes:         /adm/ and /dev/adm/
+Dev Functions:        adminUpdateUserProfile updated successfully
+StormerHost workflow: 43615448983 (successful)
+```
+
+Firebase deployment included the Dev frontend and Functions. The deployed Admin bundles on both Dev hosting surfaces contain the expanded profile sections, including Faith and church and relationship preference fields. HTTP verification returned 200 for both app and Admin routes on both surfaces.
+
+Production was not changed.
+
+The StormerHost workflow emitted only GitHub's runner deprecation annotations for Node.js 20 actions; the deployment itself completed successfully.
