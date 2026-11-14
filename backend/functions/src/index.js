@@ -1062,7 +1062,7 @@ const VERIFICATION_REMINDER_LOGO_PATH = path.join(__dirname, '..', 'assets', 'em
 const VERIFICATION_REMINDER_LOGO_CID = 'cmglogo';
 // Fixed promotional end date: 30 days from campaign launch (2026-10-14).
 // Everyone granted the promo shares this end date; late verifiers/registrants get the remainder.
-const VERIFICATION_PROMO_END_ISO = process.env.CAMPAIGN_PROMO_END_ISO || '2026-11-13T23:59:59.999Z';
+const VERIFICATION_PROMO_END_ISO = process.env.CAMPAIGN_PROMO_END_ISO || '2026-11-19T23:59:59.999Z';
 // Promo launch: users whose profile was created on/after this are "new members".
 const VERIFICATION_PROMO_LAUNCH_ISO = process.env.CAMPAIGN_PROMO_LAUNCH_ISO || '2026-10-14T00:00:00.000Z';
 const VERIFICATION_PROMO_CAMPAIGN_ID = process.env.CAMPAIGN_PROMO_CAMPAIGN_ID || 'verification-reminders-2026-10-14';
