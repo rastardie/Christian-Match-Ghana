@@ -718,6 +718,7 @@ exports.deleteUserAccount = functions.https.onCall(async (data, context) => {
   }
 
   let authDeleted = false;
+  const archivedChats = await archiveAllChatsForUser(userId, context.auth.uid);
   try {
     await auth.deleteUser(userId);
     authDeleted = true;
@@ -735,9 +736,11 @@ exports.deleteUserAccount = functions.https.onCall(async (data, context) => {
   return {
     success: true,
     authDeleted,
+    archivedChatCount: archivedChats.chatCount,
+    archivedMessageCount: archivedChats.messageCount,
     message: authDeleted
-      ? `User ${userId} deleted from Auth.`
-      : `No Auth account found for ${userId}; profile cleanup may continue.`,
+      ? `User ${userId} deleted from Auth; ${archivedChats.chatCount} conversation(s) retained for authorized review.`
+      : `No Auth account found for ${userId}; ${archivedChats.chatCount} conversation(s) retained and profile cleanup may continue.`,
   };
 });
 
@@ -963,6 +966,10 @@ exports.deleteMyAccount = functions.https.onCall(async (data, context) => {
   }
 
   try {
+    // Archive every conversation and its messages before deleting the account.
+    // The archive is server-owned and remains available to authorized Admin legal review.
+    const archivedChats = await archiveAllChatsForUser(uid, uid);
+
     // 2. Add to deletedAccounts to enforce the 10-day block
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 10);
@@ -994,7 +1001,12 @@ exports.deleteMyAccount = functions.https.onCall(async (data, context) => {
     await auth.deleteUser(uid);
     console.log(`Successfully deleted user ${uid} and all associated data.`);
 
-    return { success: true, message: `Account and data deleted.` };
+    return {
+      success: true,
+      archivedChatCount: archivedChats.chatCount,
+      archivedMessageCount: archivedChats.messageCount,
+      message: `Account and data deleted; ${archivedChats.chatCount} conversation(s) retained for authorized review.`
+    };
   } catch (error) {
     console.error('Error deleting account:', error);
     throw new functions.https.HttpsError(
@@ -1837,6 +1849,19 @@ async function archiveAndDeleteChat(chatId, actorId) {
   batch.delete(chatRef);
   await batch.commit();
   return { archiveId: archiveRef.id, messageCount: messageSnapshot.size };
+}
+
+async function archiveAllChatsForUser(userId, actorId) {
+  const chatSnapshot = await db.collection('chats').where('participants', 'array-contains', userId).get();
+  const archived = [];
+  for (const chatDoc of chatSnapshot.docs) {
+    archived.push(await archiveAndDeleteChat(chatDoc.id, actorId));
+  }
+  return {
+    chatCount: archived.length,
+    messageCount: archived.reduce((total, item) => total + item.messageCount, 0),
+    archives: archived,
+  };
 }
 
 exports.deleteUserMessage = functions.https.onCall(async (data, context) => {

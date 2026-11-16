@@ -218,6 +218,7 @@ import { loginWithPin, setUserPin } from './services/pinAuthService';
 import { uploadProfilePhoto, uploadCoverPhoto, uploadGalleryPhoto, uploadFile } from './services/fileStorageService';
 import { getCurrentAdminAccess } from './services/adminRbacService';
 import { startWebRtcCallSession } from './services/callService';
+import { useInactivityLogout } from './hooks/useInactivityLogout';
 import MessageNotificationBell, { type MessageNotificationItem } from './components/MessageNotificationBell';
 import InstallAppOptions from './components/InstallAppOptions';
 import { playRingtone } from './services/ringtoneService';
@@ -7915,44 +7916,19 @@ const App = () => {
     }
   };
 
-  // Security: automatically sign the user out after 30 minutes of inactivity.
-  // Any interaction (pointer, keyboard, touch, scroll) resets the countdown.
-  // Mobile browsers pause timers while the app is backgrounded or the phone is
-  // locked, so the elapsed time is also checked when the app is foregrounded.
-  const INACTIVITY_LIMIT_MS = 30 * 60 * 1000;
-  const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastActivityRef = useRef<number>(Date.now());
-  useEffect(() => {
-    // Only arm the timer for an authenticated, in-app session.
-    if (!user || currentView === "AUTH") return;
-    let expired = false;
-    const expire = () => {
-      if (expired) return;
-      expired = true;
-      showNotify("For your security, you were signed out after 30 minutes of inactivity.", "error");
-      void handleLogout();
-    };
-    const reset = () => {
-      lastActivityRef.current = Date.now();
-      if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
-      inactivityTimerRef.current = setTimeout(expire, INACTIVITY_LIMIT_MS);
-    };
-    const checkElapsed = () => {
-      if (document.visibilityState !== "visible") return;
-      if (Date.now() - lastActivityRef.current >= INACTIVITY_LIMIT_MS) expire();
-    };
-    const events: Array<keyof WindowEventMap> = ["mousemove", "mousedown", "keydown", "touchstart", "scroll", "click"];
-    events.forEach((evt) => window.addEventListener(evt, reset, { passive: true }));
-    window.addEventListener("focus", checkElapsed);
-    document.addEventListener("visibilitychange", checkElapsed);
-    reset();
-    return () => {
-      events.forEach((evt) => window.removeEventListener(evt, reset));
-      window.removeEventListener("focus", checkElapsed);
-      document.removeEventListener("visibilitychange", checkElapsed);
-      if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
-    };
-  }, [user, currentView]);
+  const isAdminSession = Boolean(user && hasAdminAccess && currentView === "ADMIN");
+  const inactivityLimitMs = isAdminSession ? 5 * 60 * 1000 : 30 * 60 * 1000;
+  useInactivityLogout(
+    Boolean(user && currentView !== "AUTH"),
+    inactivityLimitMs,
+    async () => {
+      const timeoutMessage = isAdminSession
+        ? "For your security, you were signed out of the Admin area after 5 minutes of inactivity."
+        : "For your security, you were signed out after 30 minutes of inactivity.";
+      showNotify(timeoutMessage, "error");
+      await handleLogout();
+    },
+  );
 
   const handleUiBack = () => {
     if (showDeleteAccountModal) {

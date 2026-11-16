@@ -14,6 +14,7 @@ import AccessPanel from './panels/AccessPanel';
 import GroupsPanel from './panels/GroupsPanel';
 import MessagesPanel from './panels/MessagesPanel';
 import { SECTIONS, type SectionKey, type SectionItem } from './adminNav';
+import { useInactivityLogout } from '../hooks/useInactivityLogout';
 
 type Access = { isSuperAdmin: boolean; permissions: string[] };
 
@@ -118,6 +119,25 @@ const AdminConsole: React.FC = () => {
     }
   };
 
+  const hasAnyAccess = access !== null && (access.isSuperAdmin || access.permissions.length > 0);
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+    } finally {
+      localStorage.removeItem('cmg_demo_user');
+      localStorage.removeItem('cmg_current_view');
+      localStorage.removeItem('cmg_admin_navigation_state');
+      sessionStorage.removeItem('cmg_preserve_session_on_reload');
+      setUser(null);
+      setAccess(null);
+    }
+  };
+
+  useInactivityLogout(Boolean(user && hasAnyAccess), 5 * 60 * 1000, async () => {
+    await handleSignOut();
+    setError('For your security, you were signed out of the Admin area after 5 minutes of inactivity.');
+  });
+
   if (checking) {
     return (
       <div className="flex min-h-screen items-center justify-center text-slate-600">
@@ -177,8 +197,6 @@ const AdminConsole: React.FC = () => {
     );
   }
 
-  const hasAnyAccess = access !== null && (access.isSuperAdmin || access.permissions.length > 0);
-
   if (!hasAnyAccess || access === null) {
     return (
       <div className="flex min-h-screen items-center justify-center p-6">
@@ -189,7 +207,7 @@ const AdminConsole: React.FC = () => {
           </p>
           <button
             type="button"
-            onClick={() => signOut(auth)}
+            onClick={() => { void handleSignOut(); }}
             className="mt-6 w-full rounded-lg bg-slate-900 py-3 font-bold text-white"
           >
             Sign out
@@ -271,7 +289,7 @@ const AdminConsole: React.FC = () => {
           <div className="truncate">{user.email}</div>
           <button
             type="button"
-            onClick={() => signOut(auth)}
+            onClick={() => { void handleSignOut(); }}
             className="mt-2 font-bold text-brand-orange"
           >
             Sign out
