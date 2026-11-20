@@ -111,8 +111,10 @@ service cloud.firestore {
     }
 
     match /chats/{chatId} {
+      // Any participant may read their conversations. Subscription status gates
+      // starting a conversation (create), not reading or replying.
       allow read: if isAdmin() ||
-        (isSignedIn() && hasActiveSubscription(request.auth.uid) && request.auth.uid in resource.data.participants);
+        (isSignedIn() && request.auth.uid in resource.data.participants);
 
       // Only an entitled member may create a one-to-one chat. The user profile
       // is checked from the server-owned subscriptionExpiresAt timestamp.
@@ -120,21 +122,22 @@ service cloud.firestore {
                        request.auth.uid in request.resource.data.participants &&
                        request.resource.data.participants.size() == 2;
 
-      // Users can update chats they are part of while entitled.
-      allow update: if hasActiveSubscription(request.auth.uid) &&
-                       request.auth.uid in resource.data.participants;
+      // Participants may update conversation metadata (last message, unread counts)
+      // so that non-paid members can reply. Membership itself cannot change.
+      allow update: if isSignedIn() &&
+                       request.auth.uid in resource.data.participants &&
+                       request.resource.data.participants == resource.data.participants;
 
       // Conversation deletion is performed by the archive-preserving callable.
       allow delete: if false;
     }
-    
+
     // ============================================
     // MESSAGES COLLECTION
     // ============================================
     function isChatParticipant(chatId) {
       return isSignedIn() && (
         isAdmin() || (
-          hasActiveSubscription(request.auth.uid) &&
           exists(/databases/$(database)/documents/chats/$(chatId)) &&
           request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants
         )
@@ -146,8 +149,7 @@ service cloud.firestore {
       allow read: if isChatParticipant(resource.data.chatId);
 
       // The sender must be the authenticated Firebase user and must belong to
-      // the chat. This prevents a stale profile/session from writing messages
-      // under the wrong identity or into an unrelated conversation.
+      // the chat. Replies in an existing conversation do not require a subscription.
       allow create: if isChatParticipant(request.resource.data.chatId) &&
         request.resource.data.senderId == request.auth.uid;
 
