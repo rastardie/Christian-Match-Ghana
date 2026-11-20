@@ -5927,6 +5927,91 @@ const MessageThreadView = ({
 
 // --- SHARED UI COMPONENTS ---
 
+// Member-facing profile details. Phone, email, date of birth, subscription, PIN,
+// block list, and notification settings are deliberately NOT listed here.
+type ProfileDetailRow = [label: string, value: (profile: any) => unknown];
+const profileField = (key: string): ProfileDetailRow[1] => (profile) => profile?.[key];
+const PROFILE_DETAIL_SECTIONS: Array<{ title: string; rows: ProfileDetailRow[] }> = [
+  {
+    title: 'Basics',
+    rows: [
+      ['Age', profileField('age')],
+      ['Gender', profileField('gender')],
+      ['Height (cm)', profileField('height')],
+      ['Country', profileField('country')],
+      ['Languages', profileField('languages')],
+      ['Marital status', profileField('maritalStatus')],
+      ['Has children', profileField('hasChildren')],
+      ['Wants children', profileField('wantChildren')],
+      ['Body type', profileField('bodyType')],
+      ['Complexion', profileField('complexion')],
+    ],
+  },
+  {
+    title: 'Faith & Church',
+    rows: [
+      ['Denomination', profileField('denomination')],
+      ['Church', profileField('churchName')],
+      ['Church attendance', profileField('churchAttendance')],
+      ['Church involvement', profileField('churchInvolvement')],
+      ['Bible reading', profileField('bibleReadingFreq')],
+      ['Prayer life', profileField('prayerFreq')],
+      ['Faith maturity', profileField('faithMaturity')],
+      ['Favorite verse', profileField('favoriteVerse')],
+      ['Spiritual lesson', profileField('spiritualLesson')],
+      ['Faith statement', profileField('faithStatement')],
+    ],
+  },
+  {
+    title: 'Education & Work',
+    rows: [
+      ['Education', profileField('education')],
+      ['Profession', profileField('profession')],
+      ['Occupation', profileField('occupation')],
+      ['Income range', profileField('incomeRange')],
+    ],
+  },
+  {
+    title: 'Lifestyle',
+    rows: [
+      ['Drinks', profileField('drinking')],
+      ['Smokes', profileField('smoking')],
+      ['Alcohol', profileField('alcohol')],
+      ['Health', profileField('healthCondition')],
+      ['Lifestyle notes', profileField('lifestyleInfo')],
+    ],
+  },
+  {
+    title: 'Looking For',
+    rows: [
+      ['Intentions', profileField('intentions')],
+      ['Looking for', profileField('lookingFor')],
+      ['Intends to marry', profileField('intendToMarry')],
+      ['Willing to relocate', profileField('willingToRelocate')],
+      ['Accepts long distance', profileField('acceptsLongDistance')],
+    ],
+  },
+  {
+    title: 'Partner Preferences',
+    rows: [
+      ['Preferred age', (p) => (p?.preferredAgeMin || p?.preferredAgeMax ? `${p?.preferredAgeMin ?? '—'} to ${p?.preferredAgeMax ?? '—'}` : null)],
+      ['Preferred location', profileField('preferredLocation')],
+      ['Preferred denomination', profileField('preferredDenomination')],
+      ['Preferred ethnic group', profileField('preferredEthnicGroup')],
+      ['Deal breakers', profileField('dealBreakers')],
+    ],
+  },
+];
+
+// Returns display text, or null when the value is empty so the row is hidden.
+const formatProfileValue = (value: unknown): string | null => {
+  if (value === true) return 'Yes';
+  if (value === false) return 'No';
+  if (typeof value === 'number') return value > 0 ? String(value) : null;
+  if (typeof value === 'string') return value.trim() ? value.trim() : null;
+  return null;
+};
+
 const PublicProfileView = ({
   profile,
   onBack,
@@ -6083,30 +6168,26 @@ const PublicProfileView = ({
             )}
           </div>
 
-          {/* Details: Education, Profession */}
-          <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 space-y-4 dark:bg-gray-800 dark:border-gray-700">
-            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Details</h3>
-            
-            <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-gray-50 rounded-2xl flex items-center justify-center text-gray-400 dark:bg-gray-700">
-                  <Briefcase size={20} />
-                </div>
-                <div>
-                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide">Profession</p>
-                  <p className="font-bold text-gray-900 dark:text-white">{profile.profession || "Hidden"}</p>
-                </div>
-            </div>
-
-            <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-gray-50 rounded-2xl flex items-center justify-center text-gray-400 dark:bg-gray-700">
-                  <GraduationCap size={20} />
-                </div>
-                <div>
-                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide">Education</p>
-                  <p className="font-bold text-gray-900 dark:text-white">{profile.education || "Hidden"}</p>
-                </div>
-            </div>
-          </div>
+          {/* Member details (phone and email are never shown to other members) */}
+          {PROFILE_DETAIL_SECTIONS.map((section) => {
+            const rows = section.rows
+              .map(([label, read]) => [label, formatProfileValue(read(profile))] as const)
+              .filter((row): row is readonly [string, string] => row[1] !== null);
+            if (rows.length === 0) return null;
+            return (
+              <div key={section.title} className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 space-y-3 dark:bg-gray-800 dark:border-gray-700">
+                <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">{section.title}</h3>
+                <dl className="grid grid-cols-1 gap-3">
+                  {rows.map(([label, text]) => (
+                    <div key={label}>
+                      <dt className="text-[10px] text-gray-400 font-bold uppercase tracking-wide">{label}</dt>
+                      <dd className="font-bold text-gray-900 dark:text-white break-words">{text}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            );
+          })}
 
           {/* Gallery Preview (Simple) */}
           {profile.photos?.length > 1 && (
