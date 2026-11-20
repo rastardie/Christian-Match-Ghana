@@ -2617,7 +2617,7 @@ async function notifyConnectionParty({ recipientId, kind, title, body, data, ema
   }
 }
 
-// Connect starts the chat right away when both members have an active subscription.
+// Connect starts the chat right away when the initiating member has an active subscription.
 // The acceptance step is paused: the request/accept code is kept in a comment block below for later.
 exports.requestConnection = functions.https.onCall(async (data, context) => {
   if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Authentication required.');
@@ -2642,11 +2642,10 @@ exports.requestConnection = functions.https.onCall(async (data, context) => {
     if (!isOppositeGenderPair(from.gender, to.gender)) {
       throw new functions.https.HttpsError('permission-denied', 'This profile is not available for your matching preferences.');
     }
+    // Only the initiating member must be a paid subscriber. Paid members may message
+    // all members, paid or non-paid; the recipient's subscription is not required.
     if (!hasActiveSubscriptionData(from)) {
       throw new functions.https.HttpsError('failed-precondition', 'An active subscription is required to connect.');
-    }
-    if (!hasActiveSubscriptionData(to)) {
-      throw new functions.https.HttpsError('failed-precondition', 'This member needs an active subscription before you can connect.');
     }
 
     // Already connected: open the existing chat.
