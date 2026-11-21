@@ -31,6 +31,7 @@ import {
   downloadTextFile,
   errorMessage,
   isUserBlocked,
+  isActiveSubscriber,
   roleLabel,
   runSequentially,
   sameMembers,
@@ -169,8 +170,8 @@ const UsersPanel: React.FC<UsersPanelProps> = ({ permissions, isSuperAdmin, view
     return users.filter((user) => {
       if (statusFilter === 'active' && isUserBlocked(user)) return false;
       if (statusFilter === 'blocked' && !isUserBlocked(user)) return false;
-      if (roleFilter === 'subscriber' && !user.isPremium) return false;
-      if (roleFilter === 'user' && user.isPremium) return false;
+      if (roleFilter === 'subscriber' && !isActiveSubscriber(user)) return false;
+      if (roleFilter === 'user' && isActiveSubscriber(user)) return false;
       if (!term) return true;
       return [user.name, user.email, user.loginName, user.phone].some(
         (field) => typeof field === 'string' && field.toLowerCase().includes(term)

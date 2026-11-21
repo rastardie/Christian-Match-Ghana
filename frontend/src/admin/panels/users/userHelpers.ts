@@ -28,9 +28,16 @@ export function isUserBlocked(user: UserRow): boolean {
   return user.isBlocked === true;
 }
 
-/** Role is derived from isPremium, as the legacy dashboard does. */
+/** A Subscriber has isPremium set AND an expiry in the future, matching the Firestore rules. */
+export function isActiveSubscriber(user: UserRow, now: Date = new Date()): boolean {
+  if (!user.isPremium) return false;
+  const expiry = subscriptionExpiry(user);
+  return expiry !== null && expiry > now;
+}
+
+/** Role shown in the members list: Subscriber only while the subscription is still active. */
 export function roleLabel(user: UserRow): 'Subscriber' | 'User' {
-  return user.isPremium ? 'Subscriber' : 'User';
+  return isActiveSubscriber(user) ? 'Subscriber' : 'User';
 }
 
 export function toDateOrNull(value: unknown): Date | null {
