@@ -18,7 +18,7 @@ import subprocess
 import sys
 import urllib.request
 
-BATCH_SIZE = 400  # Firestore commit limit is 500 writes; each member uses 2 writes.
+BATCH_SIZE = 200  # Each member uses up to 2 writes; Firestore commits are limited to 500 writes.
 
 
 def access_token() -> str:
@@ -36,16 +36,16 @@ def api(method: str, url: str, token: str, project: str, body=None):
 
 
 def members_with_phone(project: str, token: str):
+    """Yield (uid, phone) for every profile that still has a phone field, including blank ones."""
     url = f"https://firestore.googleapis.com/v1/projects/{project}/databases/(default)/documents:runQuery"
     body = {"structuredQuery": {"from": [{"collectionId": "users"}],
                                 "select": {"fields": [{"fieldPath": "phone"}]}}}
     for row in api("POST", url, token, project, body):
         document = row.get("document")
-        if not document:
+        if not document or "phone" not in document.get("fields", {}):
             continue
-        phone = document.get("fields", {}).get("phone", {}).get("stringValue", "").strip()
-        if phone:
-            yield document["name"].rsplit("/", 1)[-1], phone
+        phone = document["fields"]["phone"].get("stringValue", "").strip()
+        yield document["name"].rsplit("/", 1)[-1], phone
 
 
 def commit(project: str, token: str, writes: list) -> None:
@@ -72,14 +72,16 @@ def main() -> int:
     for start in range(0, len(members), BATCH_SIZE):
         writes = []
         for uid, phone in members[start:start + BATCH_SIZE]:
-            writes.append({"update": {"name": f"{base}/users/{uid}/private/contact",
-                                      "fields": {"phone": {"stringValue": phone},
-                                                 "updatedAt": {"timestampValue": now}}}})
+            if phone:
+                writes.append({"update": {"name": f"{base}/users/{uid}/private/contact",
+                                          "fields": {"phone": {"stringValue": phone},
+                                                     "updatedAt": {"timestampValue": now}}}})
+            # Always remove the public field, including blank values.
             writes.append({"update": {"name": f"{base}/users/{uid}", "fields": {}},
                            "updateMask": {"fieldPaths": ["phone"]}})
         commit(args.project, token, writes)
         moved += len(writes) // 2
-        print(f"Moved {moved}/{len(members)}")
+        print(f"Processed {moved}/{len(members)}")
 
     print("Done. Verify a sample member: users/{uid}/private/contact exists and users/{uid} has no phone field.")
     return 0
