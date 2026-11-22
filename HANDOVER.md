@@ -2154,3 +2154,31 @@ https://christianmatch-app.web.app/adm/
 ```
 
 The generated `frontend/dist.zip` remains untracked and was not committed.
+
+## 31. Member phone numbers moved to a private store — 2026-11-22
+
+Phone numbers are no longer stored on the public profile. They now live at `users/{uid}/private/contact` in both projects.
+
+Storage:
+- Dev (`christian-match-ghana`): migrated. 0 public profiles carry a phone; 4 private contact documents.
+- Production (`christianmatch-app`): migrated. 0 public profiles carry a phone; 300 private contact documents. Profiles with a blank phone field had the field removed and no private document created.
+
+Access rules (`infra/firebase/firestore.rules`):
+- `users/{uid}/private/contact` is readable by the owner and by admins with `users.view`; writable by the owner or `users.edit` with only `phone`/`updatedAt` keys; never deletable by clients.
+- Collection-group reads of `private` are admin-only (used by the Admin members list).
+- The public `users/{uid}` document rejects writes containing `phone`.
+
+Code:
+- Backend helper `backend/functions/src/contactService.js` is used by SMS/WhatsApp queueing (`index.js`, `offlineNotificationService.js`), `adminCreateUser`, `deleteMyAccount`, and `deleteUserAccount`.
+- Frontend `userService.ts` (create, read, update) and `adminService.ts` (members list join) use the private document.
+- Migration script: `backend/functions/scripts/migrate-phone-to-private.py` (dry run by default; `--apply` to write).
+
+Finding corrected: the original admin create-user path did save `phone` to the public profile (`index.js` previously wrote `phone,` in `adminCreateUser`). Those numbers were included in the 316 public phone values migrated above.
+
+Deployment (Production, 2026-11-22): Firestore export `pre-phone-private-20261122-142012`; StormerHost root backup workflow `45032294868`; Functions and rules deployed; migration applied; StormerHost full deploy `45032850101`; Firebase Hosting released. Verified `https://christianmatchghana.com/`, `/adm/`, `/dev/`, and `https://christianmatch-app.web.app/` (HTTP 200).
+
+Other pending items:
+- SMS and WhatsApp gateways are not configured; messages are deferred until a provider is set up (owner: later).
+- PENDING ACTION — old Firestore backups still contain public phone numbers in the `users` collection. Keep for now; decide whether to restrict or delete. Backup prefixes in `gs://christianmatch-app-fs-backups-121785138277/`: `firestore-backup-20261104-230358`, `firestore-backup-20261105-084718`, `firestore-backup-20261105-091303`, `firestore-backup-20261105-103246`, `pre-prod-promo-fix-20261114`, `pre-admin-timeout-20261116-055457`, `pre-members-role-20261120-224538`, `pre-profile-chat-20261120-155249`, `pre-phone-private-20261122-142012`.
+- PENDING DECISION — `unverified-users-production.xlsx` in the repo root (gitignored, dated 2026-10-14) is an encrypted Excel file (CDFV2). It may contain personal data. Decide whether to keep, secure, or delete it.
+- Old browser tabs may fail to save profile edits until reloaded, because they still send `phone` on the public profile.
