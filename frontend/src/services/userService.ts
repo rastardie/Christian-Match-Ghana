@@ -3,6 +3,22 @@ import { httpsCallable } from 'firebase/functions';
 import { doc, setDoc, getDoc, updateDoc, deleteDoc, serverTimestamp, collection, getDocs, query, where } from 'firebase/firestore';
 import { User, DEFAULT_NOTIFICATION_PREFERENCES } from '../types';
 
+/** Private telephone document: users/{uid}/private/contact (owner and authorized admins only). */
+function contactRef(uid: string) {
+  return doc(db, 'users', uid, 'private', 'contact');
+}
+
+/** Reads the caller's own telephone; other members (and non-admins) are denied by rules and get ''. */
+async function readContactPhone(uid: string): Promise<string> {
+  try {
+    const snapshot = await getDoc(contactRef(uid));
+    return snapshot.exists() ? String(snapshot.data().phone || '') : '';
+  } catch (error) {
+    console.warn('Unable to read contact details:', error);
+    return '';
+  }
+}
+
 /**
  * Firestore User Service
  * Handles all database operations for user documents
@@ -18,7 +34,6 @@ export async function createUserDocument(uid: string, userData: Partial<User>) {
     const userDoc = {
       id: uid,
       email: userData.email || '',
-      phone: userData.phone || '',
       name: userData.name || '',
       age: userData.age || 0,
       gender: userData.gender || '',
@@ -101,6 +116,10 @@ export async function createUserDocument(uid: string, userData: Partial<User>) {
     };
 
     await setDoc(userRef, userDoc);
+    // Telephone numbers are stored in a private document, never on the public profile.
+    if (userData.phone?.trim()) {
+      await setDoc(contactRef(uid), { phone: userData.phone.trim(), updatedAt: serverTimestamp() }, { merge: true });
+    }
     console.log('✅ User document created in Firestore:', uid);
     
     return userDoc;
@@ -126,7 +145,7 @@ export async function getUserDocument(uid: string): Promise<User | null> {
       console.log('✅ User document retrieved from Firestore:', uid);
       const data = userSnap.data();
       // Credential hashes are server-only and must never enter client state.
-      const { pinHash: _pinHash, ...safeData } = data;
+      const { pinHash: _pinHash, phone: _legacyPhone, ...safeData } = data;
       const storedPreferences = safeData.notificationPreferences && typeof safeData.notificationPreferences === 'object'
         ? safeData.notificationPreferences
         : {};
@@ -144,7 +163,7 @@ export async function getUserDocument(uid: string): Promise<User | null> {
           console.warn('Unable to persist notification defaults:', error);
         });
       }
-      return { id: uid, ...safeData, notificationPreferences } as User;
+      return { id: uid, ...safeData, phone: await readContactPhone(uid), notificationPreferences } as User;
     } else {
       console.log('⚠️ User document not found in Firestore:', uid);
       return null;
@@ -177,9 +196,15 @@ export async function updateUserDocument(uid: string, updates: Partial<User>) {
     
     // Remove undefined values from updates (Firestore doesn't allow undefined)
     const cleanedUpdates = removeUndefinedValues(updates);
-    
+
+    // Telephone numbers are written to the private contact document, not the public profile.
+    const { phone, ...publicUpdates } = cleanedUpdates;
+    if (typeof phone === 'string') {
+      await setDoc(contactRef(uid), { phone: phone.trim(), updatedAt: serverTimestamp() }, { merge: true });
+    }
+
     const updateData = {
-      ...cleanedUpdates,
+      ...publicUpdates,
       updatedAt: serverTimestamp(),
     };
     

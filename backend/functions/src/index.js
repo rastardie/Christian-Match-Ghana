@@ -9,6 +9,7 @@ const { promisify } = require("util");
 const scryptAsync = promisify(crypto.scrypt);
 const nodemailer = require("nodemailer");
 const { queueOfflineMessageNotification, processOfflineMessageNotificationBatches } = require('./offlineNotificationService');
+const { getContactPhone, setContactPhone, deleteContactPhone } = require('./contactService');
 const path = require("path");
 const { PERMISSIONS, DEFAULT_GROUPS, permissionsFromGroups } = require("./rbac");
 
@@ -732,6 +733,7 @@ exports.deleteUserAccount = functions.https.onCall(async (data, context) => {
   }
 
   if (targetAdmin.exists) await db.collection('adminUsers').doc(userId).delete();
+  await deleteContactPhone(db, userId);
   await recordAdminAudit(context, 'user.deleted', userId, { authDeleted, targetWasAdmin: targetAdmin.exists, targetEmail });
   return {
     success: true,
@@ -851,7 +853,10 @@ exports.onMessageSent = functions.firestore
       // Queue one offline digest window instead of sending email/SMS per message.
       // The scheduled worker re-checks presence, unread state, preferences, and
       // provider availability immediately before delivery.
-      if (notificationPreferences.newChatMessages && (userData.email || ((notificationPreferences.sms === true || notificationPreferences.whatsapp === true) && userData.phone))) {
+      const recipientPhone = (notificationPreferences.sms === true || notificationPreferences.whatsapp === true)
+        ? await getContactPhone(db, receiverId)
+        : '';
+      if (notificationPreferences.newChatMessages && (userData.email || recipientPhone)) {
         await queueOfflineMessageNotification({
           db,
           recipientId: receiverId,
@@ -982,7 +987,8 @@ exports.deleteMyAccount = functions.https.onCall(async (data, context) => {
       uid: uid
     });
 
-    // 3. Delete from Firestore (users collection)
+    // 3. Delete from Firestore (users collection) and the private contact document
+    await deleteContactPhone(db, uid);
     await db.collection('users').doc(uid).delete();
 
     // 4. Delete files from Firebase Storage (photos)
@@ -2348,7 +2354,6 @@ exports.adminCreateUser = functions
       id: userRecord.uid,
       name,
       email,
-      phone,
       role: 'User',
       status: 'Active',
       isBlocked: false,
@@ -2365,6 +2370,7 @@ exports.adminCreateUser = functions
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
+    await setContactPhone(db, userRecord.uid, phone);
 
     let verificationEmailSent = false;
     try {

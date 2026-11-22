@@ -2,6 +2,7 @@ const nodemailer = require('nodemailer');
 const { FieldValue, Timestamp } = require('firebase-admin/firestore');
 const { sendSmsNotification } = require('./smsService');
 const { sendWhatsAppNotification } = require('./whatsappService');
+const { getContactPhone } = require('./contactService');
 
 const BATCH_WINDOW_MS = 15 * 60 * 1000;
 const PRESENCE_STALE_MS = 65 * 1000;
@@ -256,9 +257,12 @@ async function processBatch(db, batchRef, claimed) {
   }
 
   const preferences = userData.notificationPreferences || {};
+  const recipientPhone = (preferences.sms === true || preferences.whatsapp === true)
+    ? await getContactPhone(db, batchData.recipientId)
+    : '';
   const emailEnabled = preferences.email !== false && preferences.newChatMessages !== false && Boolean(userData.email);
-  const smsEnabled = preferences.sms === true && preferences.newChatMessages !== false && Boolean(userData.phone);
-  const whatsappEnabled = preferences.whatsapp === true && preferences.newChatMessages !== false && Boolean(userData.phone);
+  const smsEnabled = preferences.sms === true && preferences.newChatMessages !== false && Boolean(recipientPhone);
+  const whatsappEnabled = preferences.whatsapp === true && preferences.newChatMessages !== false && Boolean(recipientPhone);
   const appBaseUrl = process.env.APP_BASE_URL || 'https://christianmatchghana.com';
   const updates = {
     attempts: FieldValue.increment(1),
@@ -297,7 +301,7 @@ async function processBatch(db, batchRef, claimed) {
   if (smsEnabled && batchData.smsStatus !== 'sent') {
     try {
       const smsResult = await sendSmsNotification({
-        to: userData.phone,
+        to: recipientPhone,
         message: `Christian Match Ghana: you have ${items.length} new message${items.length === 1 ? '' : 's'} waiting. Open the app to reply.`,
       });
       updates.smsStatus = smsResult.status === 'deferred' ? 'deferred' : smsResult.status === 'sent' ? 'sent' : 'pending';
@@ -315,7 +319,7 @@ async function processBatch(db, batchRef, claimed) {
   if (whatsappEnabled && batchData.whatsappStatus !== 'sent') {
     try {
       const whatsappResult = await sendWhatsAppNotification({
-        to: userData.phone,
+        to: recipientPhone,
         message: `Christian Match Ghana: you have ${items.length} new message${items.length === 1 ? '' : 's'} waiting. Open the app to reply.`,
       });
       updates.whatsappStatus = whatsappResult.status === 'deferred'

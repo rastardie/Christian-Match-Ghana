@@ -18,7 +18,8 @@ import {
   setDoc,
   serverTimestamp,
   getAggregateFromServer,
-  sum
+  sum,
+  collectionGroup,
 } from 'firebase/firestore';
 import { User, PrayerRequest } from '../types';
 import { deleteUserFiles } from './fileStorageService';
@@ -117,8 +118,23 @@ export async function getAdminUsers(): Promise<Array<User & { firestoreDocId: st
     const usersColl = collection(db, 'users');
     const q = query(usersColl, orderBy('createdAt', 'desc')); // Most recent first
     const snapshot = await getDocs(q);
+
+    // Telephone numbers live in users/{uid}/private/contact. Roles without contact access
+    // still see the member list; their phone column is simply blank.
+    const phones = new Map<string, string>();
+    try {
+      const contacts = await getDocs(collectionGroup(db, 'private'));
+      contacts.forEach((contact) => {
+        const ownerId = contact.ref.parent.parent?.id;
+        if (ownerId && contact.id === 'contact') phones.set(ownerId, String(contact.data().phone || ''));
+      });
+    } catch (contactError) {
+      console.warn('Telephone numbers unavailable for this admin role:', contactError);
+    }
+
     return snapshot.docs.map((userDoc) => ({
       ...userDoc.data(),
+      phone: phones.get(userDoc.id) ?? '',
       firestoreDocId: userDoc.id,
     } as User & { firestoreDocId: string }));
   } catch (error) {
