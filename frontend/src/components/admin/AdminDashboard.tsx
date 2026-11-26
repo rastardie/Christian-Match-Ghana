@@ -37,7 +37,7 @@ const ADMIN_MENU_GROUPS = [
     { key: 'report-moderation', label: 'Moderate' },
     { key: 'report-payments', label: 'Payments' },
   ] },
-  { key: 'operations', label: 'Ops', icon: Activity, items: [
+  { key: 'operations', label: 'Operations', icon: Activity, items: [
     { key: 'moderation', label: 'Moderate' },
     { key: 'messages', label: 'Messages' },
     { key: 'analytics', label: 'Analytics' },
@@ -329,18 +329,37 @@ const AdminDashboard: React.FC<{ onClose?: () => void; messages?: AdminMessageBe
 
               {selectedGroup && selectedMenuGroup !== 'dashboard' && (
                 <div className="relative mt-3 pt-3" aria-label={`${selectedGroup.label} options`}>
+                  <svg
+                    aria-hidden="true"
+                    className="pointer-events-none absolute"
+                    style={{ left: highlightX - 56, top: -12, width: 112, height: 24 }}
+                    width="112"
+                    height="24"
+                    viewBox="0 0 112 24"
+                  >
+                    <path
+                      d="M0 0 C 0 14 6 24 24 24 L 88 24 C 106 24 112 14 112 0 Z"
+                      fill="rgba(0, 112, 255, 0.16)"
+                      stroke="rgba(0, 133, 255, 0.85)"
+                      strokeWidth="1.2"
+                    />
+                  </svg>
                   <div
                     ref={submenuRef}
                     className="submenu-connected"
                     style={{ '--highlight-x': `${highlightX}px` } as React.CSSProperties}
                   >
-                    <div className="grid w-full grid-cols-2 gap-1.5 sm:grid-cols-3">
+                    <div className="mb-2 flex items-center gap-2 px-1 text-[11px] font-black uppercase tracking-[0.12em] text-sky-300/90">
+                      <span className="h-2 w-2 flex-none rounded-full bg-orange-500" aria-hidden="true" />
+                      {selectedGroup.label} submenu
+                    </div>
+                    <div className="grid w-full grid-flow-col auto-cols-fr gap-1.5">
                       {selectedGroup.items.map((item) => (
                         <button
                           key={item.key}
                           type="button"
                           onClick={() => selectTab(item.key)}
-                          className={`flex min-h-7 w-full min-w-0 items-center justify-center rounded-full border px-3 py-1 text-xs font-black transition ${activeTab === item.key ? 'border-white/85 bg-white text-slate-950 shadow-md' : 'border-white/25 bg-white/15 text-white/75 hover:border-white/60 hover:bg-white/25 hover:text-white'}`}
+                          className={`flex min-h-7 w-full min-w-0 items-center justify-center rounded-full border px-2 py-1 text-xs font-black transition ${activeTab === item.key ? 'border-white/85 bg-white text-slate-950 shadow-md' : 'border-white/25 bg-white/15 text-white/75 hover:border-white/60 hover:bg-white/25 hover:text-white'}`}
                         >
                           <span className="truncate">{item.label}</span>
                         </button>

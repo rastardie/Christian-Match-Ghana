@@ -1,10 +1,10 @@
 # Christian Match Ghana — Handover and Continuation Guide
 
-**Last updated:** 2026-11-10 (see section 24 for the current state; sections 1–23 are historical)
+**Last updated:** 2026-11-24 (see section 32 for the current state; sections 1–31 are historical unless a later section supersedes them)
 **Workspace:** `/Users/andrewstardie/Documents/TUTS/TESTS/cm/cmg-rebuilt`
 **Branch:** `sync/cmg-local-2026-10-13`
 **Remote:** `origin` → `https://github.com/rastardie/Christian-Match-Ghana.git`
-**Last pushed commit:** `1d1492d feat: left-hand sub-menus for every admin section` on `origin/sync/cmg-local-2026-10-13`. Local-only commit `3bc269c fix: close admin security gaps` is NOT pushed yet (GitHub unreachable). See section 24.
+**Current state (2026-11-24):** HEAD and `origin/sync/cmg-local-2026-10-13` are both `8f30679`. See section 32.
 
 ## 1. Current system snapshot
 
@@ -2182,3 +2182,251 @@ Other pending items:
 - PENDING ACTION — old Firestore backups still contain public phone numbers in the `users` collection. Keep for now; decide whether to restrict or delete. Backup prefixes in `gs://christianmatch-app-fs-backups-121785138277/`: `firestore-backup-20261104-230358`, `firestore-backup-20261105-084718`, `firestore-backup-20261105-091303`, `firestore-backup-20261105-103246`, `pre-prod-promo-fix-20261114`, `pre-admin-timeout-20261116-055457`, `pre-members-role-20261120-224538`, `pre-profile-chat-20261120-155249`, `pre-phone-private-20261122-142012`.
 - PENDING DECISION — `unverified-users-production.xlsx` in the repo root (gitignored, dated 2026-10-14) is an encrypted Excel file (CDFV2). It may contain personal data. Decide whether to keep, secure, or delete it.
 - Old browser tabs may fail to save profile edits until reloaded, because they still send `phone` on the public profile.
+
+
+## 32. Current state snapshot — 2026-11-24
+
+This section is authoritative for the current state. It back-fills commits from 2026-11-16 to 2026-11-21 that were not recorded in sections 25–31, and supersedes the chat and subscription rules described in sections 25.3 and 24.5 where they conflict.
+
+### 32.1 Repository
+
+```text
+Workspace: /Users/andrewstardie/Documents/TUTS/TESTS/cm/cmg-rebuilt
+Branch:    sync/cmg-local-2026-10-13
+HEAD:      8f30679 docs: record phone privacy migration and pending actions
+Origin:    origin/sync/cmg-local-2026-10-13 (same commit; no unpushed commits)
+Tracked changes: HANDOVER.md only (this update, not committed)
+Untracked:  frontend/dist.zip (generated; keep out of Git)
+            backend/functions/scripts/__pycache__/ (generated; keep out of Git)
+```
+
+### 32.2 Commits since section 30 (newest first)
+
+```text
+8f30679 docs: record phone privacy migration and pending actions          (section 31)
+4b77949 fix(privacy): migrate blank phone fields and limit batch size      (section 31)
+0cb3da9 feat(privacy): store member phone numbers in a private document   (section 31)
+d235a69 fix(admin): show Subscriber only for active subscriptions         (2026-11-21)
+548f81e feat(profile): show full member details except contact fields      (2026-11-20)
+1989371 fix(chat): let non-paid members reply in existing conversations    (2026-11-20)
+4f11dac fix(chat): allow paid members to connect with non-paid members     (2026-11-20)
+0ca1962 feat(admin): expire inactive sessions after five minutes           (2026-11-16)
+```
+
+### 32.3 What changed in the back-filled commits
+
+Admin inactivity timeout (`0ca1962`):
+
+- Admin console sessions sign out after 5 minutes of inactivity. The member app keeps its 30-minute limit (`frontend/src/MainApp.tsx`, `inactivityLimitMs`).
+- The shared hook is `frontend/src/hooks/useInactivityLogout.ts`. It is used by `frontend/src/admin/AdminConsole.tsx` and `MainApp.tsx`. It listens for window activity events and also checks elapsed time, so the timeout works after the device is locked or the app is backgrounded.
+- The admin sign-out message reads: "For your security, you were signed out of the Admin area after 5 minutes of inactivity."
+- Section 23.11 (30 minutes) still applies to the member app only.
+- The production backup prefix `pre-admin-timeout-20261116-055457` exists in Cloud Storage (section 31), which suggests a production change was planned for this day. No deployment record was written. Confirm the live state before relying on it.
+
+Chat and Connect rules (`4f11dac`, `1989371`). These supersede the "both participants must be subscribed" rule in sections 25.3 and 25.4:
+
+- Connect (`backend/functions/src/index.js`, `requestConnection`): only the initiating member (`from`) must have an active subscription. The recipient may be paid or non-paid. Checked against the code on 2026-11-24.
+- Chat read and reply (`infra/firebase/firestore.rules`): any participant may read a chat they belong to, and may send messages in an existing chat, without an active subscription. Starting a new conversation still needs a subscription. Checked against the rules file on 2026-11-24.
+- Chat update: a participant may update conversation metadata (for example last message and unread counts) only if the `participants` list is unchanged. Membership cannot be changed by a client.
+- Review item: this loosens the rules for non-paid members. The commit messages describe the change as intended, but it has not been reviewed against the privacy and abuse-prevention requirements. Confirm this is the intended policy before the next production promotion.
+
+Member profile (`548f81e`):
+
+- The member profile view shows the full set of member details, except contact fields. Phone numbers are never shown there (see section 31).
+
+Admin Users (`d235a69`):
+
+- The Subscriber label is shown only for active subscriptions (`frontend/src/admin/panels/UsersPanel.tsx`, `users/userHelpers.ts`).
+
+### 32.4 Validation performed on 2026-11-24
+
+```text
+node --check backend/functions/src/index.js     passed
+frontend: node_modules/.bin/tsc --noEmit        passed
+```
+
+Not run in this update: the Vite production build, the Firebase rules compile, emulator tests, and any browser or device test. Treat the back-filled commits as untested in a browser.
+
+Re-run on 2026-11-24 with the same results as above, and `backend/functions/src/index.js` checked for `requestConnection` (see 32.6).
+
+### 32.5 Deployment state
+
+This update made no deployment, push, or commit. Production and Dev state for the commits in 32.2 is not recorded in this handover. Confirm it before assuming the behaviour is live:
+
+```text
+Production: christianmatch-app (121785138277). Check functions:list and the live rules.
+Dev:        christian-match-ghana (481815915882). Check the Hosting bundle and the rules.
+```
+
+### 32.6 Open items
+
+```text
+[ ] Decide whether the relaxed chat rules and Connect rule (32.3) are the intended policy. Review before production.
+[ ] Remove the duplicate `exports.requestConnection` in `backend/functions/src/index.js`. Two definitions exist (around lines 2628 and 2682). The later one (with `secrets: ['SMTP_PASS']`) is the one that takes effect in the file, because the second assignment overwrites the first. Confirm it is intended, then delete the other. Check the deployed function separately.
+[ ] Confirm whether the 5-minute admin timeout (0ca1962) is live in production.
+[ ] Test in Dev: a non-paid member can reply in an existing chat, a paid member can connect with a non-paid member, and a non-paid member cannot start a new chat.
+[ ] Test in Dev: the admin 5-minute timeout, and the member 30-minute timeout after the app is backgrounded.
+[ ] Test in Dev: the member profile shows all details with no phone number.
+[ ] Test in Dev: the Admin Users Subscriber label for expired, free, and paid accounts.
+[ ] Clear the pending actions in section 31 (old backups with public phone numbers, the unverified-users xlsx, and stale browser tabs that still send `phone`).
+[ ] Before any production promotion: take a fresh Firestore export, the rules and function snapshot, and the StormerHost root backup, as in section 25.2.
+```
+
+### 32.7 Re-check — 2026-11-24 (later the same day)
+
+Re-verified against the repository. Nothing in section 32 has changed since the first write-up.
+
+```text
+Branch:  sync/cmg-local-2026-10-13
+HEAD:    8f30679 (matches origin/sync/cmg-local-2026-10-13; no unpushed commits)
+Working tree: HANDOVER.md (this update, uncommitted); untracked frontend/dist.zip and
+              backend/functions/scripts/__pycache__/ (generated; keep out of Git)
+Duplicate export still present: backend/functions/src/index.js lines 2628 and 2682
+  (exports.requestConnection). Open item in 32.6.
+```
+
+No code, deployment, push or commit was made in this re-check. The open items in 32.6 stand as written.
+
+## 33. Admin menu style: local change, not yet visible in a running build — 2026-11-25
+
+### 33.1 Request
+
+Bring the admin navigation to the style in `/Users/andrewstardie/Documents/TUTS/TESTS/cm/tmp/sub-menu style.png`: top pills (Dashboard, Reports, Users, Operations, Billing, System), with the active section's sub-pills in a connected panel beneath. The owner also said the change was not visible after the first attempt.
+
+### 33.2 What already existed
+
+The connected-submenu style was already in the code before this session (`frontend/src/index.css`: `.cmg-admin-branch-panel`, `.submenu-connected`; `frontend/src/components/admin/AdminDashboard.tsx`: top pill row and submenu). The screenshot differed in three places.
+
+### 33.3 Local edits made this session (uncommitted)
+
+File: `frontend/src/components/admin/AdminDashboard.tsx` only.
+
+1. Top label `Ops` renamed to `Operations`. The internal key `operations` is unchanged.
+2. A section header is shown above the sub-pills: an orange dot, then the group label in uppercase with the word "submenu" (for example "USERS SUBMENU").
+3. Sub-pills use `grid-flow-col auto-cols-fr` so they sit in one row of equal width, with horizontal padding reduced from `px-3` to `px-2` so four fit on a phone.
+
+No changes to `index.css`, routing, permissions or data.
+
+### 33.4 Validation performed
+
+- `npx tsc --noEmit -p tsconfig.json`: no errors reported for `AdminDashboard`.
+- `npx vite build --mode staging`: built successfully. This overwrote `frontend/dist/` with a staging-mode build. The production deploy script rebuilds `dist/` from scratch.
+- Not done: no browser or device check of the layout, and no check of label truncation at 390px width.
+
+### 33.5 Why the change was not visible
+
+The edits exist only in the local source tree. The deployed Dev/staging and production sites are built from the committed branch and were not updated, and nothing has been committed or pushed. A running local dev server would pick up the edit only if it's serving this worktree.
+
+### 33.6 Current state
+
+```text
+Branch:  sync/cmg-local-2026-10-13
+HEAD:    8f30679 (unchanged)
+Uncommitted: HANDOVER.md (sections 32.7 and 33), frontend/src/components/admin/AdminDashboard.tsx
+Untracked:   frontend/dist.zip, backend/functions/scripts/__pycache__/ (keep out of Git)
+Open item from 32.6 still stands: duplicate exports.requestConnection (index.js lines 2628 and 2682).
+```
+
+### 33.7 Next steps
+
+1. Owner runs the local PWA from this worktree and confirms the layout on a phone-width window.
+2. Any remaining differences from the screenshot are fixed locally.
+3. Only after explicit approval: commit the menu change on its own, build for staging, and deploy to the staging project. Smoke test there.
+4. Production is a separate approval, using `deploy-frontend.sh`.
+
+### 33.8 Addendum — connector highlight added (local, uncommitted)
+
+The owner reported no visible highlight change. Cause: the connector shape in the screenshot (the curved outline from the selected top pill down to the submenu panel) was removed on purpose in an earlier pass (`index.css` comment on `.submenu-connected::after`). Section 33.3 did not restore it, so the change the owner expected was missing.
+
+Added in `AdminDashboard.tsx`: an absolutely positioned SVG under the selected pill, centred on the existing measured `highlightX`, 112px wide (the pill width), joining the submenu panel's top edge. The submenu wrapper keeps its existing `mt-3 pt-3` spacing.
+
+Local check: `tsc` reports no `AdminDashboard` errors; the staging-mode build includes the connector path. Not checked in a browser.
+
+Where to look locally: the admin console is the separate `admin.html` entry, so open the dev server at `/admin.html` (production serves it at `/adm/`). If the highlight still doesn't appear, the browser may be showing an older cached bundle; hard-refresh it.
+
+Still uncommitted: `frontend/src/components/admin/AdminDashboard.tsx`, `HANDOVER.md`. No commit, push or deploy has been made.
+
+### 33.9 Handover update — 2026-11-25 (later)
+
+The owner moved the menu iteration to the onb project (Flutter, `TESTS/onb/mobile`). The onb menu now uses the same pattern: a navy top-pill band, a glowing bridge from the selected pill, and one highlight panel holding every sub-pill with no heading. That work is recorded in the onb repository, not here.
+
+cm state, unchanged in this step:
+
+- `frontend/src/components/admin/AdminDashboard.tsx`: local edits from 33.3 and 33.8 (Operations label, submenu header, one-row sub-pills, connector SVG). Uncommitted. Not yet visually confirmed in a running build.
+- The cm submenu header ("USERS SUBMENU") and the glow were not revised in this step. If cm should match the onb iteration (no heading inside the panel; glow tuned), that is a separate, approved change.
+- Repository: branch `sync/cmg-local-2026-10-13`, HEAD `8f30679` (unchanged). Uncommitted: `HANDOVER.md`, `frontend/src/components/admin/AdminDashboard.tsx`. Untracked: `frontend/dist.zip`, `backend/functions/scripts/__pycache__/` (keep out of Git).
+- Open item from 32.6 still stands: duplicate `exports.requestConnection` in `backend/functions/src/index.js` (lines 2628 and 2682).
+
+No commit, push or deployment was made for cm in this step.
+
+### 33.10 Handover update — 2026-11-25 (latest)
+
+No cm code changed in this step. The recent work was all in the onb project (`TESTS/onb`), which has its own handover.
+
+Current cm state, unchanged since 33.9:
+
+- Local, uncommitted: `frontend/src/components/admin/AdminDashboard.tsx` (Operations label, submenu header, one-row sub-pills, connector SVG) and `HANDOVER.md`.
+- Not visually confirmed in a running build. The owner has not yet compared it against the reference screenshot in a browser.
+- The cm submenu still shows the "USERS SUBMENU" header and the earlier glow. The onb iteration removed the heading and strengthened the glow; the same change in cm is pending owner approval.
+- Repository: branch `sync/cmg-local-2026-10-13`, HEAD `8f30679` (unchanged). Untracked: `frontend/dist.zip`, `backend/functions/scripts/__pycache__/`.
+- Open item from 32.6 still stands: duplicate `exports.requestConnection` in `backend/functions/src/index.js` (lines 2628 and 2682).
+
+No commit, push or deployment was made for cm in this step.
+
+### 33.11 Handover update — 2026-11-26
+
+No cm code changed in this step. Current cm state is as recorded in 33.10:
+
+- Local, uncommitted: `frontend/src/components/admin/AdminDashboard.tsx` and `HANDOVER.md`. Not yet visually confirmed in a browser against the reference screenshot.
+- Repository: branch `sync/cmg-local-2026-10-13`, HEAD `8f30679` (unchanged).
+- Open item from 32.6 still stands: duplicate `exports.requestConnection` in `backend/functions/src/index.js` (lines 2628 and 2682).
+
+Related onb note: the local onb API had been started from a build made before the category endpoint existed, so the Owed/Outstanding figure did not load. The API was rebuilt and restarted on 2026-11-26 (`/api/member-ledger/categories` now responds). The start script only rebuilds when `dist/src/main.js` is missing, so after backend changes the build must be run by hand.
+
+No commit, push or deployment was made for cm in this step.
+
+### 33.12 Handover update — 2026-11-26 (latest)
+
+No cm code was changed in this step. Work was in the onb project (`TESTS/onb`).
+
+Correction to 33.11: the onb start script no longer leaves the API on a stale build. `start-web.sh` now always runs `npm run build` before starting the API, and it stops if the build fails. The API readiness check no longer posts to the OTP route, which could send a real SMS. The web app now runs on a fixed port, `http://localhost:8080`, so the PWA has one origin across launches.
+
+Working-tree state observed in cm this step (`git status` in `cmg-rebuilt`), for the owner to review before any commit:
+
+- Modified and recorded earlier: `HANDOVER.md`, `frontend/src/components/admin/AdminDashboard.tsx`.
+- Modified but not recorded in 33.1–33.11: `backend/functions/src/index.js`, `frontend/src/admin/panels/messages/ConversationsTable.tsx`, `frontend/src/services/adminRbacService.ts`. I have not confirmed where these changes came from and have not reviewed them.
+- Untracked (keep out of Git): `frontend/dist.zip`, `backend/functions/scripts/__pycache__/`.
+- Branch `sync/cmg-local-2026-10-13`, HEAD `8f30679` (unchanged).
+- Open item from 32.6 still stands: duplicate `exports.requestConnection` in `backend/functions/src/index.js`.
+
+No commit, push or deployment was made for cm in this step.
+
+### 33.13 Handover update — 2026-11-26 (latest)
+
+No cm code was changed in this step. The work was in the onb project (`TESTS/onb`), which has its own handover.
+
+- cm working tree, unchanged from 33.12. Modified files recorded earlier, plus `backend/functions/src/index.js`, `frontend/src/admin/panels/messages/ConversationsTable.tsx`, and `frontend/src/services/adminRbacService.ts`, which are still not reviewed or explained. Untracked: `frontend/dist.zip`, `backend/functions/scripts/__pycache__/`.
+- Branch `sync/cmg-local-2026-10-13`, HEAD `8f30679` (unchanged).
+- Open item from 32.6 still stands: duplicate `exports.requestConnection` in `backend/functions/src/index.js`.
+
+No commit, push or deployment was made for cm in this step.
+
+### 33.14 Handover update — 2026-11-26 (latest)
+
+No cm code was changed in this step. The work was in the onb project (`TESTS/onb`), which has its own handover.
+
+- cm working tree, unchanged from 33.13. The three modified files not explained in 33.12 (`backend/functions/src/index.js`, `frontend/src/admin/panels/messages/ConversationsTable.tsx`, `frontend/src/services/adminRbacService.ts`) are still unreviewed.
+- Branch `sync/cmg-local-2026-10-13`, HEAD `8f30679` (unchanged).
+- Open item from 32.6 still stands: duplicate `exports.requestConnection` in `backend/functions/src/index.js`.
+
+No commit, push or deployment was made for cm in this step.
+
+### 33.15 Handover update — 2026-11-26 (latest)
+
+No cm code was changed in this step. The work was in the onb project (`TESTS/onb`), which has its own handover.
+
+- cm working tree, unchanged from 33.14. The three modified files not explained in 33.12 (`backend/functions/src/index.js`, `frontend/src/admin/panels/messages/ConversationsTable.tsx`, `frontend/src/services/adminRbacService.ts`) are still unreviewed.
+- Branch `sync/cmg-local-2026-10-13`, HEAD `8f30679` (unchanged).
+- Open item from 32.6 still stands: duplicate `exports.requestConnection` in `backend/functions/src/index.js`.
+
+No commit, push or deployment was made for cm in this step.
