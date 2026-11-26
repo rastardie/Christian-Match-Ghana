@@ -1908,6 +1908,11 @@ exports.adminListConversations = functions.https.onCall(async (data, context) =>
     db.collection('chats').orderBy('lastMessageTime', 'desc').get(),
     db.collection('deletedChatArchives').orderBy('deletedAt', 'desc').get(),
   ]);
+  // Admin accounts are identified by their adminUsers records. A conversation with an
+  // admin participant is an admin message thread (broadcasts and admin replies);
+  // everything else is a client conversation.
+  const adminSnapshot = await db.collection('adminUsers').get();
+  const adminIds = new Set(adminSnapshot.docs.map((doc) => doc.id));
   const toConversation = (id, data, archived = false, archiveId = null) => {
     const participants = Array.isArray(data.participants) ? data.participants : [];
     const details = data.participantDetails && typeof data.participantDetails === 'object' ? data.participantDetails : {};
@@ -1915,6 +1920,7 @@ exports.adminListConversations = functions.https.onCall(async (data, context) =>
       id,
       archiveId,
       archived,
+      kind: participants.some((participantId) => adminIds.has(participantId)) ? 'admin' : 'client',
       participantNames: participants.slice(0, 2).map((participantId) => String(details[participantId]?.name || 'Unknown')),
       lastMessage: String(data.lastMessage || ''),
       lastMessageTime: data.lastMessageTime || null,
@@ -1981,6 +1987,7 @@ exports.adminListConversationMessages = functions.https.onCall(async (data, cont
       timestamp: message.timestamp || null,
       editedAt: message.editedAt || null,
       deleted: archivedDeleted || message.deleted === true,
+      adminBroadcast: message.adminBroadcast === true,
       deletedAt: message.deletedAt || message.archivedAt || null,
       fileName: typeof message.fileName === 'string' ? message.fileName : undefined,
       fileUrl: typeof message.fileUrl === 'string' ? message.fileUrl : undefined,

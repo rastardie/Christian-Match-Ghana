@@ -215,6 +215,8 @@ export interface AdminConversation {
   id: string;
   archiveId?: string | null;
   archived?: boolean;
+  /** "admin" when a participant is an admin account (admin messages); "client" otherwise. */
+  kind: "admin" | "client";
   participantNames: [string, string];
   lastMessage: string;
   lastMessageTime: unknown;
@@ -232,6 +234,8 @@ export interface AdminConversationMessage {
   timestamp: unknown;
   editedAt?: unknown;
   deleted?: boolean;
+  /** True for messages sent through the admin broadcast composer. */
+  adminBroadcast?: boolean;
   deletedAt?: unknown;
   fileName?: string;
   fileUrl?: string;

@@ -11,6 +11,14 @@ interface ConversationsTableProps {
   canReview: boolean;
 }
 
+type ConversationScope = 'all' | 'client' | 'admin';
+
+const SCOPE_LABELS: Record<ConversationScope, string> = {
+  all: 'All',
+  client: 'Client conversations',
+  admin: 'Admin messages',
+};
+
 /** Read-only conversation list and transcript viewer for authorized legal review. */
 const ConversationsTable: React.FC<ConversationsTableProps> = ({ canReview }) => {
   const [conversations, setConversations] = useState<AdminConversation[]>([]);
@@ -21,6 +29,7 @@ const ConversationsTable: React.FC<ConversationsTableProps> = ({ canReview }) =>
   const [error, setError] = useState<string | null>(null);
   const [transcriptError, setTranscriptError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [scope, setScope] = useState<ConversationScope>('all');
 
   useEffect(() => {
     if (!canReview) {
@@ -44,13 +53,21 @@ const ConversationsTable: React.FC<ConversationsTableProps> = ({ canReview }) =>
     };
   }, []);
 
+  const counts = useMemo(() => ({
+    all: conversations.length,
+    client: conversations.filter((conversation) => conversation.kind !== 'admin').length,
+    admin: conversations.filter((conversation) => conversation.kind === 'admin').length,
+  }), [conversations]);
+
   const filtered = useMemo(() => {
     const term = query.trim().toLowerCase();
-    if (!term) return conversations;
-    return conversations.filter((conversation) =>
-      conversation.participantNames.some((name) => name.toLowerCase().includes(term)),
-    );
-  }, [conversations, query]);
+    return conversations.filter((conversation) => {
+      if (scope === 'client' && conversation.kind === 'admin') return false;
+      if (scope === 'admin' && conversation.kind !== 'admin') return false;
+      if (!term) return true;
+      return conversation.participantNames.some((name) => name.toLowerCase().includes(term));
+    });
+  }, [conversations, query, scope]);
 
   const openTranscript = async (conversation: AdminConversation) => {
     if (!canReview) return;
@@ -92,6 +109,20 @@ const ConversationsTable: React.FC<ConversationsTableProps> = ({ canReview }) =>
         </div>
       </div>
 
+      <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Filter conversations by type">
+        {(Object.keys(SCOPE_LABELS) as ConversationScope[]).map((key) => (
+          <button
+            key={key}
+            type="button"
+            aria-pressed={scope === key}
+            onClick={() => setScope(key)}
+            className={`rounded-lg px-3 py-2 text-xs font-bold ${scope === key ? 'bg-slate-900 text-white' : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
+          >
+            {SCOPE_LABELS[key]} ({counts[key]})
+          </button>
+        ))}
+      </div>
+
       {!canReview && (
         <p className="mb-4 rounded-lg bg-amber-50 p-3 text-sm font-semibold text-amber-800">
           Full transcripts require the messages.content.view permission. Contact a Super Admin for legal-review access.
@@ -102,14 +133,25 @@ const ConversationsTable: React.FC<ConversationsTableProps> = ({ canReview }) =>
       {loading ? (
         <p className="text-slate-600">Loading conversations…</p>
       ) : error ? null : filtered.length === 0 ? (
-        <p className="text-slate-600">{conversations.length === 0 ? 'No conversations yet.' : 'No conversations match this search.'}</p>
+        <p className="text-slate-600">
+          {conversations.length === 0
+            ? 'No conversations yet.'
+            : query.trim()
+              ? 'No conversations match this search.'
+              : scope === 'admin'
+                ? 'No admin message threads yet.'
+                : scope === 'client'
+                  ? 'No client conversations yet.'
+                  : 'No conversations yet.'}
+        </p>
       ) : (
         <div className="overflow-x-auto">
           <table className={tableClass}>
-            <caption className="sr-only">Conversations between users, most recent activity first</caption>
+            <caption className="sr-only">{SCOPE_LABELS[scope]}, most recent activity first</caption>
             <thead>
               <tr>
                 <th scope="col" className={thClass}>#</th>
+                <th scope="col" className={thClass}>Type</th>
                 <th scope="col" className={thClass}>Participants</th>
                 <th scope="col" className={thClass}>Last message</th>
                 <th scope="col" className={thClass}>Last activity</th>
@@ -119,8 +161,16 @@ const ConversationsTable: React.FC<ConversationsTableProps> = ({ canReview }) =>
             </thead>
             <tbody>
               {filtered.map((conversation, index) => (
-                <tr key={conversation.id} className={selected?.id === conversation.id ? 'bg-slate-50' : undefined}>
+                <tr key={`${conversation.id}-${conversation.archiveId ?? ''}`} className={selected?.id === conversation.id ? 'bg-slate-50' : undefined}>
                   <td className={tdClass}>{index + 1}</td>
+                  <td className={`${tdClass} whitespace-nowrap`}>
+                    {conversation.kind === 'admin' ? (
+                      <span className="rounded bg-indigo-100 px-2 py-1 text-xs font-bold text-indigo-800">Admin message</span>
+                    ) : (
+                      <span className="rounded bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700">Client</span>
+                    )}
+                    {conversation.archived && <span className="ml-2 rounded bg-red-100 px-2 py-1 text-xs font-bold text-red-800">Deleted</span>}
+                  </td>
                   <td className={tdClass}>
                     <div className="font-bold">{conversation.participantNames[0]}</div>
                     <div className="text-xs text-slate-500">with {conversation.participantNames[1]}</div>
@@ -148,7 +198,9 @@ const ConversationsTable: React.FC<ConversationsTableProps> = ({ canReview }) =>
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div>
               <h3 id="transcript-heading" className="text-base font-black text-slate-900">Full conversation transcript</h3>
-              <p className="text-sm text-slate-600">{selected.participantNames.join(' · ')} · Read-only legal review</p>
+              <p className="text-sm text-slate-600">
+                {selected.kind === 'admin' ? 'Admin message thread' : 'Client conversation'} · {selected.participantNames.join(' · ')} · Read-only legal review
+              </p>
             </div>
             <button type="button" onClick={() => setSelected(null)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700">Close transcript</button>
           </div>
@@ -165,6 +217,7 @@ const ConversationsTable: React.FC<ConversationsTableProps> = ({ canReview }) =>
                   <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2 text-xs">
                     <div className="flex items-center gap-2">
                       <strong className="text-slate-900">{message.senderName}</strong>
+                      {message.adminBroadcast && <span className="rounded bg-indigo-100 px-2 py-0.5 font-bold text-indigo-800">Admin broadcast</span>}
                       {message.deleted && <span className="rounded bg-red-700 px-2 py-0.5 font-black uppercase tracking-wide text-white">Deleted</span>}
                     </div>
                     <span className="text-slate-500">{formatDate(message.timestamp)} · {message.type}</span>
